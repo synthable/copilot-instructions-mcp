@@ -10,10 +10,9 @@ import {
   ListPromptsRequestSchema,
   GetPromptRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
-import { URL } from "node:url";
 import { Command } from "commander";
+import express from "express";
 
 const server = new Server(
   {
@@ -202,34 +201,29 @@ async function runHttp(port: number = 3000) {
   
   await server.connect(transport);
   
-  const httpServer = createServer(async (req, res) => {
-    if (req.method === 'POST' || req.method === 'GET' || req.method === 'DELETE') {
-      let body = '';
-      if (req.method === 'POST') {
-        req.on('data', chunk => {
-          body += chunk.toString();
-        });
-        req.on('end', async () => {
-          let parsedBody;
-          try {
-            parsedBody = body ? JSON.parse(body) : undefined;
-          } catch (e) {
-            res.writeHead(400, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Invalid JSON' }));
-            return;
-          }
-          await transport.handleRequest(req, res, parsedBody);
-        });
+  const app = express();
+  
+  // Middleware to parse JSON bodies
+  app.use(express.json());
+  
+  // Middleware to handle raw body for MCP transport
+  app.use(express.raw({ type: 'application/json' }));
+  
+  // Handle all HTTP methods for MCP transport
+  app.all('*', async (req, res) => {
+    try {
+      const parsedBody = req.body ? JSON.parse(req.body.toString()) : undefined;
+      await transport.handleRequest(req, res, parsedBody);
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        res.status(400).json({ error: 'Invalid JSON' });
       } else {
         await transport.handleRequest(req, res);
       }
-    } else {
-      res.writeHead(405, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Method not allowed' }));
     }
   });
   
-  httpServer.listen(port, () => {
+  app.listen(port, () => {
     console.error(`Simple MCP Server running on http://localhost:${port}`);
   });
 }
@@ -237,61 +231,53 @@ async function runHttp(port: number = 3000) {
 async function runSSE(port: number = 3000) {
   const sessions = new Map<string, SSEServerTransport>();
   
-  const httpServer = createServer(async (req, res) => {
-    const url = new URL(req.url || '', `http://localhost:${port}`);
-    const sessionId = url.searchParams.get('sessionId') || randomUUID();
+  const app = express();
+  
+  // Middleware to parse JSON bodies
+  app.use(express.json());
+  
+  // GET endpoint for SSE connections
+  app.get('/sse', async (req, res) => {
+    const sessionId = (req.query.sessionId as string) || randomUUID();
     
-    if (req.method === 'GET' && url.pathname === '/sse') {
-      // Start SSE connection
-      const transport = new SSEServerTransport(`/message/${sessionId}`, res);
-      sessions.set(sessionId, transport);
-      
-      await server.connect(transport);
-      await transport.start();
-      
-      console.error(`SSE session started: ${sessionId}`);
-      
-      transport.onclose = () => {
-        sessions.delete(sessionId);
-        console.error(`SSE session closed: ${sessionId}`);
-      };
-      
-    } else if (req.method === 'POST' && url.pathname.startsWith('/message/')) {
-      // Handle incoming messages
-      const sessionId = url.pathname.split('/').pop();
-      const transport = sessions.get(sessionId || '');
-      
-      if (!transport) {
-        res.writeHead(404, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Session not found' }));
-        return;
-      }
-      
-      let body = '';
-      req.on('data', chunk => {
-        body += chunk.toString();
-      });
-      
-      req.on('end', async () => {
-        let parsedBody;
-        try {
-          parsedBody = body ? JSON.parse(body) : undefined;
-        } catch (e) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Invalid JSON' }));
-          return;
-        }
-        
-        await transport.handlePostMessage(req, res, parsedBody);
-      });
-      
-    } else {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Not found' }));
+    // Start SSE connection
+    const transport = new SSEServerTransport(`/message/${sessionId}`, res);
+    sessions.set(sessionId, transport);
+    
+    await server.connect(transport);
+    await transport.start();
+    
+    console.error(`SSE session started: ${sessionId}`);
+    
+    transport.onclose = () => {
+      sessions.delete(sessionId);
+      console.error(`SSE session closed: ${sessionId}`);
+    };
+  });
+  
+  // POST endpoint for incoming messages
+  app.post('/message/:sessionId', async (req, res) => {
+    const sessionId = req.params.sessionId;
+    const transport = sessions.get(sessionId);
+    
+    if (!transport) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+    
+    try {
+      await transport.handlePostMessage(req, res, req.body);
+    } catch (error) {
+      res.status(400).json({ error: 'Invalid request' });
     }
   });
   
-  httpServer.listen(port, () => {
+  // 404 handler for all other routes
+  app.use('*', (_req, res) => {
+    res.status(404).json({ error: 'Not found' });
+  });
+  
+  app.listen(port, () => {
     console.error(`Simple MCP Server with SSE running on http://localhost:${port}`);
     console.error(`Connect to SSE stream at: http://localhost:${port}/sse`);
   });
