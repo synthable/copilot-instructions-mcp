@@ -25,6 +25,8 @@ export default tseslint.config(
       },
     },
   },
+
+  // vitest
   {
     files: ['**/*.{test,spec}.{js,ts,tsx}'],
     ...vitest.configs.recommended,
