@@ -13,6 +13,71 @@ import {
 import { randomUUID } from "node:crypto";
 import { Command } from "commander";
 import express from "express";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+// Interface for instruction module data
+interface InstructionModule {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  subcategory?: string;
+  filePath: string;
+}
+
+// Function to parse instruction modules from README
+function parseInstructionModules(): InstructionModule[] {
+  try {
+    const readmePath = join(process.cwd(), 'instructions-modules', 'README.md');
+    const content = readFileSync(readmePath, 'utf-8');
+    const modules: InstructionModule[] = [];
+    
+    const lines = content.split('\n');
+    let currentCategory = '';
+    let currentSubcategory = '';
+    
+    for (const line of lines) {
+      // Match main categories (## Title)
+      const categoryMatch = line.match(/^## (.+)$/);
+      if (categoryMatch) {
+        currentCategory = categoryMatch[1];
+        currentSubcategory = '';
+        continue;
+      }
+      
+      // Match subcategories (- **Title**)
+      const subcategoryMatch = line.match(/^- \*\*(.+)\*\*$/);
+      if (subcategoryMatch) {
+        currentSubcategory = subcategoryMatch[1];
+        continue;
+      }
+      
+      // Match module entries with links and descriptions
+      const moduleMatch = line.match(/^\s*- \[([^\]]+)\]\(([^)]+)\) - (.+)$/);
+      if (moduleMatch) {
+        const [, name, filePath, description] = moduleMatch;
+        
+        // Generate ID from file path
+        const id = filePath.replace(/\.md$/, '').replace(/\//g, '.');
+        
+        modules.push({
+          id,
+          name,
+          description,
+          category: currentCategory,
+          ...(currentSubcategory && { subcategory: currentSubcategory }),
+          filePath
+        });
+      }
+    }
+    
+    return modules;
+  } catch (error) {
+    console.error('Error parsing instruction modules:', error);
+    return [];
+  }
+}
 
 const server = new Server(
   {
@@ -71,6 +136,19 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {},
         },
       },
+      {
+        name: "list_instruction_modules",
+        description: "List all instruction modules with their ID, name, description, and category in JSON format",
+        inputSchema: {
+          type: "object",
+          properties: {
+            category: {
+              type: "string",
+              description: "Optional filter by category (Foundation, Principle, Technology, Execution)",
+            },
+          },
+        },
+      },
     ],
   };
 });
@@ -109,6 +187,38 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           },
         ],
       };
+
+    case "list_instruction_modules":
+      try {
+        const modules = parseInstructionModules();
+        const categoryFilter = args?.['category'] as string;
+        
+        // Filter by category if specified
+        const filteredModules = categoryFilter 
+          ? modules.filter(m => m.category.toLowerCase() === categoryFilter.toLowerCase())
+          : modules;
+        
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(filteredModules, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ 
+                error: `Failed to parse instruction modules: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                modules: []
+              }, null, 2),
+            },
+          ],
+        };
+      }
 
     default:
       throw new Error(`Unknown tool: ${name}`);
