@@ -335,46 +335,6 @@ function setupServerHandlers(serverInstance: Server) {
     return {
       tools: [
         {
-          name: "echo",
-          description: "Echo back the provided text",
-          inputSchema: {
-            type: "object",
-            properties: {
-              text: {
-                type: "string",
-                description: "Text to echo back",
-              },
-            },
-            required: ["text"],
-          },
-        },
-        {
-          name: "add",
-          description: "Add two numbers together",
-          inputSchema: {
-            type: "object",
-            properties: {
-              a: {
-                type: "number",
-                description: "First number",
-              },
-              b: {
-                type: "number",
-                description: "Second number",
-              },
-            },
-            required: ["a", "b"],
-          },
-        },
-        {
-          name: "get_current_time",
-          description: "Get the current time",
-          inputSchema: {
-            type: "object",
-            properties: {},
-          },
-        },
-        {
           name: "list_instruction_modules",
           description: "List all instruction modules with their ID, name, description, and category in JSON format",
           inputSchema: {
@@ -430,37 +390,6 @@ function setupServerHandlers(serverInstance: Server) {
     const { name, arguments: args } = request.params;
 
     switch (name) {
-      case "echo":
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Echo: ${args?.text }`,
-            },
-          ],
-        };
-
-      case "add":
-        const sum = (args?.a as number) + (args?.b as number);
-        return {
-          content: [
-            {
-              type: "text",
-              text: `${args?.a} + ${args?.b} = ${sum}`,
-            },
-          ],
-        };
-
-      case "get_current_time":
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Current time: ${new Date().toISOString()}`,
-            },
-          ],
-        };
-
       case "list_instruction_modules":
         try {
           const modules = parseInstructionModules();
