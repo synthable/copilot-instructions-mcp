@@ -549,71 +549,88 @@ function setupServerHandlers(serverInstance: Server) {
     return {
       prompts: [
         {
-          name: "greeting",
-          description: "A friendly greeting prompt",
-          arguments: [
-            {
-              name: "name",
-              description: "Name of the person to greet",
-              required: true,
-            },
-          ],
+          name: "bootstrap-prompt",
+          description: "Comprehensive bootstrap prompt for dynamic system prompt generation with MCP instruction modules",
+          arguments: [],
         },
         {
-          name: "summarize",
-          description: "Summarize the given text",
-          arguments: [
-            {
-              name: "text",
-              description: "Text to summarize",
-              required: true,
-            },
-            {
-              name: "max_length",
-              description: "Maximum length of summary",
-              required: false,
-            },
-          ],
+          name: "system-prompt-generator",
+          description: "Focused prompt for production AI assistants with dynamic capability enhancement",
+          arguments: [],
+        },
+        {
+          name: "concise-integration",
+          description: "Minimal prompt for adding MCP capabilities to existing prompts",
+          arguments: [],
+        },
+        {
+          name: "persona-builder",
+          description: "Specialized prompt for creating well-structured personas following the four-tier philosophy",
+          arguments: [],
         },
       ],
     };
   });
 
   serverInstance.setRequestHandler(GetPromptRequestSchema, async (request) => {
-    const { name, arguments: args } = request.params;
+    const { name } = request.params;
 
-    switch (name) {
-      case "greeting":
-        return {
-          description: "A friendly greeting",
-          messages: [
-            {
-              role: "user",
-              content: {
-                type: "text",
-                text: `Hello ${args?.['name'] || "there"}! How are you doing today?`,
-              },
+    try {
+      let promptPath: string;
+      let description: string;
+
+      switch (name) {
+        case "bootstrap-prompt":
+          promptPath = join(process.cwd(), 'docs', 'bootstrap-prompt.md');
+          description = "Comprehensive bootstrap prompt for dynamic system prompt generation with MCP instruction modules";
+          break;
+
+        case "system-prompt-generator":
+          promptPath = join(process.cwd(), 'docs', 'system-prompt-generator.md');
+          description = "Focused prompt for production AI assistants with dynamic capability enhancement";
+          break;
+
+        case "concise-integration":
+          promptPath = join(process.cwd(), 'docs', 'concise-mcp-prompt.md');
+          description = "Minimal prompt for adding MCP capabilities to existing prompts";
+          break;
+
+        case "persona-builder":
+          promptPath = join(process.cwd(), 'docs', 'persona-builder-prompt.md');
+          description = "Specialized prompt for creating well-structured personas following the four-tier philosophy";
+          break;
+
+        default:
+          throw new Error(`Unknown prompt: ${name}`);
+      }
+
+      if (!existsSync(promptPath)) {
+        throw new Error(`Prompt file not found: ${promptPath}`);
+      }
+
+      const promptContent = readFileSync(promptPath, 'utf-8');
+      
+      // Update tool names to match our actual MCP tools
+      const updatedContent = promptContent
+        .replace(/list_modules/g, 'list_instruction_modules')
+        .replace(/module_discovery/g, 'search_instruction_modules')
+        .replace(/module_compile/g, 'get_modules_content')
+        .replace(/moduleIds/g, 'moduleIds');
+
+      return {
+        description,
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text: updatedContent,
             },
-          ],
-        };
-
-      case "summarize":
-        const maxLength = args?.['max_length'] ? ` in no more than ${args['max_length']} words` : "";
-        return {
-          description: "Summarize the provided text",
-          messages: [
-            {
-              role: "user",
-              content: {
-                type: "text",
-                text: `Please summarize the following text${maxLength}:\n\n${args?.['text']}`,
-              },
-            },
-          ],
-        };
-
-      default:
-        throw new Error(`Unknown prompt: ${name}`);
+          },
+        ],
+      };
+    } catch (error) {
+      throw new Error(`Failed to load prompt: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   });
 }

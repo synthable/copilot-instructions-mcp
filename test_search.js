@@ -181,6 +181,35 @@ const testCases = [
       toolDescription: "Get the combined content of multiple instruction modules",
       requiredParams: ["moduleIds"]
     }
+  },
+  {
+    name: "Prompt listing includes bootstrap prompts",
+    query: {
+      jsonrpc: "2.0",
+      id: 10,
+      method: "prompts/list"
+    },
+    expectations: {
+      promptExists: "bootstrap-prompt",
+      promptDescription: "Comprehensive bootstrap prompt for dynamic system prompt generation",
+      hasPrompts: ["system-prompt-generator", "concise-integration", "persona-builder"]
+    }
+  },
+  {
+    name: "Get concise integration prompt",
+    query: {
+      jsonrpc: "2.0",
+      id: 11,
+      method: "prompts/get",
+      params: {
+        name: "concise-integration"
+      }
+    },
+    expectations: {
+      hasPromptContent: true,
+      promptDescription: "Minimal prompt for adding MCP capabilities",
+      contentContains: ["list_instruction_modules", "search_instruction_modules", "get_modules_content"]
+    }
   }
 ];
 
@@ -290,6 +319,63 @@ function validateSearchResult(result, expectations) {
       }
     }
     
+    return errors;
+  }
+
+  // Handle prompt-specific validations
+  if (expectations.promptExists) {
+    const prompts = result.result?.prompts;
+    if (!prompts) {
+      errors.push("Expected prompts array in response");
+      return errors;
+    }
+    
+    const searchPrompt = prompts.find(prompt => prompt.name === expectations.promptExists);
+    if (!searchPrompt) {
+      errors.push(`Expected prompt "${expectations.promptExists}" not found`);
+    } else {
+      if (expectations.promptDescription && !searchPrompt.description.includes(expectations.promptDescription)) {
+        errors.push(`Prompt description doesn't contain "${expectations.promptDescription}"`);
+      }
+    }
+
+    if (expectations.hasPrompts) {
+      for (const promptName of expectations.hasPrompts) {
+        const prompt = prompts.find(p => p.name === promptName);
+        if (!prompt) {
+          errors.push(`Expected prompt "${promptName}" not found in prompts list`);
+        }
+      }
+    }
+    
+    return errors;
+  }
+
+  if (expectations.hasPromptContent) {
+    const messages = result.result?.messages;
+    if (!messages || messages.length === 0) {
+      errors.push("Expected messages array in prompt response");
+      return errors;
+    }
+
+    const content = messages[0]?.content?.text;
+    if (!content) {
+      errors.push("Expected text content in prompt message");
+      return errors;
+    }
+
+    if (expectations.promptDescription && !result.result.description.includes(expectations.promptDescription)) {
+      errors.push(`Prompt description doesn't contain "${expectations.promptDescription}"`);
+    }
+
+    if (expectations.contentContains) {
+      for (const expectedText of expectations.contentContains) {
+        if (!content.includes(expectedText)) {
+          errors.push(`Prompt content does not contain expected text: "${expectedText}"`);
+        }
+      }
+    }
+
     return errors;
   }
 
