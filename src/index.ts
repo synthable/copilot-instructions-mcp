@@ -13,7 +13,7 @@ import {
 import { randomUUID } from "node:crypto";
 import { Command } from "commander";
 import express from "express";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 // Interface for instruction module data
@@ -24,6 +24,13 @@ interface InstructionModule {
   category: string;
   subcategory?: string;
   filePath: string;
+}
+
+// Interface for search results
+interface SearchResult extends InstructionModule {
+  score: number;
+  matchedFields: string[];
+  contentMatches?: string[];
 }
 
 // Function to parse instruction modules from README
@@ -77,6 +84,142 @@ function parseInstructionModules(): InstructionModule[] {
     console.error('Error parsing instruction modules:', error);
     return [];
   }
+}
+
+// Simple fuzzy search algorithm using Levenshtein distance
+function calculateFuzzyScore(searchTerm: string, target: string): number {
+  const search = searchTerm.toLowerCase();
+  const text = target.toLowerCase();
+  
+  // Exact match gets highest score
+  if (text.includes(search)) {
+    return 1.0;
+  }
+  
+  // Calculate Levenshtein distance for fuzzy matching
+  const matrix: number[][] = [];
+  const searchLen = search.length;
+  const textLen = text.length;
+  
+  // Initialize matrix
+  for (let i = 0; i <= textLen; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= searchLen; j++) {
+    matrix[0][j] = j;
+  }
+  
+  // Fill matrix
+  for (let i = 1; i <= textLen; i++) {
+    for (let j = 1; j <= searchLen; j++) {
+      if (text[i - 1] === search[j - 1]) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j] + 1,     // deletion
+          matrix[i][j - 1] + 1,     // insertion
+          matrix[i - 1][j - 1] + 1  // substitution
+        );
+      }
+    }
+  }
+  
+  const distance = matrix[textLen][searchLen];
+  const maxLen = Math.max(searchLen, textLen);
+  
+  // Convert distance to score (0-1, where 1 is perfect match)
+  return Math.max(0, 1 - (distance / maxLen));
+}
+
+// Search instruction modules with fuzzy matching
+function searchInstructionModules(searchTerms: string[]): SearchResult[] {
+  const modules = parseInstructionModules();
+  const results: SearchResult[] = [];
+  
+  for (const module of modules) {
+    let totalScore = 0;
+    const matchedFields: string[] = [];
+    const contentMatches: string[] = [];
+    
+    // Search in each field
+    for (const term of searchTerms) {
+      let fieldScore = 0;
+      
+      // Search in name (weighted higher)
+      const nameScore = calculateFuzzyScore(term, module.name) * 2;
+      if (nameScore > 0.3) {
+        fieldScore += nameScore;
+        if (!matchedFields.includes('name')) matchedFields.push('name');
+      }
+      
+      // Search in description
+      const descScore = calculateFuzzyScore(term, module.description) * 1.5;
+      if (descScore > 0.3) {
+        fieldScore += descScore;
+        if (!matchedFields.includes('description')) matchedFields.push('description');
+      }
+      
+      // Search in category
+      const catScore = calculateFuzzyScore(term, module.category);
+      if (catScore > 0.3) {
+        fieldScore += catScore;
+        if (!matchedFields.includes('category')) matchedFields.push('category');
+      }
+      
+      // Search in subcategory if exists
+      if (module.subcategory) {
+        const subCatScore = calculateFuzzyScore(term, module.subcategory);
+        if (subCatScore > 0.3) {
+          fieldScore += subCatScore;
+          if (!matchedFields.includes('subcategory')) matchedFields.push('subcategory');
+        }
+      }
+      
+      // Search in file content
+      try {
+        const contentPath = join(process.cwd(), 'instructions-modules', module.filePath);
+        if (existsSync(contentPath)) {
+          const content = readFileSync(contentPath, 'utf-8');
+          const contentScore = calculateFuzzyScore(term, content) * 0.8;
+          
+          if (contentScore > 0.2) {
+            fieldScore += contentScore;
+            if (!matchedFields.includes('content')) matchedFields.push('content');
+            
+            // Extract context around matches for content preview
+            const lines = content.split('\n');
+            for (let i = 0; i < lines.length; i++) {
+              if (calculateFuzzyScore(term, lines[i]) > 0.3) {
+                const start = Math.max(0, i - 1);
+                const end = Math.min(lines.length, i + 2);
+                const context = lines.slice(start, end).join(' ').trim();
+                if (context.length > 0 && !contentMatches.includes(context)) {
+                  contentMatches.push(context.substring(0, 200) + (context.length > 200 ? '...' : ''));
+                }
+              }
+            }
+          }
+        }
+      } catch (error) {
+        // Skip content search if file can't be read
+      }
+      
+      totalScore += fieldScore;
+    }
+    
+    // Only include results with meaningful matches
+    if (totalScore > 0.5 && matchedFields.length > 0) {
+      results.push({
+        ...module,
+        score: totalScore / searchTerms.length, // Average score across terms
+        matchedFields,
+        ...(contentMatches.length > 0 && { contentMatches })
+      });
+    }
+  }
+  
+  // Sort by score (highest first)
+  return results.sort((a, b) => b.score - a.score);
 }
 
 const server = new Server(
@@ -189,6 +332,24 @@ function setupServerHandlers(serverInstance: Server) {
             },
           },
         },
+        {
+          name: "search_instruction_modules",
+          description: "Search instruction modules using fuzzy matching on names, descriptions, and content",
+          inputSchema: {
+            type: "object",
+            properties: {
+              query: {
+                type: "string",
+                description: "Search query - can be multiple terms separated by spaces",
+              },
+              limit: {
+                type: "number",
+                description: "Maximum number of results to return (default: 10)",
+              },
+            },
+            required: ["query"],
+          },
+        },
       ],
     };
   });
@@ -254,6 +415,62 @@ function setupServerHandlers(serverInstance: Server) {
                 text: JSON.stringify({ 
                   error: `Failed to parse instruction modules: ${error instanceof Error ? error.message : 'Unknown error'}`,
                   modules: []
+                }, null, 2),
+              },
+            ],
+          };
+        }
+
+      case "search_instruction_modules":
+        try {
+          const query = args?.['query'] as string;
+          const limit = (args?.['limit'] as number) || 10;
+          
+          if (!query || query.trim().length === 0) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify({ 
+                    error: "Search query cannot be empty",
+                    results: []
+                  }, null, 2),
+                  
+                },
+              ],
+            };
+          }
+          
+          // Split query into search terms
+          const searchTerms = query.trim().split(/\s+/).filter(term => term.length > 0);
+          
+          // Perform fuzzy search
+          const searchResults = searchInstructionModules(searchTerms);
+          
+          // Limit results
+          const limitedResults = searchResults.slice(0, limit);
+          
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  query,
+                  totalResults: searchResults.length,
+                  returnedResults: limitedResults.length,
+                  results: limitedResults
+                }, null, 2),
+              },
+            ],
+          };
+        } catch (error) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({ 
+                  error: `Failed to search instruction modules: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                  results: []
                 }, null, 2),
               },
             ],

@@ -11,7 +11,8 @@
     "start:http": "node dist/index.js http",
     "start:sse": "node dist/index.js sse",
     "dev": "tsc --watch",
-    "test": "vitest"
+    "test": "vitest",
+    "test:search": "npm run build && node test_search.js"
   },
   "keywords": [
     "mcp"
