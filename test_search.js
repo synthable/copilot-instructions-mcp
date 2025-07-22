@@ -106,6 +106,81 @@ const testCases = [
       toolDescription: "Search instruction modules using fuzzy matching",
       requiredParams: ["query"]
     }
+  },
+  {
+    name: "Get modules content with valid IDs",
+    query: {
+      jsonrpc: "2.0",
+      id: 6,
+      method: "tools/call",
+      params: {
+        name: "get_modules_content",
+        arguments: {
+          moduleIds: ["principle.testing.testing-pyramid", "technology.testing.jest.mocking"]
+        }
+      }
+    },
+    expectations: {
+      successResponse: true,
+      hasContent: true,
+      requestedModules: 2,
+      processedModules: 2,
+      contentContains: ["# The Testing Pyramid", "# Jest Mocking", "**ID:** `principle.testing.testing-pyramid`"]
+    }
+  },
+  {
+    name: "Get modules content with invalid ID",
+    query: {
+      jsonrpc: "2.0",
+      id: 7,
+      method: "tools/call",
+      params: {
+        name: "get_modules_content",
+        arguments: {
+          moduleIds: ["invalid.module.id", "principle.testing.testing-pyramid"]
+        }
+      }
+    },
+    expectations: {
+      successResponse: true,
+      hasContent: true,
+      hasErrors: true,
+      requestedModules: 2,
+      processedModules: 1,
+      errorContains: "Module with ID \"invalid.module.id\" not found"
+    }
+  },
+  {
+    name: "Get modules content with empty array",
+    query: {
+      jsonrpc: "2.0",
+      id: 8,
+      method: "tools/call",
+      params: {
+        name: "get_modules_content",
+        arguments: {
+          moduleIds: []
+        }
+      }
+    },
+    expectations: {
+      hasError: true,
+      errorMessage: "moduleIds array cannot be empty",
+      failureResponse: true
+    }
+  },
+  {
+    name: "Tool listing includes get_modules_content tool",
+    query: {
+      jsonrpc: "2.0",
+      id: 9,
+      method: "tools/list"
+    },
+    expectations: {
+      toolExists: "get_modules_content",
+      toolDescription: "Get the combined content of multiple instruction modules",
+      requiredParams: ["moduleIds"]
+    }
   }
 ];
 
@@ -218,13 +293,79 @@ function validateSearchResult(result, expectations) {
     return errors;
   }
 
-  // Parse search results
+  // Parse search results or modules content results  
   if (!result.result?.content?.[0]?.text) {
     errors.push("Expected search result content");
     return errors;
   }
 
   const searchData = JSON.parse(result.result.content[0].text);
+
+  // Handle get_modules_content specific validations
+  if (expectations.successResponse !== undefined) {
+    if (expectations.successResponse && !searchData.success) {
+      errors.push("Expected successful response but got failure");
+    } else if (!expectations.successResponse && searchData.success) {
+      errors.push("Expected failure response but got success");
+    }
+  }
+
+  if (expectations.failureResponse !== undefined) {
+    if (expectations.failureResponse && searchData.success) {
+      errors.push("Expected failure response but got success");
+    }
+  }
+
+  if (expectations.hasContent !== undefined) {
+    if (expectations.hasContent && !searchData.content) {
+      errors.push("Expected content field in response");
+    } else if (!expectations.hasContent && searchData.content) {
+      errors.push("Expected no content field in response");
+    }
+  }
+
+  if (expectations.hasErrors !== undefined) {
+    if (expectations.hasErrors && !searchData.errors) {
+      errors.push("Expected errors field in response");
+    } else if (!expectations.hasErrors && searchData.errors) {
+      errors.push("Expected no errors field in response");
+    }
+  }
+
+  if (expectations.requestedModules !== undefined) {
+    if (searchData.requestedModules !== expectations.requestedModules) {
+      errors.push(`Expected ${expectations.requestedModules} requested modules, got ${searchData.requestedModules}`);
+    }
+  }
+
+  if (expectations.processedModules !== undefined) {
+    if (searchData.processedModules !== expectations.processedModules) {
+      errors.push(`Expected ${expectations.processedModules} processed modules, got ${searchData.processedModules}`);
+    }
+  }
+
+  if (expectations.contentContains) {
+    if (!searchData.content) {
+      errors.push("Expected content field for contentContains check");
+    } else {
+      for (const expectedText of expectations.contentContains) {
+        if (!searchData.content.includes(expectedText)) {
+          errors.push(`Content does not contain expected text: "${expectedText}"`);
+        }
+      }
+    }
+  }
+
+  if (expectations.errorContains) {
+    if (!searchData.errors || searchData.errors.length === 0) {
+      errors.push("Expected errors for errorContains check");
+    } else {
+      const found = searchData.errors.some(error => error.includes(expectations.errorContains));
+      if (!found) {
+        errors.push(`Errors do not contain expected text: "${expectations.errorContains}"`);
+      }
+    }
+  }
 
   // Validate total results
   if (expectations.totalResults) {

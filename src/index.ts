@@ -222,6 +222,61 @@ function searchInstructionModules(searchTerms: string[]): SearchResult[] {
   return results.sort((a, b) => b.score - a.score);
 }
 
+// Get content of multiple modules by their IDs
+function getModulesContent(moduleIds: string[]): { success: boolean; content?: string; errors?: string[] } {
+  const modules = parseInstructionModules();
+  const moduleMap = new Map(modules.map(m => [m.id, m]));
+  
+  const errors: string[] = [];
+  const contents: string[] = [];
+  
+  for (const moduleId of moduleIds) {
+    const module = moduleMap.get(moduleId);
+    
+    if (!module) {
+      errors.push(`Module with ID "${moduleId}" not found`);
+      continue;
+    }
+    
+    try {
+      const contentPath = join(process.cwd(), 'instructions-modules', module.filePath);
+      
+      if (!existsSync(contentPath)) {
+        errors.push(`File not found for module "${moduleId}": ${module.filePath}`);
+        continue;
+      }
+      
+      const fileContent = readFileSync(contentPath, 'utf-8');
+      
+      // Format as markdown section with module info header
+      const moduleHeader = `# ${module.name}\n\n` +
+                          `**ID:** \`${module.id}\`  \n` +
+                          `**Category:** ${module.category}` +
+                          (module.subcategory ? ` > ${module.subcategory}` : '') + '  \n' +
+                          `**Description:** ${module.description}\n\n` +
+                          `---\n\n`;
+      
+      contents.push(moduleHeader + fileContent);
+      
+    } catch (error) {
+      errors.push(`Error reading module "${moduleId}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+  
+  if (contents.length === 0) {
+    return { success: false, errors };
+  }
+  
+  // Combine all contents with separators
+  const combinedContent = contents.join('\n\n---\n\n');
+  
+  return { 
+    success: true, 
+    content: combinedContent,
+    ...(errors.length > 0 && { errors })
+  };
+}
+
 const server = new Server(
   {
     name: "simple-mcp-server",
@@ -350,6 +405,23 @@ function setupServerHandlers(serverInstance: Server) {
             required: ["query"],
           },
         },
+        {
+          name: "get_modules_content",
+          description: "Get the combined content of multiple instruction modules by their IDs, formatted as markdown",
+          inputSchema: {
+            type: "object",
+            properties: {
+              moduleIds: {
+                type: "array",
+                items: {
+                  type: "string"
+                },
+                description: "Array of module IDs to retrieve content for",
+              },
+            },
+            required: ["moduleIds"],
+          },
+        },
       ],
     };
   });
@@ -471,6 +543,67 @@ function setupServerHandlers(serverInstance: Server) {
                 text: JSON.stringify({ 
                   error: `Failed to search instruction modules: ${error instanceof Error ? error.message : 'Unknown error'}`,
                   results: []
+                }, null, 2),
+              },
+            ],
+          };
+        }
+
+      case "get_modules_content":
+        try {
+          const moduleIds = args?.['moduleIds'] as string[];
+          
+          if (!moduleIds || !Array.isArray(moduleIds)) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify({ 
+                    error: "moduleIds must be provided as an array of strings",
+                    success: false
+                  }, null, 2),
+                },
+              ],
+            };
+          }
+          
+          if (moduleIds.length === 0) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify({ 
+                    error: "moduleIds array cannot be empty",
+                    success: false
+                  }, null, 2),
+                },
+              ],
+            };
+          }
+          
+          // Get the combined content
+          const result = getModulesContent(moduleIds);
+          
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  ...result,
+                  requestedModules: moduleIds.length,
+                  processedModules: result.success ? moduleIds.length - (result.errors?.length || 0) : 0
+                }, null, 2),
+              },
+            ],
+          };
+        } catch (error) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({ 
+                  error: `Failed to get modules content: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                  success: false
                 }, null, 2),
               },
             ],
