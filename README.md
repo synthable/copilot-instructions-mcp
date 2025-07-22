@@ -1,2 +1,188 @@
 # copilot-instructions-mcp
+
 An MCP (Model Context Protocol) server that provides AI assistants with access to a comprehensive library of instruction modules for dynamic capability enhancement.
+
+## Overview
+
+This server exposes 100+ instruction modules organized in a four-tier hierarchy (Foundation, Principle, Technology, Execution) through three MCP tools and four bootstrap prompts. AI assistants can dynamically discover, search, and compile modules to enhance their capabilities for specific tasks.
+
+## Features
+
+### MCP Tools
+- **`list_instruction_modules`** - List all available instruction modules with optional category filtering
+- **`search_instruction_modules`** - Fuzzy search across module names, descriptions, and content
+- **`get_modules_content`** - Combine multiple modules into formatted markdown documents
+
+### MCP Prompts
+- **`bootstrap-prompt`** - Comprehensive system prompt generation with dynamic module discovery
+- **`system-prompt-generator`** - Production AI assistant enhancement
+- **`concise-integration`** - Minimal MCP integration for existing prompts
+- **`persona-builder`** - Specialized persona development following four-tier philosophy
+
+### Transport Support
+- **stdio** (default) - For MCP Inspector and CLI clients
+- **HTTP** - For web applications using Streamable HTTP
+- **SSE** - Server-Sent Events (deprecated, use HTTP instead)
+
+## Quick Start
+
+### Installation
+```bash
+npm install
+```
+
+### Build
+```bash
+npm run build
+```
+
+### Run Server
+```bash
+# Default stdio transport (for MCP clients)
+npm start
+
+# HTTP transport on port 3000
+npm run start:http
+
+# HTTP transport on custom port
+node dist/index.js http --port 8000
+```
+
+### Test
+```bash
+# Run comprehensive test suite
+npm run test:search
+
+# Run unit tests
+npm test
+```
+
+## Usage with MCP Inspector
+
+1. Start the server:
+```bash
+npm run start:stdio
+```
+
+2. Connect MCP Inspector to `node dist/index.js stdio`
+
+3. Explore available tools and prompts through the inspector interface
+
+## Instruction Module Hierarchy
+
+The server organizes instruction modules in a four-tier philosophy:
+
+### Foundation (Layer 0-3)
+Core reasoning capabilities that must be ordered by layer:
+- **Layer 0-1**: Logic, reasoning, basic cognitive frameworks
+- **Layer 2**: Problem-solving, decision-making
+- **Layer 3**: Metacognition, communication, bias awareness
+
+### Principle
+Domain-specific best practices and methodologies:
+- Architecture patterns (microservices, hexagonal, etc.)
+- Quality practices (clean code, SOLID principles)
+- Testing strategies (TDD, testing pyramid)
+- Security principles (defense in depth, least privilege)
+
+### Technology  
+Concrete implementations for specific languages and frameworks:
+- Languages: TypeScript, Python, JavaScript
+- Frameworks: React, Next.js, Django, Angular
+- Platforms: AWS, Firebase, Vercel
+- Testing: Jest, Vitest, Cypress
+
+### Execution
+Step-by-step playbooks for common development tasks:
+- Debugging workflows
+- Code review processes
+- Refactoring procedures
+- Security audits
+
+## API Examples
+
+### Search for TypeScript modules
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "search_instruction_modules",
+    "arguments": {
+      "query": "typescript generics",
+      "limit": 5
+    }
+  }
+}
+```
+
+### Compile modules for a TypeScript developer persona
+```json
+{
+  "jsonrpc": "2.0", 
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "get_modules_content",
+    "arguments": {
+      "moduleIds": [
+        "foundation.reasoning.systems-thinking",
+        "principle.architecture.separation-of-concerns", 
+        "technology.language.typescript.effective-generics",
+        "execution.playbook.refactor-component"
+      ]
+    }
+  }
+}
+```
+
+### Get bootstrap prompt
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3, 
+  "method": "prompts/get",
+  "params": {
+    "name": "bootstrap-prompt"
+  }
+}
+```
+
+## Development
+
+### Project Structure
+```
+src/
+  index.ts           # Main MCP server implementation
+instructions-modules/ # Instruction module library
+  README.md          # Module registry and metadata
+  foundation/        # Core reasoning capabilities
+  principle/         # Best practices and methodologies  
+  technology/        # Language/framework specifics
+  execution/         # Step-by-step playbooks
+docs/                # Bootstrap prompts for AI enhancement
+  bootstrap-prompt.md
+  system-prompt-generator.md
+  concise-mcp-prompt.md
+  persona-builder-prompt.md
+test_search.js       # Comprehensive test suite
+```
+
+### Key Implementation Details
+
+- **Module Parsing**: Extracts metadata from `instructions-modules/README.md` using regex patterns
+- **Fuzzy Search**: Weighted Levenshtein distance algorithm with field-specific scoring
+- **Transport Abstraction**: Shared handlers across stdio, HTTP, and SSE transports
+- **Dynamic Prompt Loading**: Bootstrap prompts loaded from docs/ with tool name mapping
+
+### Adding New Modules
+
+1. Create the module file in the appropriate category directory
+2. Follow the three-section format: Context, Implementation, Validation
+3. Add an entry to `instructions-modules/README.md`
+4. Use machine-centric, imperative language for AI comprehension
+
+## License
+
+ISC

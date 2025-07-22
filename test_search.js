@@ -103,7 +103,7 @@ const testCases = [
     },
     expectations: {
       toolExists: "search_instruction_modules",
-      toolDescription: "Search instruction modules using fuzzy matching",
+      toolDescription: "Perform intelligent fuzzy search across all instruction modules",
       requiredParams: ["query"]
     }
   },
@@ -178,7 +178,7 @@ const testCases = [
     },
     expectations: {
       toolExists: "get_modules_content",
-      toolDescription: "Get the combined content of multiple instruction modules",
+      toolDescription: "Compile and combine multiple instruction modules into a cohesive markdown document",
       requiredParams: ["moduleIds"]
     }
   },
