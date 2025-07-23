@@ -1075,41 +1075,33 @@ const program = new Command();
 program
   .name('simple-mcp-server')
   .description('A simple MCP server with multiple transport options')
-  .version('1.0.0');
-
-program
-  .command('stdio')
-  .description('Run server with stdio transport (default)')
-  .action(() => {
-    runStdio().catch(console.error);
-  });
-
-program
-  .command('http')
-  .description('Run server with Streamable HTTP transport')
-  .option('-p, --port <port>', 'Port to listen on', '3000')
-  .action((options: { port: string }) => {
-    const port = parseInt(options.port, 10) || 3000;
-    runHttp(port).catch(console.error);
-  });
-
-program
-  .command('sse')
-  .description(
-    'Run server with Server-Sent Events transport (DEPRECATED - use http instead)'
+  .version('1.0.0')
+  .option(
+    '--transport <type>',
+    'Specify the transport type: stdio, http, or sse',
+    'stdio'
   )
-  .option('-p, --port <port>', 'Port to listen on', '3000')
-  .action((options: { port: string }) => {
-    const port = parseInt(options.port, 10) || 3000;
-    console.error(
-      'WARNING: SSE transport is deprecated. Use "http" command instead.'
-    );
-    runSSE(port);
+  .option('-p, --port <port>', 'Port to listen on for http or sse', '3000')
+  .action(options => {
+    const { transport, port } = options as { transport: string; port: string };
+
+    switch (transport) {
+      case 'http':
+        const httpPort = parseInt(port, 10) || 3000;
+        runHttp(httpPort).catch(console.error);
+        break;
+      case 'sse':
+        const ssePort = parseInt(port, 10) || 3000;
+        console.error(
+          'WARNING: SSE transport is deprecated. Use "http" instead.'
+        );
+        runSSE(ssePort);
+        break;
+      case 'stdio':
+      default:
+        runStdio().catch(console.error);
+        break;
+    }
   });
 
-// Handle case where no command is provided (default to stdio)
-if (process.argv.length <= 2) {
-  runStdio().catch(console.error);
-} else {
-  program.parse();
-}
+program.parse();
