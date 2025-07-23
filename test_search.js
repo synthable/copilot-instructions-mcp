@@ -68,7 +68,7 @@ const testCases = [
     },
     expectations: {
       hasError: true,
-      errorMessage: "Search query cannot be empty",
+      errorMessage: "Failed to search instruction modules: Search query must be a non-empty string",
       emptyResults: true
     }
   },
@@ -165,7 +165,7 @@ const testCases = [
     },
     expectations: {
       hasError: true,
-      errorMessage: "moduleIds array cannot be empty",
+      errorMessage: "Failed to get modules content: At least one module ID is required",
       failureResponse: true
     }
   },

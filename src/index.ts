@@ -14,12 +14,162 @@ import { randomUUID } from 'node:crypto';
 import { Command } from 'commander';
 import express from 'express';
 import { readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve, relative } from 'node:path';
 
 let debugEnabled = false;
 
 let _cachedInstructionModules: InstructionModule[] | null = null;
 
+// Configuration constants
+const CONFIG = {
+  MAX_SEARCH_LIMIT: 50,
+  MIN_SEARCH_LIMIT: 1,
+  DEFAULT_SEARCH_LIMIT: 10,
+  MAX_MODULE_IDS: 20,
+  SCORING: {
+    NAME_WEIGHT: 2.0,
+    DESCRIPTION_WEIGHT: 1.5,
+    CATEGORY_WEIGHT: 1.0,
+    CONTENT_WEIGHT: 0.8,
+    MIN_FIELD_SCORE: 0.3,
+    MIN_CONTENT_SCORE: 0.2,
+    MIN_TOTAL_SCORE: 0.5,
+  },
+} as const;
+
+function createJsonResponse(data: unknown) {
+  return {
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify(data, null, 2),
+      },
+    ],
+  };
+}
+
+/**
+ * Validates and sanitizes file paths to prevent path traversal attacks
+ */
+function validateFilePath(filePath: string, baseDir: string): string {
+  if (!filePath || typeof filePath !== 'string') {
+    throw new Error('File path must be a non-empty string');
+  }
+
+  // Resolve the full path and check it's within baseDir
+  const fullPath = resolve(baseDir, filePath);
+  const relativePath = relative(baseDir, fullPath);
+
+  // Check for path traversal attempts
+  if (relativePath.startsWith('..') || resolve(baseDir, relativePath) !== fullPath) {
+    throw new Error('Invalid file path: path traversal detected');
+  }
+
+  return fullPath;
+}
+
+/**
+ * Validates search query parameters
+ */
+function validateSearchQuery(query: unknown): string {
+  if (!query || typeof query !== 'string') {
+    throw new Error('Search query must be a non-empty string');
+  }
+
+  const trimmed = query.trim();
+  if (trimmed.length === 0) {
+    throw new Error('Search query cannot be empty');
+  }
+
+  if (trimmed.length > 500) {
+    throw new Error('Search query too long (max 500 characters)');
+  }
+
+  return trimmed;
+}
+
+/**
+ * Validates search limit parameter
+ */
+function validateSearchLimit(limit: unknown): number {
+  if (limit === undefined || limit === null) {
+    return CONFIG.DEFAULT_SEARCH_LIMIT;
+  }
+
+  if (typeof limit !== 'number' || !Number.isInteger(limit)) {
+    throw new Error('Search limit must be an integer');
+  }
+
+  if (limit < CONFIG.MIN_SEARCH_LIMIT || limit > CONFIG.MAX_SEARCH_LIMIT) {
+    throw new Error(`Search limit must be between ${CONFIG.MIN_SEARCH_LIMIT.toString()} and ${CONFIG.MAX_SEARCH_LIMIT.toString()}`);
+  }
+
+  return limit;
+}
+
+/**
+ * Validates category filter parameter
+ */
+function validateCategoryFilter(category: unknown): string | null {
+  if (category === undefined || category === null) {
+    return null;
+  }
+
+  if (typeof category !== 'string') {
+    throw new Error('Category filter must be a string');
+  }
+
+  const trimmed = category.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+
+  const validCategories = ['Foundation', 'Principle', 'Technology', 'Execution'];
+  const normalizedCategory = trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+  
+  if (!validCategories.includes(normalizedCategory)) {
+    throw new Error(`Invalid category. Must be one of: ${validCategories.join(', ')}`);
+  }
+
+  return normalizedCategory;
+}
+
+/**
+ * Validates module IDs array parameter
+ */
+function validateModuleIds(moduleIds: unknown): string[] {
+  if (!Array.isArray(moduleIds)) {
+    throw new Error('moduleIds must be an array');
+  }
+
+  if (moduleIds.length === 0) {
+    throw new Error('At least one module ID is required');
+  }
+
+  if (moduleIds.length > CONFIG.MAX_MODULE_IDS) {
+    throw new Error(`Too many module IDs (max ${CONFIG.MAX_MODULE_IDS.toString()})`);
+  }
+
+  const validatedIds: string[] = [];
+  for (const id of moduleIds) {
+    if (typeof id !== 'string') {
+      throw new Error('All module IDs must be strings');
+    }
+
+    const trimmed = id.trim();
+    if (trimmed.length === 0) {
+      throw new Error('Module IDs cannot be empty');
+    }
+
+    if (!/^[a-zA-Z0-9._-]+$/.test(trimmed)) {
+      throw new Error(`Invalid module ID format: ${trimmed}`);
+    }
+
+    validatedIds.push(trimmed);
+  }
+
+  return validatedIds;
+}
 
 /**
  * Represents an instruction module parsed from the README.
@@ -105,7 +255,8 @@ function parseInstructionModules(): InstructionModule[] {
   }
 
   try {
-    const readmePath = join(process.cwd(), 'instructions-modules', 'README.md');
+    const baseDir = join(process.cwd(), 'instructions-modules');
+    const readmePath = validateFilePath('README.md', baseDir);
     if (debugEnabled)
       console.error(`[DEBUG] Reading README from: ${readmePath}`);
 
@@ -295,31 +446,31 @@ function searchInstructionModules(searchTerms: string[]): SearchResult[] {
       let fieldScore = 0;
 
       // Search in name (weighted higher)
-      const nameScore = calculateFuzzyScore(term, module.name) * 2;
-      if (nameScore > 0.3) {
+      const nameScore = calculateFuzzyScore(term, module.name) * CONFIG.SCORING.NAME_WEIGHT;
+      if (nameScore > CONFIG.SCORING.MIN_FIELD_SCORE) {
         fieldScore += nameScore;
         if (!matchedFields.includes('name')) matchedFields.push('name');
       }
 
       // Search in description
-      const descScore = calculateFuzzyScore(term, module.description) * 1.5;
-      if (descScore > 0.3) {
+      const descScore = calculateFuzzyScore(term, module.description) * CONFIG.SCORING.DESCRIPTION_WEIGHT;
+      if (descScore > CONFIG.SCORING.MIN_FIELD_SCORE) {
         fieldScore += descScore;
         if (!matchedFields.includes('description'))
           matchedFields.push('description');
       }
 
       // Search in category
-      const catScore = calculateFuzzyScore(term, module.category);
-      if (catScore > 0.3) {
+      const catScore = calculateFuzzyScore(term, module.category) * CONFIG.SCORING.CATEGORY_WEIGHT;
+      if (catScore > CONFIG.SCORING.MIN_FIELD_SCORE) {
         fieldScore += catScore;
         if (!matchedFields.includes('category')) matchedFields.push('category');
       }
 
       // Search in subcategory if exists
       if (module.subcategory) {
-        const subCatScore = calculateFuzzyScore(term, module.subcategory);
-        if (subCatScore > 0.3) {
+        const subCatScore = calculateFuzzyScore(term, module.subcategory) * CONFIG.SCORING.CATEGORY_WEIGHT;
+        if (subCatScore > CONFIG.SCORING.MIN_FIELD_SCORE) {
           fieldScore += subCatScore;
           if (!matchedFields.includes('subcategory'))
             matchedFields.push('subcategory');
@@ -328,16 +479,13 @@ function searchInstructionModules(searchTerms: string[]): SearchResult[] {
 
       // Search in file content
       try {
-        const contentPath = join(
-          process.cwd(),
-          'instructions-modules',
-          module.filePath
-        );
+        const baseDir = join(process.cwd(), 'instructions-modules');
+        const contentPath = validateFilePath(module.filePath, baseDir);
         if (existsSync(contentPath)) {
           const content = readFileSync(contentPath, 'utf-8');
-          const contentScore = calculateFuzzyScore(term, content) * 0.8;
+          const contentScore = calculateFuzzyScore(term, content) * CONFIG.SCORING.CONTENT_WEIGHT;
 
-          if (contentScore > 0.2) {
+          if (contentScore > CONFIG.SCORING.MIN_CONTENT_SCORE) {
             fieldScore += contentScore;
             if (!matchedFields.includes('content'))
               matchedFields.push('content');
@@ -345,7 +493,7 @@ function searchInstructionModules(searchTerms: string[]): SearchResult[] {
             // Extract context around matches for content preview
             const lines = content.split('\n');
             for (let i = 0; i < lines.length; i++) {
-              if (calculateFuzzyScore(term, lines[i]) > 0.3) {
+              if (calculateFuzzyScore(term, lines[i]) > CONFIG.SCORING.MIN_FIELD_SCORE) {
                 const start = Math.max(0, i - 1);
                 const end = Math.min(lines.length, i + 2);
                 const context = lines.slice(start, end).join(' ').trim();
@@ -359,15 +507,17 @@ function searchInstructionModules(searchTerms: string[]): SearchResult[] {
             }
           }
         }
-      } catch {
-        // Skip content search if file can't be read
+      } catch (err) {
+        if (debugEnabled) {
+          console.error(`[DEBUG] Failed to read content for ${module.filePath}:`, err);
+        }
       }
 
       totalScore += fieldScore;
     }
 
     // Only include results with meaningful matches
-    if (totalScore > 0.5 && matchedFields.length > 0) {
+    if (totalScore > CONFIG.SCORING.MIN_TOTAL_SCORE && matchedFields.length > 0) {
       results.push({
         ...module,
         score: totalScore / searchTerms.length, // Average score across terms
@@ -405,16 +555,19 @@ function searchInstructionModules(searchTerms: string[]): SearchResult[] {
  * // }
  * ```
  */
-function getModulesContent(moduleIds: string[]): {
+interface GetModulesContentResult {
   success: boolean;
   content?: string;
   errors?: string[];
-} {
+}
+
+function getModulesContent(moduleIds: string[]): GetModulesContentResult {
   const modules = parseInstructionModules();
   const moduleMap = new Map(modules.map(m => [m.id, m]));
 
   const errors: string[] = [];
   const contents: string[] = [];
+  const baseDir = join(process.cwd(), 'instructions-modules');
 
   for (const moduleId of moduleIds) {
     const module = moduleMap.get(moduleId);
@@ -425,11 +578,7 @@ function getModulesContent(moduleIds: string[]): {
     }
 
     try {
-      const contentPath = join(
-        process.cwd(),
-        'instructions-modules',
-        module.filePath
-      );
+      const contentPath = validateFilePath(module.filePath, baseDir);
 
       if (!existsSync(contentPath)) {
         errors.push(
@@ -452,9 +601,11 @@ function getModulesContent(moduleIds: string[]): {
 
       contents.push(moduleHeader + fileContent);
     } catch (err) {
-      errors.push(
-        `Error reading module "${moduleId}": ${err instanceof Error ? err.message : 'Unknown error'}`
-      );
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      errors.push(`Error reading module "${moduleId}": ${errorMessage}`);
+      if (debugEnabled) {
+        console.error(`[DEBUG] Error reading module ${moduleId}:`, err);
+      }
     }
   }
 
@@ -583,107 +734,54 @@ function setupServerHandlers(serverInstance: Server) {
     switch (name) {
       case 'list_instruction_modules':
         try {
+          const categoryFilter = validateCategoryFilter(args?.category);
           const modules = parseInstructionModules();
 
-          // Add debug logging to see what's happening
           if (debugEnabled)
             console.error(
               `[DEBUG] Parsed ${modules.length.toString()} modules`
             );
 
-          const categoryFilter = (args?.category as string) || '';
-
           // Filter by category if specified
           const filteredModules = categoryFilter
-            ? modules.filter(
-                m => m.category.toLowerCase() === categoryFilter.toLowerCase()
-              )
+            ? modules.filter(m => m.category === categoryFilter)
             : modules;
 
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    totalModules: modules.length,
-                    filteredModules: filteredModules.length,
-                    modules: filteredModules,
-                  },
-                  null,
-                  2
-                ),
-              },
-            ],
-          };
+          return createJsonResponse({
+            totalModules: modules.length,
+            filteredModules: filteredModules.length,
+            modules: filteredModules,
+          });
         } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : 'Unknown error';
           if (debugEnabled)
-            console.error('[ERROR] Failed to parse instruction modules:', err);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    error: `Failed to parse instruction modules: ${
-                      err instanceof Error ? err.message : 'Unknown error'
-                    }`,
-                    modules: [],
-                  },
-                  null,
-                  2
-                ),
-              },
-            ],
-          };
+            console.error('[ERROR] Failed to list instruction modules:', err);
+          return createJsonResponse({
+            error: `Failed to list instruction modules: ${errorMessage}`,
+            modules: [],
+          });
         }
 
       case 'search_instruction_modules':
         try {
           if (!args) {
-            return {
-              content: [
-                {
-                  type: 'text',
-                  text: JSON.stringify(
-                    {
-                      error:
-                        "Missing arguments for search_instruction_modules. 'query' is required.",
-                      results: [],
-                    },
-                    null,
-                    2
-                  ),
-                },
-              ],
-            };
+            return createJsonResponse({
+              error: "Missing arguments for search_instruction_modules. 'query' is required.",
+              results: [],
+            });
           }
-          const query = args.query as string;
-          const limit = typeof args.limit === 'number' ? args.limit : 10;
 
-          if (!query || query.trim().length === 0) {
-            return {
-              content: [
-                {
-                  type: 'text',
-                  text: JSON.stringify(
-                    {
-                      error: 'Search query cannot be empty',
-                      results: [],
-                    },
-                    null,
-                    2
-                  ),
-                },
-              ],
-            };
-          }
+          const query = validateSearchQuery(args.query);
+          const limit = validateSearchLimit(args.limit);
 
           // Split query into search terms
           const searchTerms = query
-            .trim()
             .split(/\s+/)
             .filter(term => term.length > 0);
+
+          if (debugEnabled) {
+            console.error(`[DEBUG] Searching for terms: ${searchTerms.join(', ')}`);
+          }
 
           // Perform fuzzy search
           const searchResults = searchInstructionModules(searchTerms);
@@ -691,123 +789,55 @@ function setupServerHandlers(serverInstance: Server) {
           // Limit results
           const limitedResults = searchResults.slice(0, limit);
 
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    query,
-                    totalResults: searchResults.length,
-                    returnedResults: limitedResults.length,
-                    results: limitedResults,
-                  },
-                  null,
-                  2
-                ),
-              },
-            ],
-          };
+          return createJsonResponse({
+            query,
+            totalResults: searchResults.length,
+            returnedResults: limitedResults.length,
+            results: limitedResults,
+          });
         } catch (err) {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    error: `Failed to search instruction modules: ${
-                      err instanceof Error ? err.message : 'Unknown error'
-                    }`,
-                    results: [],
-                  },
-                  null,
-                  2
-                ),
-              },
-            ],
-          };
+          const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+          if (debugEnabled)
+            console.error('[ERROR] Failed to search instruction modules:', err);
+          return createJsonResponse({
+            error: `Failed to search instruction modules: ${errorMessage}`,
+            results: [],
+          });
         }
 
       case 'get_modules_content':
         try {
           if (!args) {
-            return {
-              content: [
-                {
-                  type: 'text',
-                  text: JSON.stringify(
-                    {
-                      error:
-                        "Missing arguments for get_modules_content. 'moduleIds' is required.",
-                      success: false,
-                    },
-                    null,
-                    2
-                  ),
-                },
-              ],
-            };
+            return createJsonResponse({
+              error: "Missing arguments for get_modules_content. 'moduleIds' is required.",
+              success: false,
+            });
           }
-          const moduleIds = args.moduleIds as string[];
 
-          if (!Array.isArray(moduleIds)) {
-            return {
-              content: [
-                {
-                  type: 'text',
-                  text: JSON.stringify(
-                    {
-                      error:
-                        'moduleIds must be provided as an array of strings',
-                      success: false,
-                    },
-                    null,
-                    2
-                  ),
-                },
-              ],
-            };
+          const moduleIds = validateModuleIds(args.moduleIds);
+
+          if (debugEnabled) {
+            console.error(`[DEBUG] Getting content for modules: ${moduleIds.join(', ')}`);
           }
 
           // Get the combined content
           const result = getModulesContent(moduleIds);
 
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    ...result,
-                    requestedModules: moduleIds.length,
-                    processedModules: result.success
-                      ? moduleIds.length - (result.errors?.length ?? 0)
-                      : 0,
-                  },
-                  null,
-                  2
-                ),
-              },
-            ],
-          };
+          return createJsonResponse({
+            ...result,
+            requestedModules: moduleIds.length,
+            processedModules: result.success
+              ? moduleIds.length - (result.errors?.length ?? 0)
+              : 0,
+          });
         } catch (err) {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    error: `Failed to get modules content: ${
-                      err instanceof Error ? err.message : 'Unknown error'
-                    }`,
-                    success: false,
-                  },
-                  null,
-                  2
-                ),
-              },
-            ],
-          };
+          const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+          if (debugEnabled)
+            console.error('[ERROR] Failed to get modules content:', err);
+          return createJsonResponse({
+            error: `Failed to get modules content: ${errorMessage}`,
+            success: false,
+          });
         }
 
       default:
