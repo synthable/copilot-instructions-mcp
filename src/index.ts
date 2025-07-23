@@ -61,7 +61,10 @@ function validateFilePath(filePath: string, baseDir: string): string {
   const relativePath = relative(baseDir, fullPath);
 
   // Check for path traversal attempts
-  if (relativePath.startsWith('..') || resolve(baseDir, relativePath) !== fullPath) {
+  if (
+    relativePath.startsWith('..') ||
+    resolve(baseDir, relativePath) !== fullPath
+  ) {
     throw new Error('Invalid file path: path traversal detected');
   }
 
@@ -101,7 +104,9 @@ function validateSearchLimit(limit: unknown): number {
   }
 
   if (limit < CONFIG.MIN_SEARCH_LIMIT || limit > CONFIG.MAX_SEARCH_LIMIT) {
-    throw new Error(`Search limit must be between ${CONFIG.MIN_SEARCH_LIMIT.toString()} and ${CONFIG.MAX_SEARCH_LIMIT.toString()}`);
+    throw new Error(
+      `Search limit must be between ${CONFIG.MIN_SEARCH_LIMIT.toString()} and ${CONFIG.MAX_SEARCH_LIMIT.toString()}`
+    );
   }
 
   return limit;
@@ -124,11 +129,19 @@ function validateCategoryFilter(category: unknown): string | null {
     return null;
   }
 
-  const validCategories = ['Foundation', 'Principle', 'Technology', 'Execution'];
-  const normalizedCategory = trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
-  
+  const validCategories = [
+    'Foundation',
+    'Principle',
+    'Technology',
+    'Execution',
+  ];
+  const normalizedCategory =
+    trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+
   if (!validCategories.includes(normalizedCategory)) {
-    throw new Error(`Invalid category. Must be one of: ${validCategories.join(', ')}`);
+    throw new Error(
+      `Invalid category. Must be one of: ${validCategories.join(', ')}`
+    );
   }
 
   return normalizedCategory;
@@ -147,7 +160,9 @@ function validateModuleIds(moduleIds: unknown): string[] {
   }
 
   if (moduleIds.length > CONFIG.MAX_MODULE_IDS) {
-    throw new Error(`Too many module IDs (max ${CONFIG.MAX_MODULE_IDS.toString()})`);
+    throw new Error(
+      `Too many module IDs (max ${CONFIG.MAX_MODULE_IDS.toString()})`
+    );
   }
 
   const validatedIds: string[] = [];
@@ -230,6 +245,148 @@ interface SearchResult extends InstructionModule {
 }
 
 /**
+ * Parses a category line and updates parsing state
+ */
+function parseCategoryLine(
+  line: string,
+  state: {
+    currentCategory: string;
+    currentSubcategory: string;
+    categoryCount: number;
+  }
+): boolean {
+  const categoryMatch = /^## (.+)$/.exec(line);
+  if (categoryMatch) {
+    state.currentCategory = categoryMatch[1].trim();
+    state.currentSubcategory = '';
+    state.categoryCount++;
+    if (debugEnabled) {
+      console.error(
+        `[DEBUG] Found category ${state.categoryCount.toString()}: ${state.currentCategory}`
+      );
+    }
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Parses a subcategory line and updates parsing state
+ */
+function parseSubcategoryLine(
+  line: string,
+  state: { currentSubcategory: string; subcategoryCount: number }
+): boolean {
+  const subcategoryMatch = /^- \*\*(.+)\*\*$/.exec(line);
+  if (subcategoryMatch) {
+    state.currentSubcategory = subcategoryMatch[1].trim();
+    state.subcategoryCount++;
+    if (debugEnabled) {
+      console.error(
+        `[DEBUG] Found subcategory ${state.subcategoryCount.toString()}: ${state.currentSubcategory}`
+      );
+    }
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Parses a module entry line and creates an InstructionModule
+ */
+function parseModuleLine(
+  line: string,
+  state: {
+    currentCategory: string;
+    currentSubcategory: string;
+    moduleCount: number;
+  }
+): InstructionModule | null {
+  // Match module entries with links and descriptions
+  // Modules can be indented with either 2 or 4 spaces:
+  // "  - [Name](path) - Description" (direct subcategory)
+  // "    - [Name](path) - Description" (nested subcategory)
+  const moduleMatch = /^(  |    )- \[([^\]]+)\]\(([^)]+)\) - (.+)$/.exec(line);
+
+  if (!moduleMatch) {
+    return null;
+  }
+
+  const [, indent, name, filePath, description] = moduleMatch;
+
+  // Skip if we don't have a valid category (before any ## section)
+  if (!state.currentCategory) {
+    return null;
+  }
+
+  // Generate ID from file path
+  const id = filePath.replace(/\.md$/, '').replace(/\//g, '.');
+
+  const module: InstructionModule = {
+    id: id.trim(),
+    name: name.trim(),
+    description: description.trim(),
+    category: state.currentCategory,
+    filePath: filePath.trim(),
+  };
+
+  if (state.currentSubcategory) {
+    module.subcategory = state.currentSubcategory;
+  }
+
+  state.moduleCount++;
+  if (debugEnabled && state.moduleCount <= 3) {
+    console.error(
+      `[DEBUG] Module ${state.moduleCount.toString()}: ${name.trim()} (indent: ${indent.length.toString()} spaces)`
+    );
+  }
+
+  return module;
+}
+
+/**
+ * Parses the README content and extracts instruction modules
+ */
+function parseReadmeContent(content: string): InstructionModule[] {
+  const modules: InstructionModule[] = [];
+  const lines = content.split('\n');
+
+  const state = {
+    currentCategory: '',
+    currentSubcategory: '',
+    categoryCount: 0,
+    subcategoryCount: 0,
+    moduleCount: 0,
+  };
+
+  for (const line of lines) {
+    // Try to parse as category first
+    if (parseCategoryLine(line, state)) {
+      continue;
+    }
+
+    // Try to parse as subcategory
+    if (parseSubcategoryLine(line, state)) {
+      continue;
+    }
+
+    // Try to parse as module
+    const module = parseModuleLine(line, state);
+    if (module) {
+      modules.push(module);
+    }
+  }
+
+  if (debugEnabled) {
+    console.error(
+      `[DEBUG] Final counts - Categories: ${state.categoryCount.toString()}, Subcategories: ${state.subcategoryCount.toString()}, Modules: ${state.moduleCount.toString()}`
+    );
+  }
+
+  return modules;
+}
+
+/**
  * Parses the instruction modules from the README file in the instructions-modules directory.
  *
  * Extracts hierarchical structure using regex patterns:
@@ -249,98 +406,29 @@ interface SearchResult extends InstructionModule {
  */
 function parseInstructionModules(): InstructionModule[] {
   if (_cachedInstructionModules) {
-    if (debugEnabled)
+    if (debugEnabled) {
       console.error('[DEBUG] Returning cached instruction modules.');
+    }
     return _cachedInstructionModules;
   }
 
   try {
     const baseDir = join(process.cwd(), 'instructions-modules');
     const readmePath = validateFilePath('README.md', baseDir);
-    if (debugEnabled)
+
+    if (debugEnabled) {
       console.error(`[DEBUG] Reading README from: ${readmePath}`);
+    }
 
     const content = readFileSync(readmePath, 'utf-8');
-    if (debugEnabled)
+
+    if (debugEnabled) {
       console.error(
         `[DEBUG] README content length: ${content.length.toString()}`
       );
-
-    const modules: InstructionModule[] = [];
-
-    const lines = content.split('\n');
-    let currentCategory = '';
-    let currentSubcategory = '';
-    let categoryCount = 0;
-    let subcategoryCount = 0;
-    let moduleCount = 0;
-
-    for (const line of lines) {
-      // Match main categories (## Title)
-      const categoryMatch = /^## (.+)$/.exec(line);
-      if (categoryMatch) {
-        currentCategory = categoryMatch[1].trim();
-        currentSubcategory = '';
-        categoryCount++;
-        if (debugEnabled)
-          console.error(
-            `[DEBUG] Found category ${categoryCount.toString()}: ${currentCategory}`
-          );
-        continue;
-      }
-
-      // Match subcategories (- **Title**)
-      const subcategoryMatch = /^- \*\*(.+)\*\*$/.exec(line);
-      if (subcategoryMatch) {
-        currentSubcategory = subcategoryMatch[1].trim();
-        subcategoryCount++;
-        if (debugEnabled)
-          console.error(
-            `[DEBUG] Found subcategory ${subcategoryCount.toString()}: ${currentSubcategory}`
-          );
-        continue;
-      }
-
-      // Match module entries with links and descriptions
-      // Modules can be indented with either 2 or 4 spaces:
-      // "  - [Name](path) - Description" (direct subcategory)
-      // "    - [Name](path) - Description" (nested subcategory)
-      const moduleMatch = /^(  |    )- \[([^\]]+)\]\(([^)]+)\) - (.+)$/.exec(
-        line
-      );
-      if (moduleMatch) {
-        const [, indent, name, filePath, description] = moduleMatch;
-
-        // Skip if we don't have a valid category (before any ## section)
-        if (!currentCategory) {
-          continue;
-        }
-
-        // Generate ID from file path
-        const id = filePath.replace(/\.md$/, '').replace(/\//g, '.');
-
-        modules.push({
-          id: id.trim(),
-          name: name.trim(),
-          description: description.trim(),
-          category: currentCategory,
-          ...(currentSubcategory && { subcategory: currentSubcategory }),
-          filePath: filePath.trim(),
-        });
-
-        moduleCount++;
-        if (debugEnabled && moduleCount <= 3) {
-          console.error(
-            `[DEBUG] Module ${moduleCount.toString()}: ${name.trim()} (indent: ${indent.length.toString()} spaces)`
-          );
-        }
-      }
     }
 
-    if (debugEnabled)
-      console.error(
-        `[DEBUG] Final counts - Categories: ${categoryCount.toString()}, Subcategories: ${subcategoryCount.toString()}, Modules: ${moduleCount.toString()}`
-      );
+    const modules = parseReadmeContent(content);
     _cachedInstructionModules = modules; // Cache the modules
     return modules;
   } catch (err) {
@@ -413,6 +501,162 @@ function calculateFuzzyScore(searchTerm: string, target: string): number {
 }
 
 /**
+ * Searches a specific field in a module and updates scoring data
+ */
+function searchModuleField(
+  term: string,
+  fieldValue: string,
+  fieldName: string,
+  weight: number,
+  threshold: number,
+  matchedFields: string[]
+): number {
+  const score = calculateFuzzyScore(term, fieldValue) * weight;
+  if (score > threshold) {
+    if (!matchedFields.includes(fieldName)) {
+      matchedFields.push(fieldName);
+    }
+    return score;
+  }
+  return 0;
+}
+
+/**
+ * Extracts contextual content matches from file content
+ */
+function extractContentMatches(term: string, content: string): string[] {
+  const matches: string[] = [];
+  const lines = content.split('\n');
+
+  for (let i = 0; i < lines.length; i++) {
+    if (calculateFuzzyScore(term, lines[i]) > CONFIG.SCORING.MIN_FIELD_SCORE) {
+      const start = Math.max(0, i - 1);
+      const end = Math.min(lines.length, i + 2);
+      const context = lines.slice(start, end).join(' ').trim();
+
+      if (context.length > 0 && !matches.includes(context)) {
+        matches.push(
+          context.substring(0, 200) + (context.length > 200 ? '...' : '')
+        );
+      }
+    }
+  }
+
+  return matches;
+}
+
+/**
+ * Searches file content for a term and returns score with context matches
+ */
+function searchModuleContent(
+  term: string,
+  module: InstructionModule,
+  matchedFields: string[]
+): { score: number; matches: string[] } {
+  try {
+    const baseDir = join(process.cwd(), 'instructions-modules');
+    const contentPath = validateFilePath(module.filePath, baseDir);
+
+    if (!existsSync(contentPath)) {
+      return { score: 0, matches: [] };
+    }
+
+    const content = readFileSync(contentPath, 'utf-8');
+    const contentScore =
+      calculateFuzzyScore(term, content) * CONFIG.SCORING.CONTENT_WEIGHT;
+
+    if (contentScore > CONFIG.SCORING.MIN_CONTENT_SCORE) {
+      if (!matchedFields.includes('content')) {
+        matchedFields.push('content');
+      }
+
+      const matches = extractContentMatches(term, content);
+      return { score: contentScore, matches };
+    }
+  } catch (err) {
+    if (debugEnabled) {
+      console.error(
+        `[DEBUG] Failed to read content for ${module.filePath}:`,
+        err
+      );
+    }
+  }
+
+  return { score: 0, matches: [] };
+}
+
+/**
+ * Calculates search score for a single module against all search terms
+ */
+function calculateModuleScore(
+  module: InstructionModule,
+  searchTerms: string[]
+): { score: number; matchedFields: string[]; contentMatches: string[] } {
+  let totalScore = 0;
+  const matchedFields: string[] = [];
+  const allContentMatches: string[] = [];
+
+  for (const term of searchTerms) {
+    let fieldScore = 0;
+
+    // Search in name (weighted higher)
+    fieldScore += searchModuleField(
+      term,
+      module.name,
+      'name',
+      CONFIG.SCORING.NAME_WEIGHT,
+      CONFIG.SCORING.MIN_FIELD_SCORE,
+      matchedFields
+    );
+
+    // Search in description
+    fieldScore += searchModuleField(
+      term,
+      module.description,
+      'description',
+      CONFIG.SCORING.DESCRIPTION_WEIGHT,
+      CONFIG.SCORING.MIN_FIELD_SCORE,
+      matchedFields
+    );
+
+    // Search in category
+    fieldScore += searchModuleField(
+      term,
+      module.category,
+      'category',
+      CONFIG.SCORING.CATEGORY_WEIGHT,
+      CONFIG.SCORING.MIN_FIELD_SCORE,
+      matchedFields
+    );
+
+    // Search in subcategory if exists
+    if (module.subcategory) {
+      fieldScore += searchModuleField(
+        term,
+        module.subcategory,
+        'subcategory',
+        CONFIG.SCORING.CATEGORY_WEIGHT,
+        CONFIG.SCORING.MIN_FIELD_SCORE,
+        matchedFields
+      );
+    }
+
+    // Search in file content
+    const contentResult = searchModuleContent(term, module, matchedFields);
+    fieldScore += contentResult.score;
+    allContentMatches.push(...contentResult.matches);
+
+    totalScore += fieldScore;
+  }
+
+  return {
+    score: totalScore / searchTerms.length, // Average score across terms
+    matchedFields,
+    contentMatches: [...new Set(allContentMatches)], // Remove duplicates
+  };
+}
+
+/**
  * Performs a fuzzy search over all instruction modules using the provided search terms.
  *
  * Search algorithm:
@@ -437,92 +681,20 @@ function searchInstructionModules(searchTerms: string[]): SearchResult[] {
   const results: SearchResult[] = [];
 
   for (const module of modules) {
-    let totalScore = 0;
-    const matchedFields: string[] = [];
-    const contentMatches: string[] = [];
-
-    // Search in each field
-    for (const term of searchTerms) {
-      let fieldScore = 0;
-
-      // Search in name (weighted higher)
-      const nameScore = calculateFuzzyScore(term, module.name) * CONFIG.SCORING.NAME_WEIGHT;
-      if (nameScore > CONFIG.SCORING.MIN_FIELD_SCORE) {
-        fieldScore += nameScore;
-        if (!matchedFields.includes('name')) matchedFields.push('name');
-      }
-
-      // Search in description
-      const descScore = calculateFuzzyScore(term, module.description) * CONFIG.SCORING.DESCRIPTION_WEIGHT;
-      if (descScore > CONFIG.SCORING.MIN_FIELD_SCORE) {
-        fieldScore += descScore;
-        if (!matchedFields.includes('description'))
-          matchedFields.push('description');
-      }
-
-      // Search in category
-      const catScore = calculateFuzzyScore(term, module.category) * CONFIG.SCORING.CATEGORY_WEIGHT;
-      if (catScore > CONFIG.SCORING.MIN_FIELD_SCORE) {
-        fieldScore += catScore;
-        if (!matchedFields.includes('category')) matchedFields.push('category');
-      }
-
-      // Search in subcategory if exists
-      if (module.subcategory) {
-        const subCatScore = calculateFuzzyScore(term, module.subcategory) * CONFIG.SCORING.CATEGORY_WEIGHT;
-        if (subCatScore > CONFIG.SCORING.MIN_FIELD_SCORE) {
-          fieldScore += subCatScore;
-          if (!matchedFields.includes('subcategory'))
-            matchedFields.push('subcategory');
-        }
-      }
-
-      // Search in file content
-      try {
-        const baseDir = join(process.cwd(), 'instructions-modules');
-        const contentPath = validateFilePath(module.filePath, baseDir);
-        if (existsSync(contentPath)) {
-          const content = readFileSync(contentPath, 'utf-8');
-          const contentScore = calculateFuzzyScore(term, content) * CONFIG.SCORING.CONTENT_WEIGHT;
-
-          if (contentScore > CONFIG.SCORING.MIN_CONTENT_SCORE) {
-            fieldScore += contentScore;
-            if (!matchedFields.includes('content'))
-              matchedFields.push('content');
-
-            // Extract context around matches for content preview
-            const lines = content.split('\n');
-            for (let i = 0; i < lines.length; i++) {
-              if (calculateFuzzyScore(term, lines[i]) > CONFIG.SCORING.MIN_FIELD_SCORE) {
-                const start = Math.max(0, i - 1);
-                const end = Math.min(lines.length, i + 2);
-                const context = lines.slice(start, end).join(' ').trim();
-                if (context.length > 0 && !contentMatches.includes(context)) {
-                  contentMatches.push(
-                    context.substring(0, 200) +
-                      (context.length > 200 ? '...' : '')
-                  );
-                }
-              }
-            }
-          }
-        }
-      } catch (err) {
-        if (debugEnabled) {
-          console.error(`[DEBUG] Failed to read content for ${module.filePath}:`, err);
-        }
-      }
-
-      totalScore += fieldScore;
-    }
+    const scoreData = calculateModuleScore(module, searchTerms);
 
     // Only include results with meaningful matches
-    if (totalScore > CONFIG.SCORING.MIN_TOTAL_SCORE && matchedFields.length > 0) {
+    if (
+      scoreData.score > CONFIG.SCORING.MIN_TOTAL_SCORE &&
+      scoreData.matchedFields.length > 0
+    ) {
       results.push({
         ...module,
-        score: totalScore / searchTerms.length, // Average score across terms
-        matchedFields,
-        ...(contentMatches.length > 0 && { contentMatches }),
+        score: scoreData.score,
+        matchedFields: scoreData.matchedFields,
+        ...(scoreData.contentMatches.length > 0 && {
+          contentMatches: scoreData.contentMatches,
+        }),
       });
     }
   }
@@ -728,120 +900,183 @@ function setupServerHandlers(serverInstance: Server) {
     ],
   }));
 
+  /**
+   * Type for tool request arguments
+   */
+  type ToolArgs = Record<string, unknown>;
+
+  /**
+   * Helper function to safely extract error message
+   */
+  function getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : 'Unknown error';
+  }
+
+  /**
+   * Helper function to log debug information about parsed modules
+   */
+  function logModuleDebugInfo(modules: InstructionModule[], operation: string) {
+    if (debugEnabled) {
+      console.error(
+        `[DEBUG] ${operation}: ${modules.length.toString()} modules`
+      );
+    }
+  }
+
+  /**
+   * Helper function to split search query into terms
+   */
+  function splitSearchQuery(query: string): string[] {
+    return query.split(/\s+/).filter(term => term.length > 0);
+  }
+
+  /**
+   * Handles the list_instruction_modules tool request
+   */
+  function handleListInstructionModules(args: ToolArgs | undefined) {
+    const categoryFilter = validateCategoryFilter(args?.category);
+    const modules = parseInstructionModules();
+
+    logModuleDebugInfo(modules, 'Parsed');
+
+    // Filter by category if specified
+    const filteredModules = categoryFilter
+      ? modules.filter(m => m.category === categoryFilter)
+      : modules;
+
+    return {
+      totalModules: modules.length,
+      filteredModules: filteredModules.length,
+      modules: filteredModules,
+    };
+  }
+
+  /**
+   * Handles the search_instruction_modules tool request
+   */
+  function handleSearchInstructionModules(args: ToolArgs | undefined) {
+    if (!args) {
+      throw new Error(
+        "Missing arguments for search_instruction_modules. 'query' is required."
+      );
+    }
+
+    const query = validateSearchQuery(args.query);
+    const limit = validateSearchLimit(args.limit);
+
+    // Split query into search terms
+    const searchTerms = splitSearchQuery(query);
+
+    if (debugEnabled) {
+      console.error(`[DEBUG] Searching for terms: ${searchTerms.join(', ')}`);
+    }
+
+    // Perform fuzzy search
+    const searchResults = searchInstructionModules(searchTerms);
+
+    // Limit results
+    const limitedResults = searchResults.slice(0, limit);
+
+    return {
+      query,
+      totalResults: searchResults.length,
+      returnedResults: limitedResults.length,
+      results: limitedResults,
+    };
+  }
+
+  /**
+   * Handles the get_modules_content tool request
+   */
+  function handleGetModulesContent(args: ToolArgs | undefined) {
+    if (!args) {
+      throw new Error(
+        "Missing arguments for get_modules_content. 'moduleIds' is required."
+      );
+    }
+
+    const moduleIds = validateModuleIds(args.moduleIds);
+
+    if (debugEnabled) {
+      console.error(
+        `[DEBUG] Getting content for modules: ${moduleIds.join(', ')}`
+      );
+    }
+
+    // Get the combined content
+    const result = getModulesContent(moduleIds);
+
+    return {
+      ...result,
+      requestedModules: moduleIds.length,
+      processedModules: result.success
+        ? moduleIds.length - (result.errors?.length ?? 0)
+        : 0,
+    };
+  }
+
+  /**
+   * Creates a standardized error response for tool handlers
+   */
+  function createToolErrorResponse(
+    toolName: string,
+    error: Error,
+    fallbackData: Record<string, unknown>
+  ) {
+    const errorMessage = error.message;
+    if (debugEnabled) {
+      console.error(`[ERROR] Failed to handle ${toolName}:`, error);
+    }
+    return createJsonResponse({
+      error: `Failed to ${toolName.replace(/_/g, ' ')}: ${errorMessage}`,
+      ...fallbackData,
+    });
+  }
+
+  /**
+   * Gets appropriate fallback data for tool errors
+   */
+  function getToolFallbackData(toolName: string): Record<string, unknown> {
+    switch (toolName) {
+      case 'list_instruction_modules':
+        return { modules: [] };
+      case 'search_instruction_modules':
+        return { results: [] };
+      case 'get_modules_content':
+        return { success: false };
+      default:
+        return {};
+    }
+  }
+
   serverInstance.setRequestHandler(CallToolRequestSchema, request => {
     const { name, arguments: args } = request.params;
 
-    switch (name) {
-      case 'list_instruction_modules':
-        try {
-          const categoryFilter = validateCategoryFilter(args?.category);
-          const modules = parseInstructionModules();
-
-          if (debugEnabled)
-            console.error(
-              `[DEBUG] Parsed ${modules.length.toString()} modules`
-            );
-
-          // Filter by category if specified
-          const filteredModules = categoryFilter
-            ? modules.filter(m => m.category === categoryFilter)
-            : modules;
-
-          return createJsonResponse({
-            totalModules: modules.length,
-            filteredModules: filteredModules.length,
-            modules: filteredModules,
-          });
-        } catch (err) {
-          const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-          if (debugEnabled)
-            console.error('[ERROR] Failed to list instruction modules:', err);
-          return createJsonResponse({
-            error: `Failed to list instruction modules: ${errorMessage}`,
-            modules: [],
-          });
+    try {
+      switch (name) {
+        case 'list_instruction_modules': {
+          const result = handleListInstructionModules(args);
+          return createJsonResponse(result);
         }
 
-      case 'search_instruction_modules':
-        try {
-          if (!args) {
-            return createJsonResponse({
-              error: "Missing arguments for search_instruction_modules. 'query' is required.",
-              results: [],
-            });
-          }
-
-          const query = validateSearchQuery(args.query);
-          const limit = validateSearchLimit(args.limit);
-
-          // Split query into search terms
-          const searchTerms = query
-            .split(/\s+/)
-            .filter(term => term.length > 0);
-
-          if (debugEnabled) {
-            console.error(`[DEBUG] Searching for terms: ${searchTerms.join(', ')}`);
-          }
-
-          // Perform fuzzy search
-          const searchResults = searchInstructionModules(searchTerms);
-
-          // Limit results
-          const limitedResults = searchResults.slice(0, limit);
-
-          return createJsonResponse({
-            query,
-            totalResults: searchResults.length,
-            returnedResults: limitedResults.length,
-            results: limitedResults,
-          });
-        } catch (err) {
-          const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-          if (debugEnabled)
-            console.error('[ERROR] Failed to search instruction modules:', err);
-          return createJsonResponse({
-            error: `Failed to search instruction modules: ${errorMessage}`,
-            results: [],
-          });
+        case 'search_instruction_modules': {
+          const result = handleSearchInstructionModules(args);
+          return createJsonResponse(result);
         }
 
-      case 'get_modules_content':
-        try {
-          if (!args) {
-            return createJsonResponse({
-              error: "Missing arguments for get_modules_content. 'moduleIds' is required.",
-              success: false,
-            });
-          }
-
-          const moduleIds = validateModuleIds(args.moduleIds);
-
-          if (debugEnabled) {
-            console.error(`[DEBUG] Getting content for modules: ${moduleIds.join(', ')}`);
-          }
-
-          // Get the combined content
-          const result = getModulesContent(moduleIds);
-
-          return createJsonResponse({
-            ...result,
-            requestedModules: moduleIds.length,
-            processedModules: result.success
-              ? moduleIds.length - (result.errors?.length ?? 0)
-              : 0,
-          });
-        } catch (err) {
-          const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-          if (debugEnabled)
-            console.error('[ERROR] Failed to get modules content:', err);
-          return createJsonResponse({
-            error: `Failed to get modules content: ${errorMessage}`,
-            success: false,
-          });
+        case 'get_modules_content': {
+          const result = handleGetModulesContent(args);
+          return createJsonResponse(result);
         }
 
-      default:
-        throw new Error(`Unknown tool: ${name}`);
+        default:
+          throw new Error(`Unknown tool: ${name}`);
+      }
+    } catch (err) {
+      const error =
+        err instanceof Error ? err : new Error(getErrorMessage(err));
+      const fallbackData = getToolFallbackData(name);
+      return createToolErrorResponse(name, error, fallbackData);
     }
   });
 
