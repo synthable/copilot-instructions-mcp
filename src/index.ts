@@ -18,6 +18,9 @@ import { join } from 'node:path';
 
 let debugEnabled = false;
 
+let _cachedInstructionModules: InstructionModule[] | null = null;
+
+
 /**
  * Represents an instruction module parsed from the README.
  *
@@ -95,6 +98,12 @@ interface SearchResult extends InstructionModule {
  * ```
  */
 function parseInstructionModules(): InstructionModule[] {
+  if (_cachedInstructionModules) {
+    if (debugEnabled)
+      console.error('[DEBUG] Returning cached instruction modules.');
+    return _cachedInstructionModules;
+  }
+
   try {
     const readmePath = join(process.cwd(), 'instructions-modules', 'README.md');
     if (debugEnabled)
@@ -181,6 +190,7 @@ function parseInstructionModules(): InstructionModule[] {
       console.error(
         `[DEBUG] Final counts - Categories: ${categoryCount.toString()}, Subcategories: ${subcategoryCount.toString()}, Modules: ${moduleCount.toString()}`
       );
+    _cachedInstructionModules = modules; // Cache the modules
     return modules;
   } catch (err) {
     console.error('Error parsing instruction modules:', err);
