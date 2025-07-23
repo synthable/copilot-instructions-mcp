@@ -16,6 +16,8 @@ import express from 'express';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
+let debugEnabled = false;
+
 /**
  * Represents an instruction module parsed from the README.
  *
@@ -95,48 +97,90 @@ interface SearchResult extends InstructionModule {
 function parseInstructionModules(): InstructionModule[] {
   try {
     const readmePath = join(process.cwd(), 'instructions-modules', 'README.md');
+    if (debugEnabled)
+      console.error(`[DEBUG] Reading README from: ${readmePath}`);
+
     const content = readFileSync(readmePath, 'utf-8');
+    if (debugEnabled)
+      console.error(
+        `[DEBUG] README content length: ${content.length.toString()}`
+      );
+
     const modules: InstructionModule[] = [];
 
     const lines = content.split('\n');
     let currentCategory = '';
     let currentSubcategory = '';
+    let categoryCount = 0;
+    let subcategoryCount = 0;
+    let moduleCount = 0;
 
     for (const line of lines) {
       // Match main categories (## Title)
       const categoryMatch = /^## (.+)$/.exec(line);
       if (categoryMatch) {
-        currentCategory = categoryMatch[1];
+        currentCategory = categoryMatch[1].trim();
         currentSubcategory = '';
+        categoryCount++;
+        if (debugEnabled)
+          console.error(
+            `[DEBUG] Found category ${categoryCount.toString()}: ${currentCategory}`
+          );
         continue;
       }
 
       // Match subcategories (- **Title**)
       const subcategoryMatch = /^- \*\*(.+)\*\*$/.exec(line);
       if (subcategoryMatch) {
-        currentSubcategory = subcategoryMatch[1];
+        currentSubcategory = subcategoryMatch[1].trim();
+        subcategoryCount++;
+        if (debugEnabled)
+          console.error(
+            `[DEBUG] Found subcategory ${subcategoryCount.toString()}: ${currentSubcategory}`
+          );
         continue;
       }
 
       // Match module entries with links and descriptions
-      const moduleMatch = /^- \s*\[([^\]]+)\]\(([^)]+)\) - (.+)$/.exec(line);
+      // Modules can be indented with either 2 or 4 spaces:
+      // "  - [Name](path) - Description" (direct subcategory)
+      // "    - [Name](path) - Description" (nested subcategory)
+      const moduleMatch = /^(  |    )- \[([^\]]+)\]\(([^)]+)\) - (.+)$/.exec(
+        line
+      );
       if (moduleMatch) {
-        const [, name, filePath, description] = moduleMatch;
+        const [, indent, name, filePath, description] = moduleMatch;
+
+        // Skip if we don't have a valid category (before any ## section)
+        if (!currentCategory) {
+          continue;
+        }
 
         // Generate ID from file path
         const id = filePath.replace(/\.md$/, '').replace(/\//g, '.');
 
         modules.push({
-          id,
-          name,
-          description,
+          id: id.trim(),
+          name: name.trim(),
+          description: description.trim(),
           category: currentCategory,
           ...(currentSubcategory && { subcategory: currentSubcategory }),
-          filePath,
+          filePath: filePath.trim(),
         });
+
+        moduleCount++;
+        if (debugEnabled && moduleCount <= 3) {
+          console.error(
+            `[DEBUG] Module ${moduleCount.toString()}: ${name.trim()} (indent: ${indent.length.toString()} spaces)`
+          );
+        }
       }
     }
 
+    if (debugEnabled)
+      console.error(
+        `[DEBUG] Final counts - Categories: ${categoryCount.toString()}, Subcategories: ${subcategoryCount.toString()}, Modules: ${moduleCount.toString()}`
+      );
     return modules;
   } catch (err) {
     console.error('Error parsing instruction modules:', err);
@@ -530,24 +574,14 @@ function setupServerHandlers(serverInstance: Server) {
       case 'list_instruction_modules':
         try {
           const modules = parseInstructionModules();
-          if (!args) {
-            return {
-              content: [
-                {
-                  type: 'text',
-                  text: JSON.stringify(
-                    {
-                      error: 'Missing arguments for list_instruction_modules.',
-                      modules: [],
-                    },
-                    null,
-                    2
-                  ),
-                },
-              ],
-            };
-          }
-          const categoryFilter = args.category as string;
+
+          // Add debug logging to see what's happening
+          if (debugEnabled)
+            console.error(
+              `[DEBUG] Parsed ${modules.length.toString()} modules`
+            );
+
+          const categoryFilter = (args?.category as string) || '';
 
           // Filter by category if specified
           const filteredModules = categoryFilter
@@ -560,11 +594,21 @@ function setupServerHandlers(serverInstance: Server) {
             content: [
               {
                 type: 'text',
-                text: JSON.stringify(filteredModules, null, 2),
+                text: JSON.stringify(
+                  {
+                    totalModules: modules.length,
+                    filteredModules: filteredModules.length,
+                    modules: filteredModules,
+                  },
+                  null,
+                  2
+                ),
               },
             ],
           };
         } catch (err) {
+          if (debugEnabled)
+            console.error('[ERROR] Failed to parse instruction modules:', err);
           return {
             content: [
               {
@@ -886,7 +930,7 @@ function setupServerHandlers(serverInstance: Server) {
 async function runStdio() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('Simple MCP Server running on stdio');
+  if (debugEnabled) console.error('Simple MCP Server running on stdio');
 }
 
 /**
@@ -932,9 +976,11 @@ async function runHttp(port = 3000) {
   });
 
   app.listen(port, () => {
-    console.error(
-      `Simple MCP Server running on http://localhost:${String(port)}`
-    );
+    if (debugEnabled) {
+      console.error(
+        `Simple MCP Server running on http://localhost:${String(port)}`
+      );
+    }
   });
 }
 
@@ -1002,7 +1048,7 @@ function runSSE(port = 3000) {
       // Set up cleanup on close
       transport.onclose = () => {
         sessions.delete(sessionId);
-        console.error(`SSE session closed: ${sessionId}`);
+        if (debugEnabled) console.error(`SSE session closed: ${sessionId}`);
       };
 
       // Start the SSE stream
@@ -1042,12 +1088,14 @@ function runSSE(port = 3000) {
   });
 
   app.listen(port, () => {
-    console.error(
-      `Simple MCP Server with SSE running on http://localhost:${String(port)}`
-    );
-    console.error(
-      `Connect to SSE stream at: http://localhost:${String(port)}/sse`
-    );
+    if (debugEnabled) {
+      console.error(
+        `Simple MCP Server with SSE running on http://localhost:${String(port)}`
+      );
+      console.error(
+        `Connect to SSE stream at: http://localhost:${String(port)}/sse`
+      );
+    }
   });
 }
 
@@ -1082,8 +1130,17 @@ program
     'stdio'
   )
   .option('-p, --port <port>', 'Port to listen on for http or sse', '3000')
+  .option('--debug', 'Enable debug logging', false)
   .action(options => {
-    const { transport, port } = options as { transport: string; port: string };
+    const { transport, port, debug } = options as {
+      transport: string;
+      port: string;
+      debug: boolean;
+    };
+
+    if (debug) {
+      debugEnabled = true;
+    }
 
     switch (transport) {
       case 'http':
@@ -1092,7 +1149,7 @@ program
         break;
       case 'sse':
         const ssePort = parseInt(port, 10) || 3000;
-        console.error(
+        console.warn(
           'WARNING: SSE transport is deprecated. Use "http" instead.'
         );
         runSSE(ssePort);
