@@ -13,5 +13,9 @@ export {
   createToolErrorResponse,
   getToolFallbackData,
 } from './toolHandlers.js';
-export { createServer, setupServerHandlers, setDebugEnabled } from './server.js';
+export {
+  createServer,
+  setupServerHandlers,
+  setDebugEnabled,
+} from './server.js';
 export { runStdio, runHttp, runSSE } from './transport.js';

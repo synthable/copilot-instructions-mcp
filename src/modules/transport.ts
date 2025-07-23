@@ -93,10 +93,7 @@ export async function runHttp(server: Server, port = 3000): Promise<void> {
  * @param {number} [port=3000] - Port to listen on for SSE connections
  * @returns {void}
  */
-export function runSSE(
-  serverFactory: () => Server,
-  port = 3000
-): void {
+export function runSSE(serverFactory: () => Server, port = 3000): void {
   const sessions = new Map<
     string,
     { transport: SSEServerTransport; server: Server }

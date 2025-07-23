@@ -18,15 +18,12 @@ export function setDebugEnabled(enabled: boolean): void {
   debugEnabled = enabled;
 }
 
-
 /**
  * Helper function to log debug information about parsed modules
  */
 function logModuleDebugInfo(modules: unknown[], operation: string): void {
   if (debugEnabled) {
-    console.error(
-      `[DEBUG] ${operation}: ${modules.length.toString()} modules`
-    );
+    console.error(`[DEBUG] ${operation}: ${modules.length.toString()} modules`);
   }
 }
 

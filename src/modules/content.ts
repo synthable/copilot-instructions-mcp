@@ -34,7 +34,9 @@ export function setDebugEnabled(enabled: boolean): void {
  * // }
  * ```
  */
-export function getModulesContent(moduleIds: string[]): GetModulesContentResult {
+export function getModulesContent(
+  moduleIds: string[]
+): GetModulesContentResult {
   const modules = parseInstructionModules();
   const moduleMap = new Map(modules.map(m => [m.id, m]));
 

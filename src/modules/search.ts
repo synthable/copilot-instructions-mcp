@@ -252,7 +252,9 @@ function calculateModuleScore(
  * console.log(results[0].contentMatches);  // ["TypeScript generics allow..."]
  * ```
  */
-export function searchInstructionModules(searchTerms: string[]): SearchResult[] {
+export function searchInstructionModules(
+  searchTerms: string[]
+): SearchResult[] {
   const modules = parseInstructionModules();
   const results: SearchResult[] = [];
 

@@ -2,7 +2,12 @@
 
 import { Command } from 'commander';
 import { createServer, setDebugEnabled } from './modules/server.js';
-import { runStdio, runHttp, runSSE, setDebugEnabled as setTransportDebugEnabled } from './modules/transport.js';
+import {
+  runStdio,
+  runHttp,
+  runSSE,
+  setDebugEnabled as setTransportDebugEnabled,
+} from './modules/transport.js';
 
 /**
  * Command-line interface configuration for the MCP server.
