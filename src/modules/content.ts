@@ -1,17 +1,22 @@
+/**
+ * @fileoverview Module content retrieval and formatting functionality.
+ * 
+ * This module handles retrieving and combining multiple instruction modules
+ * into formatted markdown content. Provides error handling for missing files
+ * and formats output with metadata headers for easy consumption by AI systems.
+ * 
+ * @author MCP Server Team
+ * @version 1.0.0
+ * @since 1.0.0
+ */
+
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { validateFilePath } from './validation.js';
 import { parseInstructionModules } from './parsing.js';
+import { contentLogger } from './logger.js';
 import type { GetModulesContentResult } from './types.js';
 
-let debugEnabled = false;
-
-/**
- * Sets the debug flag for content operations
- */
-export function setDebugEnabled(enabled: boolean): void {
-  debugEnabled = enabled;
-}
 
 /**
  * Retrieves and combines the content of multiple instruction modules by their IDs.
@@ -78,9 +83,7 @@ export function getModulesContent(
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       errors.push(`Error reading module "${moduleId}": ${errorMessage}`);
-      if (debugEnabled) {
-        console.error(`[DEBUG] Error reading module ${moduleId}:`, err);
-      }
+      contentLogger.warn(`Error reading module ${moduleId}`, err);
     }
   }
 

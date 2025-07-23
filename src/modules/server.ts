@@ -1,3 +1,15 @@
+/**
+ * @fileoverview MCP server configuration and request handling.
+ * 
+ * This module sets up the Model Context Protocol server with all tools and prompts,
+ * configures request handlers, and provides the main server creation functionality.
+ * Handles both tool calls and prompt requests with comprehensive error handling.
+ * 
+ * @author MCP Server Team
+ * @version 1.0.0
+ * @since 1.0.0
+ */
+
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import {
   CallToolRequestSchema,
@@ -13,11 +25,7 @@ import {
   handleGetModulesContent,
   createToolErrorResponse,
   getToolFallbackData,
-  setDebugEnabled as setToolHandlerDebugEnabled,
 } from './toolHandlers.js';
-import { setDebugEnabled as setParsingDebugEnabled } from './parsing.js';
-import { setDebugEnabled as setSearchDebugEnabled } from './search.js';
-import { setDebugEnabled as setContentDebugEnabled } from './content.js';
 
 /**
  * Helper function to create JSON response format
@@ -40,15 +48,6 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Unknown error';
 }
 
-/**
- * Sets debug mode for all modules
- */
-export function setDebugEnabled(enabled: boolean): void {
-  setParsingDebugEnabled(enabled);
-  setSearchDebugEnabled(enabled);
-  setContentDebugEnabled(enabled);
-  setToolHandlerDebugEnabled(enabled);
-}
 
 /**
  * Sets up request handlers for tools and prompts on the provided server instance.

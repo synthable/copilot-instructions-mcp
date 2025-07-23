@@ -1,18 +1,27 @@
+/**
+ * @fileoverview MCP server transport layer implementations.
+ * 
+ * This module provides multiple transport mechanisms for the MCP server:
+ * - stdio: For command-line and MCP Inspector connections
+ * - HTTP: For web applications with streamable HTTP transport
+ * - SSE: Deprecated Server-Sent Events transport
+ * 
+ * All transports share the same MCP server instance and provide consistent
+ * functionality across different connection types.
+ * 
+ * @author MCP Server Team
+ * @version 1.0.0
+ * @since 1.0.0
+ */
+
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { randomUUID } from 'node:crypto';
 import express from 'express';
+import { transportLogger } from './logger.js';
 
-let debugEnabled = false;
-
-/**
- * Sets the debug flag for transport operations
- */
-export function setDebugEnabled(enabled: boolean): void {
-  debugEnabled = enabled;
-}
 
 /**
  * Runs the MCP server using stdio transport.
@@ -29,9 +38,15 @@ export function setDebugEnabled(enabled: boolean): void {
  * @returns {Promise<void>} Promise that resolves when server is connected and listening
  */
 export async function runStdio(server: Server): Promise<void> {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  if (debugEnabled) console.error('Simple MCP Server running on stdio');
+  try {
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+    transportLogger.info('MCP Server connected via stdio transport');
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    transportLogger.error('Failed to start stdio transport', error);
+    throw error;
+  }
 }
 
 /**
@@ -48,36 +63,43 @@ export async function runStdio(server: Server): Promise<void> {
  * @returns {Promise<void>} Promise that resolves when server is listening
  */
 export async function runHttp(server: Server, port = 3000): Promise<void> {
-  const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: () => randomUUID(),
-  });
+  try {
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => randomUUID(),
+    });
 
-  await server.connect(transport);
+    await server.connect(transport);
+    transportLogger.info('MCP Server connected to HTTP transport');
 
-  const app = express();
+    const app = express();
 
-  // Parse JSON bodies
-  app.use(express.json());
+    // Parse JSON bodies
+    app.use(express.json());
 
-  // Handle all requests through MCP transport
-  app.use(async (req, res) => {
-    try {
-      await transport.handleRequest(req, res, req.body);
-    } catch (err) {
-      console.error('Error handling MCP request:', err);
-      if (!res.headersSent) {
-        res.status(500).json({ error: 'Internal server error' });
+    // Handle all requests through MCP transport
+    app.use(async (req, res) => {
+      try {
+        await transport.handleRequest(req, res, req.body);
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        transportLogger.error('Error handling MCP HTTP request', error, {
+          method: req.method,
+          url: req.url,
+        });
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Internal server error' });
+        }
       }
-    }
-  });
+    });
 
-  app.listen(port, () => {
-    if (debugEnabled) {
-      console.error(
-        `Simple MCP Server running on http://localhost:${String(port)}`
-      );
-    }
-  });
+    app.listen(port, () => {
+      transportLogger.info(`HTTP server listening on port ${port.toString()}`);
+    });
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    transportLogger.error('Failed to start HTTP transport', error);
+    throw error;
+  }
 }
 
 /**
@@ -124,13 +146,14 @@ export function runSSE(serverFactory: () => Server, port = 3000): void {
       // Set up cleanup on close
       transport.onclose = () => {
         sessions.delete(sessionId);
-        if (debugEnabled) console.error(`SSE session closed: ${sessionId}`);
+        transportLogger.debug(`SSE session closed: ${sessionId}`);
       };
 
       // Start the SSE stream
       await transport.start();
     } catch (err) {
-      console.error('Error starting SSE session:', err);
+      const error = err instanceof Error ? err : new Error(String(err));
+      transportLogger.error('Error starting SSE session', error, { sessionId });
       sessions.delete(sessionId);
       if (!res.headersSent) {
         res.status(500).json({ error: 'Failed to start SSE session' });
@@ -144,6 +167,7 @@ export function runSSE(serverFactory: () => Server, port = 3000): void {
     const session = sessions.get(sessionId);
 
     if (!session) {
+      transportLogger.warn(`SSE session not found: ${sessionId}`);
       res.status(404).json({ error: 'Session not found' });
       return;
     }
@@ -151,7 +175,10 @@ export function runSSE(serverFactory: () => Server, port = 3000): void {
     try {
       await session.transport.handlePostMessage(req, res, req.body);
     } catch (err) {
-      console.error('Error handling SSE POST message:', err);
+      const error = err instanceof Error ? err : new Error(String(err));
+      transportLogger.error('Error handling SSE POST message', error, {
+        sessionId,
+      });
       if (!res.headersSent) {
         res.status(400).json({ error: 'Invalid request' });
       }
@@ -164,13 +191,9 @@ export function runSSE(serverFactory: () => Server, port = 3000): void {
   });
 
   app.listen(port, () => {
-    if (debugEnabled) {
-      console.error(
-        `Simple MCP Server with SSE running on http://localhost:${String(port)}`
-      );
-      console.error(
-        `Connect to SSE stream at: http://localhost:${String(port)}/sse`
-      );
-    }
+    transportLogger.info(`SSE server listening on port ${port.toString()}`);
+    transportLogger.info(
+      `SSE endpoint available at: http://localhost:${port.toString()}/sse`
+    );
   });
 }

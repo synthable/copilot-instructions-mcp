@@ -1,6 +1,25 @@
+/**
+ * @fileoverview Input validation and security utilities for the MCP server.
+ * 
+ * This module provides comprehensive validation functions for all user inputs
+ * including path sanitization, query validation, and parameter checking.
+ * Includes security measures to prevent path traversal attacks and malformed input.
+ * 
+ * @author MCP Server Team
+ * @version 1.0.0
+ * @since 1.0.0
+ */
+
 import { resolve, relative } from 'node:path';
 
-// Configuration constants
+/**
+ * Configuration constants for validation limits and scoring weights.
+ * 
+ * These constants define the boundaries and weights used throughout the
+ * validation and search systems to ensure consistent behavior.
+ * 
+ * @since 1.0.0
+ */
 export const CONFIG = {
   MAX_SEARCH_LIMIT: 50,
   MIN_SEARCH_LIMIT: 1,
@@ -18,7 +37,26 @@ export const CONFIG = {
 } as const;
 
 /**
- * Validates and sanitizes file paths to prevent path traversal attacks
+ * Validates and sanitizes file paths to prevent path traversal attacks.
+ * 
+ * This function ensures that the requested file path is within the allowed
+ * base directory and prevents malicious path traversal attempts.
+ * 
+ * @param filePath - The file path to validate (relative to baseDir)
+ * @param baseDir - The base directory that contains allowed files
+ * @returns The resolved absolute path if valid
+ * @throws {Error} If the path is invalid or attempts path traversal
+ * 
+ * @example
+ * ```typescript
+ * const safePath = validateFilePath('modules/example.md', '/safe/directory');
+ * // Returns: '/safe/directory/modules/example.md'
+ * 
+ * // This would throw an error:
+ * validateFilePath('../../../etc/passwd', '/safe/directory');
+ * ```
+ * 
+ * @since 1.0.0
  */
 export function validateFilePath(filePath: string, baseDir: string): string {
   if (!filePath || typeof filePath !== 'string') {
@@ -41,7 +79,26 @@ export function validateFilePath(filePath: string, baseDir: string): string {
 }
 
 /**
- * Validates search query parameters
+ * Validates and sanitizes search query parameters.
+ * 
+ * Ensures the search query is a valid string within acceptable length limits.
+ * Trims whitespace and validates the query is not empty after trimming.
+ * 
+ * @param query - The search query to validate (unknown type from user input)
+ * @returns The validated and trimmed search query string
+ * @throws {Error} If the query is invalid, empty, or too long
+ * 
+ * @example
+ * ```typescript
+ * const validQuery = validateSearchQuery('  typescript generics  ');
+ * // Returns: 'typescript generics'
+ * 
+ * // These would throw errors:
+ * validateSearchQuery(''); // Empty query
+ * validateSearchQuery('a'.repeat(501)); // Too long
+ * ```
+ * 
+ * @since 1.0.0
  */
 export function validateSearchQuery(query: unknown): string {
   if (!query || typeof query !== 'string') {
@@ -61,7 +118,25 @@ export function validateSearchQuery(query: unknown): string {
 }
 
 /**
- * Validates search limit parameter
+ * Validates search result limit parameter.
+ * 
+ * Ensures the limit is a valid integer within the acceptable range.
+ * Returns the default limit if none is provided.
+ * 
+ * @param limit - The search limit to validate (unknown type from user input)
+ * @returns The validated limit as an integer
+ * @throws {Error} If the limit is not an integer or outside valid range
+ * 
+ * @example
+ * ```typescript
+ * const validLimit = validateSearchLimit(15);
+ * // Returns: 15
+ * 
+ * const defaultLimit = validateSearchLimit(undefined);
+ * // Returns: 10 (default)
+ * ```
+ * 
+ * @since 1.0.0
  */
 export function validateSearchLimit(limit: unknown): number {
   if (limit === undefined || limit === null) {
@@ -82,7 +157,25 @@ export function validateSearchLimit(limit: unknown): number {
 }
 
 /**
- * Validates category filter parameter
+ * Validates and normalizes category filter parameter.
+ * 
+ * Accepts valid instruction module categories and normalizes their capitalization.
+ * Returns null for undefined/empty values to indicate no filtering.
+ * 
+ * @param category - The category filter to validate (unknown type from user input)
+ * @returns The normalized category name or null if no filter
+ * @throws {Error} If the category is not one of the valid options
+ * 
+ * @example
+ * ```typescript
+ * const validCategory = validateCategoryFilter('foundation');
+ * // Returns: 'Foundation'
+ * 
+ * const noFilter = validateCategoryFilter(undefined);
+ * // Returns: null
+ * ```
+ * 
+ * @since 1.0.0
  */
 export function validateCategoryFilter(category: unknown): string | null {
   if (category === undefined || category === null) {
@@ -117,7 +210,26 @@ export function validateCategoryFilter(category: unknown): string | null {
 }
 
 /**
- * Validates module IDs array parameter
+ * Validates an array of instruction module IDs.
+ * 
+ * Ensures all module IDs are valid strings with proper formatting and
+ * within acceptable quantity limits. Module IDs must follow the dot notation
+ * pattern used throughout the system.
+ * 
+ * @param moduleIds - The array of module IDs to validate (unknown type from user input)
+ * @returns Array of validated and trimmed module ID strings
+ * @throws {Error} If the array is invalid, empty, too large, or contains invalid IDs
+ * 
+ * @example
+ * ```typescript
+ * const validIds = validateModuleIds([
+ *   'foundation.logic.deductive-reasoning',
+ *   'technology.language.typescript.generics'
+ * ]);
+ * // Returns: ['foundation.logic.deductive-reasoning', 'technology.language.typescript.generics']
+ * ```
+ * 
+ * @since 1.0.0
  */
 export function validateModuleIds(moduleIds: unknown): string[] {
   if (!Array.isArray(moduleIds)) {

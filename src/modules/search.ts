@@ -1,17 +1,23 @@
+/**
+ * @fileoverview Fuzzy search functionality for instruction modules.
+ * 
+ * This module implements intelligent fuzzy search across instruction modules
+ * using weighted Levenshtein distance scoring. Searches across multiple fields
+ * including names, descriptions, categories, and file content with configurable
+ * scoring weights for optimal relevance ranking.
+ * 
+ * @author MCP Server Team
+ * @version 1.0.0
+ * @since 1.0.0
+ */
+
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { CONFIG, validateFilePath } from './validation.js';
 import { parseInstructionModules } from './parsing.js';
+import { searchLogger } from './logger.js';
 import type { InstructionModule, SearchResult } from './types.js';
 
-let debugEnabled = false;
-
-/**
- * Sets the debug flag for search operations
- */
-export function setDebugEnabled(enabled: boolean): void {
-  debugEnabled = enabled;
-}
 
 /**
  * Calculates a fuzzy match score between a search term and a target string using Levenshtein distance.
@@ -150,12 +156,7 @@ function searchModuleContent(
       return { score: contentScore, matches };
     }
   } catch (err) {
-    if (debugEnabled) {
-      console.error(
-        `[DEBUG] Failed to read content for ${module.filePath}:`,
-        err
-      );
-    }
+    searchLogger.warn(`Failed to read content for ${module.filePath}`, err);
   }
 
   return { score: 0, matches: [] };

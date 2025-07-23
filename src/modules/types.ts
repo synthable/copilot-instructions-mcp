@@ -1,4 +1,16 @@
 /**
+ * @fileoverview Type definitions for the Simple MCP Server.
+ * 
+ * This module contains all TypeScript interfaces and types used throughout
+ * the MCP server implementation, including data structures for instruction
+ * modules, search results, and internal parsing state.
+ * 
+ * @author MCP Server Team
+ * @version 1.0.0
+ * @since 1.0.0
+ */
+
+/**
  * Represents an instruction module parsed from the README.
  *
  * @interface InstructionModule
@@ -57,7 +69,26 @@ export interface SearchResult extends InstructionModule {
 }
 
 /**
- * Result interface for getting modules content
+ * Result interface for the get_modules_content MCP tool operation.
+ * 
+ * Contains the combined content from multiple instruction modules along with
+ * metadata about the operation's success status and any errors encountered.
+ * 
+ * @interface GetModulesContentResult
+ * @property {boolean} success - Whether the operation completed successfully
+ * @property {string} [content] - Combined markdown content with module headers and separators
+ * @property {string[]} [errors] - Array of error messages for modules that failed to load
+ * 
+ * @example
+ * ```typescript
+ * const result: GetModulesContentResult = {
+ *   success: true,
+ *   content: "# Module: foundation.logic.deductive-reasoning\n\n## Summary\n...",
+ *   errors: [] // Empty if all modules loaded successfully
+ * };
+ * ```
+ * 
+ * @since 1.0.0
  */
 export interface GetModulesContentResult {
   success: boolean;
@@ -66,12 +97,49 @@ export interface GetModulesContentResult {
 }
 
 /**
- * Type for tool request arguments
+ * Generic type for MCP tool request arguments.
+ * 
+ * Represents the flexible argument structure that can be passed to MCP tools.
+ * Each tool validates and casts these arguments to their specific expected types.
+ * 
+ * @example
+ * ```typescript
+ * const searchArgs: ToolArgs = {
+ *   query: "typescript generics",
+ *   limit: 10
+ * };
+ * ```
+ * 
+ * @since 1.0.0
  */
 export type ToolArgs = Record<string, unknown>;
 
 /**
- * Parsing state for module parsing functions
+ * Internal state tracking for the instruction module parsing process.
+ * 
+ * Maintains context while parsing the README.md file to extract the hierarchical
+ * structure of categories, subcategories, and individual modules.
+ * 
+ * @interface ParsingState
+ * @property {string} currentCategory - Currently active category being parsed
+ * @property {string} currentSubcategory - Currently active subcategory being parsed  
+ * @property {number} categoryCount - Total number of categories found
+ * @property {number} subcategoryCount - Total number of subcategories found
+ * @property {number} moduleCount - Total number of modules found
+ * 
+ * @example
+ * ```typescript
+ * const state: ParsingState = {
+ *   currentCategory: "Foundation",
+ *   currentSubcategory: "Logic", 
+ *   categoryCount: 2,
+ *   subcategoryCount: 5,
+ *   moduleCount: 23
+ * };
+ * ```
+ * 
+ * @since 1.0.0
+ * @internal
  */
 export interface ParsingState {
   currentCategory: string;

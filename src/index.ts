@@ -1,32 +1,44 @@
 #!/usr/bin/env node
 
+/**
+ * @fileoverview Entry point for the Simple MCP Server application.
+ * 
+ * This file provides a command-line interface for starting an MCP (Model Context Protocol)
+ * server with support for multiple transport modes. The server provides AI assistants with
+ * access to instruction modules for dynamic capability enhancement.
+ * 
+ * @author MCP Server Team
+ * @version 1.0.0
+ * @since 1.0.0
+ */
+
 import { Command } from 'commander';
-import { createServer, setDebugEnabled } from './modules/server.js';
+import { createServer } from './modules/server.js';
 import {
   runStdio,
   runHttp,
   runSSE,
-  setDebugEnabled as setTransportDebugEnabled,
 } from './modules/transport.js';
+import { setDebugLogging, createLogger } from './modules/logger.js';
 
 /**
- * Command-line interface configuration for the MCP server.
- *
- * Provides three transport commands:
- * - `stdio` (default): For MCP Inspector and CLI clients
- * - `http`: For web applications with optional --port
- * - `sse`: Deprecated SSE transport with optional --port
- *
- * Defaults to stdio transport when no command is specified.
- *
- * @example
- * ```bash
- * node dist/index.js stdio              # Explicit stdio
- * node dist/index.js http --port 8080   # HTTP on port 8080
- * node dist/index.js                    # Defaults to stdio
- * ```
+ * Commander.js program instance for parsing command-line arguments.
+ * 
+ * Configures the CLI interface with support for:
+ * - Transport selection (stdio, http, sse)
+ * - Port configuration for HTTP/SSE transports
+ * - Debug logging enablement
+ * 
+ * @since 1.0.0
  */
 const program = new Command();
+
+/**
+ * Logger instance for CLI operations and startup messages.
+ * 
+ * @since 1.0.0
+ */
+const logger = createLogger('cli');
 
 program
   .name('simple-mcp-server')
@@ -47,29 +59,36 @@ program
     };
 
     if (debug) {
-      setDebugEnabled(true);
-      setTransportDebugEnabled(true);
+      setDebugLogging(true);
+      logger.debug('Debug logging enabled');
     }
 
     switch (transport) {
       case 'http': {
         const httpPort = parseInt(port, 10) || 3000;
+        logger.info(`Starting HTTP server on port ${httpPort}`);
         const server = createServer();
-        runHttp(server, httpPort).catch(console.error);
+        runHttp(server, httpPort).catch(error => {
+          logger.error('Failed to start HTTP server', error);
+          process.exit(1);
+        });
         break;
       }
       case 'sse': {
         const ssePort = parseInt(port, 10) || 3000;
-        console.warn(
-          'WARNING: SSE transport is deprecated. Use "http" instead.'
-        );
+        logger.warn('SSE transport is deprecated. Use "http" instead.');
+        logger.info(`Starting SSE server on port ${ssePort}`);
         runSSE(createServer, ssePort);
         break;
       }
       case 'stdio':
       default: {
+        logger.info('Starting stdio server');
         const server = createServer();
-        runStdio(server).catch(console.error);
+        runStdio(server).catch(error => {
+          logger.error('Failed to start stdio server', error);
+          process.exit(1);
+        });
         break;
       }
     }

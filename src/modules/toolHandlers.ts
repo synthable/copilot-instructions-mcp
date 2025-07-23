@@ -1,3 +1,18 @@
+/**
+ * @fileoverview MCP tool request handlers and business logic.
+ * 
+ * This module implements the core business logic for all MCP tools:
+ * - list_instruction_modules: Lists all available instruction modules
+ * - search_instruction_modules: Performs fuzzy search across modules
+ * - get_modules_content: Retrieves and combines module content
+ * 
+ * Provides input validation, error handling, and standardized response formatting.
+ * 
+ * @author MCP Server Team
+ * @version 1.0.0
+ * @since 1.0.0
+ */
+
 import {
   validateCategoryFilter,
   validateSearchQuery,
@@ -7,25 +22,10 @@ import {
 import { parseInstructionModules } from './parsing.js';
 import { searchInstructionModules } from './search.js';
 import { getModulesContent } from './content.js';
+import { toolHandlersLogger } from './logger.js';
 import type { ToolArgs } from './types.js';
 
-let debugEnabled = false;
 
-/**
- * Sets the debug flag for tool handler operations
- */
-export function setDebugEnabled(enabled: boolean): void {
-  debugEnabled = enabled;
-}
-
-/**
- * Helper function to log debug information about parsed modules
- */
-function logModuleDebugInfo(modules: unknown[], operation: string): void {
-  if (debugEnabled) {
-    console.error(`[DEBUG] ${operation}: ${modules.length.toString()} modules`);
-  }
-}
 
 /**
  * Helper function to split search query into terms
@@ -41,7 +41,7 @@ export function handleListInstructionModules(args: ToolArgs | undefined) {
   const categoryFilter = validateCategoryFilter(args?.category);
   const modules = parseInstructionModules();
 
-  logModuleDebugInfo(modules, 'Parsed');
+  toolHandlersLogger.debug(`Parsed ${modules.length.toString()} modules`);
 
   // Filter by category if specified
   const filteredModules = categoryFilter
@@ -71,9 +71,7 @@ export function handleSearchInstructionModules(args: ToolArgs | undefined) {
   // Split query into search terms
   const searchTerms = splitSearchQuery(query);
 
-  if (debugEnabled) {
-    console.error(`[DEBUG] Searching for terms: ${searchTerms.join(', ')}`);
-  }
+  toolHandlersLogger.debug(`Searching for terms: ${searchTerms.join(', ')}`);
 
   // Perform fuzzy search
   const searchResults = searchInstructionModules(searchTerms);
@@ -101,11 +99,9 @@ export function handleGetModulesContent(args: ToolArgs | undefined) {
 
   const moduleIds = validateModuleIds(args.moduleIds);
 
-  if (debugEnabled) {
-    console.error(
-      `[DEBUG] Getting content for modules: ${moduleIds.join(', ')}`
-    );
-  }
+  toolHandlersLogger.debug(
+    `Getting content for modules: ${moduleIds.join(', ')}`
+  );
 
   // Get the combined content
   const result = getModulesContent(moduleIds);
@@ -128,9 +124,7 @@ export function createToolErrorResponse(
   fallbackData: Record<string, unknown>
 ) {
   const errorMessage = error.message;
-  if (debugEnabled) {
-    console.error(`[ERROR] Failed to handle ${toolName}:`, error);
-  }
+  toolHandlersLogger.error(`Failed to handle ${toolName}`, error);
   return {
     error: `Failed to ${toolName.replace(/_/g, ' ')}: ${errorMessage}`,
     ...fallbackData,
