@@ -149,8 +149,7 @@ export function runSSE(serverFactory: () => Server, port = 3000): void {
         transportLogger.debug(`SSE session closed: ${sessionId}`);
       };
 
-      // Start the SSE stream
-      await transport.start();
+      // Note: transport.start() is automatically called by server.connect()
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       transportLogger.error('Error starting SSE session', error, { sessionId });
