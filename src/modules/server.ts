@@ -1,10 +1,10 @@
 /**
  * @fileoverview MCP server configuration and request handling.
- * 
+ *
  * This module sets up the Model Context Protocol server with all tools and prompts,
  * configures request handlers, and provides the main server creation functionality.
  * Handles both tool calls and prompt requests with comprehensive error handling.
- * 
+ *
  * @author MCP Server Team
  * @version 1.0.0
  * @since 1.0.0
@@ -20,12 +20,11 @@ import {
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  handleListInstructionModules,
-  handleSearchInstructionModules,
-  handleGetModulesContent,
   createToolErrorResponse,
   getToolFallbackData,
+  ToolHandlers,
 } from './toolHandlers.js';
+import { Container } from './container.js';
 
 /**
  * Helper function to create JSON response format
@@ -48,7 +47,6 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Unknown error';
 }
 
-
 /**
  * Sets up request handlers for tools and prompts on the provided server instance.
  *
@@ -60,8 +58,12 @@ function getErrorMessage(error: unknown): string {
  * Prompt handlers dynamically load content from docs/ and map tool names.
  *
  * @param {Server} serverInstance - The MCP Server instance to configure with handlers
+ * @param {Container} container - Dependency injection container
  */
-export function setupServerHandlers(serverInstance: Server): void {
+export function setupServerHandlers(
+  serverInstance: Server,
+  container: Container
+): void {
   // Tool implementations
   serverInstance.setRequestHandler(ListToolsRequestSchema, () => ({
     tools: [
@@ -127,19 +129,20 @@ export function setupServerHandlers(serverInstance: Server): void {
     const { name, arguments: args } = request.params;
 
     try {
+      const toolHandlers = new ToolHandlers(container);
       switch (name) {
         case 'list_instruction_modules': {
-          const result = handleListInstructionModules(args);
+          const result = toolHandlers.handleListInstructionModules(args);
           return createJsonResponse(result);
         }
 
         case 'search_instruction_modules': {
-          const result = handleSearchInstructionModules(args);
+          const result = toolHandlers.handleSearchInstructionModules(args);
           return createJsonResponse(result);
         }
 
         case 'get_modules_content': {
-          const result = handleGetModulesContent(args);
+          const result = toolHandlers.handleGetModulesContent(args);
           return createJsonResponse(result);
         }
 
@@ -259,9 +262,9 @@ export function setupServerHandlers(serverInstance: Server): void {
 }
 
 /**
- * Creates a new MCP server instance with default configuration
+ * Creates a new MCP server instance with dependency injection
  */
-export function createServer(): Server {
+export function createServer(container: Container): Server {
   const server = new Server(
     {
       name: 'simple-mcp-server',
@@ -275,6 +278,6 @@ export function createServer(): Server {
     }
   );
 
-  setupServerHandlers(server);
+  setupServerHandlers(server, container);
   return server;
 }

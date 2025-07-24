@@ -1,23 +1,24 @@
 /**
  * @fileoverview Fuzzy search functionality for instruction modules.
- * 
+ *
  * This module implements intelligent fuzzy search across instruction modules
  * using weighted Levenshtein distance scoring. Searches across multiple fields
  * including names, descriptions, categories, and file content with configurable
  * scoring weights for optimal relevance ranking.
- * 
+ *
  * @author MCP Server Team
  * @version 1.0.0
  * @since 1.0.0
  */
 
-import { readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
 import { CONFIG, validateFilePath } from './validation.js';
-import { parseInstructionModules } from './parsing.js';
 import { searchLogger } from './logger.js';
 import type { InstructionModule, SearchResult } from './types.js';
-
+import type {
+  IDependencies,
+  ISearchService,
+  IInstructionModuleParser,
+} from './interfaces.js';
 
 /**
  * Calculates a fuzzy match score between a search term and a target string using Levenshtein distance.
@@ -133,17 +134,25 @@ function extractContentMatches(term: string, content: string): string[] {
 function searchModuleContent(
   term: string,
   module: InstructionModule,
-  matchedFields: string[]
+  matchedFields: string[],
+  dependencies: IDependencies
 ): { score: number; matches: string[] } {
   try {
-    const baseDir = join(process.cwd(), 'instructions-modules');
-    const contentPath = validateFilePath(module.filePath, baseDir);
+    const baseDir = dependencies.pathUtils.join(
+      dependencies.processUtils.cwd(),
+      'instructions-modules'
+    );
+    const contentPath = validateFilePath(
+      module.filePath,
+      baseDir,
+      dependencies.pathUtils
+    );
 
-    if (!existsSync(contentPath)) {
+    if (!dependencies.fileSystem.existsSync(contentPath)) {
       return { score: 0, matches: [] };
     }
 
-    const content = readFileSync(contentPath, 'utf-8');
+    const content = dependencies.fileSystem.readFileSync(contentPath, 'utf-8');
     const contentScore =
       calculateFuzzyScore(term, content) * CONFIG.SCORING.CONTENT_WEIGHT;
 
@@ -167,7 +176,8 @@ function searchModuleContent(
  */
 function calculateModuleScore(
   module: InstructionModule,
-  searchTerms: string[]
+  searchTerms: string[],
+  dependencies: IDependencies
 ): { score: number; matchedFields: string[]; contentMatches: string[] } {
   let totalScore = 0;
   const matchedFields: string[] = [];
@@ -219,7 +229,12 @@ function calculateModuleScore(
     }
 
     // Search in file content
-    const contentResult = searchModuleContent(term, module, matchedFields);
+    const contentResult = searchModuleContent(
+      term,
+      module,
+      matchedFields,
+      dependencies
+    );
     fieldScore += contentResult.score;
     allContentMatches.push(...contentResult.matches);
 
@@ -234,50 +249,77 @@ function calculateModuleScore(
 }
 
 /**
- * Performs a fuzzy search over all instruction modules using the provided search terms.
- *
- * Search algorithm:
- * - Matches against name (2x weight), description (1.5x), category/subcategory (1x), content (0.8x)
- * - Requires minimum score thresholds: name/desc/cat (0.3), content (0.2)
- * - Only returns results with total score > 0.5 and at least one matched field
- * - Extracts content context (≤200 chars) around matches for preview
- *
- * @param {string[]} searchTerms - Array of search terms to match against (typically from splitting user query)
- * @returns {SearchResult[]} Array of matching modules sorted by score descending, with search metadata
- *
- * @example
- * ```typescript
- * const results = searchInstructionModules(["typescript", "generics"]);
- * console.log(results[0].score);           // e.g., 3.2
- * console.log(results[0].matchedFields);   // ["name", "description"]
- * console.log(results[0].contentMatches);  // ["TypeScript generics allow..."]
- * ```
+ * Injectable search service implementation.
+ * Handles search with dependency injection for better testability.
+ */
+export class SearchService implements ISearchService {
+  constructor(
+    private dependencies: IDependencies,
+    private parser: IInstructionModuleParser
+  ) {}
+
+  /**
+   * Performs a fuzzy search over all instruction modules using the provided search terms.
+   *
+   * Search algorithm:
+   * - Matches against name (2x weight), description (1.5x), category/subcategory (1x), content (0.8x)
+   * - Requires minimum score thresholds: name/desc/cat (0.3), content (0.2)
+   * - Only returns results with total score > 0.5 and at least one matched field
+   * - Extracts content context (≤200 chars) around matches for preview
+   *
+   * @param {string[]} searchTerms - Array of search terms to match against (typically from splitting user query)
+   * @returns {SearchResult[]} Array of matching modules sorted by score descending, with search metadata
+   *
+   * @example
+   * ```typescript
+   * const results = searchService.searchInstructionModules(["typescript", "generics"]);
+   * console.log(results[0].score);           // e.g., 3.2
+   * console.log(results[0].matchedFields);   // ["name", "description"]
+   * console.log(results[0].contentMatches);  // ["TypeScript generics allow..."]
+   * ```
+   */
+  searchInstructionModules(searchTerms: string[]): SearchResult[] {
+    const modules = this.parser.parseInstructionModules();
+    const results: SearchResult[] = [];
+
+    for (const module of modules) {
+      const scoreData = calculateModuleScore(
+        module,
+        searchTerms,
+        this.dependencies
+      );
+
+      // Only include results with meaningful matches
+      if (
+        scoreData.score > CONFIG.SCORING.MIN_TOTAL_SCORE &&
+        scoreData.matchedFields.length > 0
+      ) {
+        results.push({
+          ...module,
+          score: scoreData.score,
+          matchedFields: scoreData.matchedFields,
+          ...(scoreData.contentMatches.length > 0 && {
+            contentMatches: scoreData.contentMatches,
+          }),
+        });
+      }
+    }
+
+    // Sort by score (highest first)
+    return results.sort((a, b) => b.score - a.score);
+  }
+}
+
+/**
+ * Convenience function to search instruction modules using the global container.
+ * @param searchTerms Array of search terms to match against
+ * @returns Array of matching modules sorted by score descending
  */
 export function searchInstructionModules(
   searchTerms: string[]
 ): SearchResult[] {
-  const modules = parseInstructionModules();
-  const results: SearchResult[] = [];
-
-  for (const module of modules) {
-    const scoreData = calculateModuleScore(module, searchTerms);
-
-    // Only include results with meaningful matches
-    if (
-      scoreData.score > CONFIG.SCORING.MIN_TOTAL_SCORE &&
-      scoreData.matchedFields.length > 0
-    ) {
-      results.push({
-        ...module,
-        score: scoreData.score,
-        matchedFields: scoreData.matchedFields,
-        ...(scoreData.contentMatches.length > 0 && {
-          contentMatches: scoreData.contentMatches,
-        }),
-      });
-    }
-  }
-
-  // Sort by score (highest first)
-  return results.sort((a, b) => b.score - a.score);
+  const { getContainer } = require('./container.js');
+  const container = getContainer();
+  const searchService = container.getSearchService();
+  return searchService.searchInstructionModules(searchTerms);
 }

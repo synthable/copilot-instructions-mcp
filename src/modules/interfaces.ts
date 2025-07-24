@@ -1,0 +1,111 @@
+/**
+ * @fileoverview Dependency injection interfaces for the MCP server.
+ *
+ * This module defines interfaces for external dependencies that can be injected
+ * into various modules, enabling better testability and modularity. Abstracts
+ * file system operations, path utilities, and other external dependencies.
+ *
+ * @author MCP Server Team
+ * @version 1.0.0
+ * @since 1.0.0
+ */
+
+/**
+ * Interface for file system operations.
+ * Abstracts Node.js fs module for dependency injection and testing.
+ */
+export interface IFileSystem {
+  /**
+   * Synchronously reads the entire contents of a file.
+   */
+  readFileSync(path: string, encoding: BufferEncoding): string;
+
+  /**
+   * Synchronously tests whether or not the given path exists.
+   */
+  existsSync(path: string): boolean;
+}
+
+/**
+ * Interface for path manipulation utilities.
+ * Abstracts Node.js path module for dependency injection and testing.
+ */
+export interface IPathUtils {
+  /**
+   * Joins all given path segments together using the platform-specific separator.
+   */
+  join(...paths: string[]): string;
+
+  /**
+   * Resolves a sequence of paths or path segments into an absolute path.
+   */
+  resolve(...paths: string[]): string;
+
+  /**
+   * Determines the relative path from one path to another.
+   */
+  relative(from: string, to: string): string;
+}
+
+/**
+ * Interface for process utilities.
+ * Abstracts Node.js process for dependency injection and testing.
+ */
+export interface IProcessUtils {
+  /**
+   * Returns the current working directory of the Node.js process.
+   */
+  cwd(): string;
+}
+
+/**
+ * Combined interface for all external dependencies.
+ * Provides a single injection point for all external dependencies.
+ */
+export interface IDependencies {
+  fileSystem: IFileSystem;
+  pathUtils: IPathUtils;
+  processUtils: IProcessUtils;
+}
+
+/**
+ * Interface for instruction module parsing functionality.
+ * Enables dependency injection for the parsing operations.
+ */
+export interface IInstructionModuleParser {
+  /**
+   * Parses instruction modules from the README file.
+   */
+  parseInstructionModules(): import('./types.js').InstructionModule[];
+
+  /**
+   * Clears the cached instruction modules.
+   */
+  clearModuleCache(): void;
+}
+
+/**
+ * Interface for search functionality.
+ * Enables dependency injection for search operations.
+ */
+export interface ISearchService {
+  /**
+   * Performs fuzzy search over instruction modules.
+   */
+  searchInstructionModules(
+    searchTerms: string[]
+  ): import('./types.js').SearchResult[];
+}
+
+/**
+ * Interface for content retrieval functionality.
+ * Enables dependency injection for content operations.
+ */
+export interface IContentService {
+  /**
+   * Retrieves and combines content from multiple instruction modules.
+   */
+  getModulesContent(
+    moduleIds: string[]
+  ): import('./types.js').GetModulesContentResult;
+}

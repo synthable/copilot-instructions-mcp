@@ -1,47 +1,37 @@
 /**
  * @fileoverview Instruction module parsing functionality.
- * 
+ *
  * This module handles parsing the README.md file from the instructions-modules
  * directory to extract the hierarchical structure of instruction modules.
  * Provides caching for performance and comprehensive error handling.
- * 
+ *
  * @author MCP Server Team
  * @version 1.0.0
  * @since 1.0.0
  */
 
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { validateFilePath } from './validation.js';
 import { parsingLogger } from './logger.js';
 import type { InstructionModule, ParsingState } from './types.js';
-
-/**
- * Cached instruction modules to avoid re-parsing on subsequent requests.
- * Set to null initially and after cache clearing operations.
- * 
- * @since 1.0.0
- */
-let _cachedInstructionModules: InstructionModule[] | null = null;
-
+import type { IDependencies, IInstructionModuleParser } from './interfaces.js';
 
 /**
  * Parses a category line from the README and updates parsing state.
- * 
+ *
  * Categories are identified by lines starting with `## ` followed by the category name.
  * When found, updates the current category and resets the subcategory.
- * 
+ *
  * @param line - The line to parse for category information
  * @param state - Parsing state object to update
  * @returns True if the line contained a category, false otherwise
- * 
+ *
  * @example
  * ```typescript
  * const line = "## Foundation";
  * const found = parseCategoryLine(line, state);
  * // Returns: true, state.currentCategory = "Foundation"
  * ```
- * 
+ *
  * @since 1.0.0
  * @internal
  */
@@ -68,21 +58,21 @@ function parseCategoryLine(
 
 /**
  * Parses a subcategory line from the README and updates parsing state.
- * 
+ *
  * Subcategories are identified by lines matching the pattern `- **Title**`.
  * When found, updates the current subcategory for subsequent module entries.
- * 
+ *
  * @param line - The line to parse for subcategory information
  * @param state - Parsing state object to update
  * @returns True if the line contained a subcategory, false otherwise
- * 
+ *
  * @example
  * ```typescript
  * const line = "- **Logic**";
  * const found = parseSubcategoryLine(line, state);
  * // Returns: true, state.currentSubcategory = "Logic"
  * ```
- * 
+ *
  * @since 1.0.0
  * @internal
  */
@@ -104,22 +94,22 @@ function parseSubcategoryLine(
 
 /**
  * Parses a module entry line and creates an InstructionModule object.
- * 
+ *
  * Module entries follow the pattern: `- [Name](path) - Description`
  * Uses the current category and subcategory from parsing state to build
  * the complete module metadata.
- * 
+ *
  * @param line - The line to parse for module information
  * @param state - Current parsing state with category context
  * @returns InstructionModule object if parsed successfully, null otherwise
- * 
+ *
  * @example
  * ```typescript
  * const line = "- [Deductive Reasoning](foundation/logic/deductive-reasoning.md) - Apply logical deduction";
  * const module = parseModuleLine(line, state);
  * // Returns: { id: "foundation.logic.deductive-reasoning", name: "Deductive Reasoning", ... }
  * ```
- * 
+ *
  * @since 1.0.0
  * @internal
  */
@@ -175,20 +165,20 @@ function parseModuleLine(
 
 /**
  * Parses the complete README content and extracts all instruction modules.
- * 
+ *
  * Processes the markdown content line by line, maintaining state to track
  * the current category and subcategory context for each module entry.
- * 
+ *
  * @param content - The complete README.md file content as a string
  * @returns Array of parsed InstructionModule objects
- * 
+ *
  * @example
  * ```typescript
  * const content = readFileSync('README.md', 'utf-8');
  * const modules = parseReadmeContent(content);
  * console.log(`Parsed ${modules.length} modules`);
  * ```
- * 
+ *
  * @since 1.0.0
  * @internal
  */
@@ -230,66 +220,110 @@ function parseReadmeContent(content: string): InstructionModule[] {
 }
 
 /**
- * Parses the instruction modules from the README file in the instructions-modules directory.
- *
- * Extracts hierarchical structure using regex patterns:
- * - Categories: `## Title` (e.g., "## Foundation")
- * - Subcategories: `- **Title**` (e.g., "- **Logic**")
- * - Modules: `- [Name](path) - Description` (e.g., "- [Deductive Reasoning](foundation/logic/deductive-reasoning.md) - Apply logical deduction")
- *
- * @returns {InstructionModule[]} Array of parsed instruction modules with metadata
- * @throws {Error} Logs error to console and returns empty array if README.md cannot be read
- *
- * @example
- * ```typescript
- * const modules = parseInstructionModules();
- * console.log(modules.length); // e.g., 150
- * console.log(modules[0].category); // "Foundation"
- * ```
+ * Injectable instruction module parser implementation.
+ * Handles parsing with dependency injection for better testability.
  */
-export function parseInstructionModules(): InstructionModule[] {
-  if (_cachedInstructionModules) {
-    parsingLogger.debug('Returning cached instruction modules');
-    return _cachedInstructionModules;
+export class InstructionModuleParser implements IInstructionModuleParser {
+  private cachedInstructionModules: InstructionModule[] | null = null;
+
+  constructor(private dependencies: IDependencies) {}
+
+  /**
+   * Parses the instruction modules from the README file in the instructions-modules directory.
+   *
+   * Extracts hierarchical structure using regex patterns:
+   * - Categories: `## Title` (e.g., "## Foundation")
+   * - Subcategories: `- **Title**` (e.g., "- **Logic**")
+   * - Modules: `- [Name](path) - Description` (e.g., "- [Deductive Reasoning](foundation/logic/deductive-reasoning.md) - Apply logical deduction")
+   *
+   * @returns {InstructionModule[]} Array of parsed instruction modules with metadata
+   * @throws {Error} Logs error to console and returns empty array if README.md cannot be read
+   *
+   * @example
+   * ```typescript
+   * const modules = parser.parseInstructionModules();
+   * console.log(modules.length); // e.g., 150
+   * console.log(modules[0].category); // "Foundation"
+   * ```
+   */
+  parseInstructionModules(): InstructionModule[] {
+    if (this.cachedInstructionModules) {
+      parsingLogger.debug('Returning cached instruction modules');
+      return this.cachedInstructionModules;
+    }
+
+    try {
+      const baseDir = this.dependencies.pathUtils.join(
+        this.dependencies.processUtils.cwd(),
+        'instructions-modules'
+      );
+      const readmePath = validateFilePath(
+        'README.md',
+        baseDir,
+        this.dependencies.pathUtils
+      );
+
+      parsingLogger.debug(`Reading README from: ${readmePath}`);
+
+      const content = this.dependencies.fileSystem.readFileSync(
+        readmePath,
+        'utf-8'
+      );
+
+      parsingLogger.debug(
+        `README content length: ${content.length.toString()}`
+      );
+
+      const modules = parseReadmeContent(content);
+      parsingLogger.info(
+        `Successfully parsed ${modules.length.toString()} instruction modules`
+      );
+      this.cachedInstructionModules = modules; // Cache the modules
+      return modules;
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      parsingLogger.error('Error parsing instruction modules', error);
+      return [];
+    }
   }
 
-  try {
-    const baseDir = join(process.cwd(), 'instructions-modules');
-    const readmePath = validateFilePath('README.md', baseDir);
-
-    parsingLogger.debug(`Reading README from: ${readmePath}`);
-
-    const content = readFileSync(readmePath, 'utf-8');
-
-    parsingLogger.debug(`README content length: ${content.length.toString()}`);
-
-    const modules = parseReadmeContent(content);
-    parsingLogger.info(
-      `Successfully parsed ${modules.length.toString()} instruction modules`
-    );
-    _cachedInstructionModules = modules; // Cache the modules
-    return modules;
-  } catch (err) {
-    const error = err instanceof Error ? err : new Error(String(err));
-    parsingLogger.error('Error parsing instruction modules', error);
-    return [];
+  /**
+   * Clears the cached instruction modules to force re-parsing on next request.
+   *
+   * This function is primarily useful for testing scenarios where the
+   * instruction modules may have changed and the cache needs to be invalidated.
+   *
+   * @example
+   * ```typescript
+   * parser.clearModuleCache();
+   * const freshModules = parser.parseInstructionModules(); // Will re-parse from disk
+   * ```
+   *
+   * @since 1.0.0
+   */
+  clearModuleCache(): void {
+    this.cachedInstructionModules = null;
   }
 }
 
+// Convenience functions that use the global container
+import { getContainer } from './container.js';
+
 /**
- * Clears the cached instruction modules to force re-parsing on next request.
- * 
- * This function is primarily useful for testing scenarios where the
- * instruction modules may have changed and the cache needs to be invalidated.
- * 
- * @example
- * ```typescript
- * clearModuleCache();
- * const freshModules = parseInstructionModules(); // Will re-parse from disk
- * ```
- * 
- * @since 1.0.0
+ * Convenience function to parse instruction modules using the global container.
+ * @returns Array of parsed instruction modules
+ */
+export function parseInstructionModules(): InstructionModule[] {
+  const container = getContainer();
+  const parser = container.getInstructionModuleParser();
+  return parser.parseInstructionModules();
+}
+
+/**
+ * Convenience function to clear module cache using the global container.
  */
 export function clearModuleCache(): void {
-  _cachedInstructionModules = null;
+  const container = getContainer();
+  const parser = container.getInstructionModuleParser();
+  parser.clearModuleCache();
 }

@@ -1,10 +1,10 @@
 /**
  * @fileoverview Module re-exports for the Simple MCP Server.
- * 
+ *
  * This module provides a clean interface for importing all public functions,
- * types, and utilities from the modular MCP server implementation. Organizes
- * exports by functionality for easy consumption by other parts of the application.
- * 
+ * types, and utilities from the modular MCP server implementation with
+ * dependency injection as the primary architecture.
+ *
  * @author MCP Server Team
  * @version 1.0.0
  * @since 1.0.0
@@ -12,6 +12,7 @@
 
 // Re-export all public types and interfaces
 export * from './types.js';
+export * from './interfaces.js';
 
 // Re-export validation utilities and configuration
 export * from './validation.js';
@@ -19,7 +20,16 @@ export * from './validation.js';
 // Re-export logging system
 export * from './logger.js';
 
-// Export parsing functions with explicit names to avoid conflicts
+// Re-export dependency injection system (primary architecture)
+export * from './container.js';
+
+// Export service classes (primary architecture)
+export { InstructionModuleParser } from './parsing.js';
+export { SearchService } from './search.js';
+export { ContentService } from './content.js';
+export { ToolHandlers } from './toolHandlers.js';
+
+// Export convenience functions (thin wrappers around DI container)
 export { parseInstructionModules, clearModuleCache } from './parsing.js';
 export { searchInstructionModules } from './search.js';
 export { getModulesContent } from './content.js';
@@ -30,8 +40,7 @@ export {
   createToolErrorResponse,
   getToolFallbackData,
 } from './toolHandlers.js';
-export {
-  createServer,
-  setupServerHandlers,
-} from './server.js';
+
+// Export server and transport functions
+export { createServer, setupServerHandlers } from './server.js';
 export { runStdio, runHttp, runSSE } from './transport.js';
