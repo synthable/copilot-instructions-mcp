@@ -130,7 +130,9 @@ export class ContentService implements IContentService {
 export function getModulesContent(
   moduleIds: string[]
 ): GetModulesContentResult {
-  const { getContainer } = require('./container.js');
+  // Dynamic import to avoid circular dependency issues
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { getContainer } = require('./container.js') as typeof import('./container.js');
   const container = getContainer();
   const contentService = container.getContentService();
   return contentService.getModulesContent(moduleIds);

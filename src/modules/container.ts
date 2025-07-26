@@ -96,11 +96,9 @@ export class Container {
    * Gets or creates the instruction module parser service.
    */
   getInstructionModuleParser(): IInstructionModuleParser {
-    if (!this.instructionModuleParser) {
-      this.instructionModuleParser = new InstructionModuleParser(
-        this.dependencies
-      );
-    }
+    this.instructionModuleParser ??= new InstructionModuleParser(
+      this.dependencies
+    );
     return this.instructionModuleParser;
   }
 
@@ -108,12 +106,10 @@ export class Container {
    * Gets or creates the search service.
    */
   getSearchService(): ISearchService {
-    if (!this.searchService) {
-      this.searchService = new SearchService(
-        this.dependencies,
-        this.getInstructionModuleParser()
-      );
-    }
+    this.searchService ??= new SearchService(
+      this.dependencies,
+      this.getInstructionModuleParser()
+    );
     return this.searchService;
   }
 
@@ -121,12 +117,10 @@ export class Container {
    * Gets or creates the content service.
    */
   getContentService(): IContentService {
-    if (!this.contentService) {
-      this.contentService = new ContentService(
-        this.dependencies,
-        this.getInstructionModuleParser()
-      );
-    }
+    this.contentService ??= new ContentService(
+      this.dependencies,
+      this.getInstructionModuleParser()
+    );
     return this.contentService;
   }
 
@@ -161,9 +155,7 @@ let globalContainer: Container | null = null;
  * Gets the global container instance, creating it if necessary.
  */
 export function getContainer(): Container {
-  if (!globalContainer) {
-    globalContainer = new Container();
-  }
+  globalContainer ??= new Container();
   return globalContainer;
 }
 

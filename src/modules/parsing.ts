@@ -307,13 +307,15 @@ export class InstructionModuleParser implements IInstructionModuleParser {
 }
 
 // Convenience functions that use the global container
-import { getContainer } from './container.js';
 
 /**
  * Convenience function to parse instruction modules using the global container.
  * @returns Array of parsed instruction modules
  */
 export function parseInstructionModules(): InstructionModule[] {
+  // Dynamic import to avoid circular dependency issues
+  // eslint-disable-next-line @typescript-eslint/no-require-imports  
+  const { getContainer } = require('./container.js') as typeof import('./container.js');
   const container = getContainer();
   const parser = container.getInstructionModuleParser();
   return parser.parseInstructionModules();
@@ -323,6 +325,9 @@ export function parseInstructionModules(): InstructionModule[] {
  * Convenience function to clear module cache using the global container.
  */
 export function clearModuleCache(): void {
+  // Dynamic import to avoid circular dependency issues
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { getContainer } = require('./container.js') as typeof import('./container.js');
   const container = getContainer();
   const parser = container.getInstructionModuleParser();
   parser.clearModuleCache();

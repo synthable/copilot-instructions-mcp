@@ -34,7 +34,9 @@ function splitSearchQuery(query: string): string[] {
  * Convenience function to handle list_instruction_modules using the global container.
  */
 export function handleListInstructionModules(args: ToolArgs | undefined) {
-  const { getContainer } = require('./container.js');
+  // Dynamic import to avoid circular dependency issues
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { getContainer } = require('./container.js') as typeof import('./container.js');
   const container = getContainer();
   const toolHandlers = new ToolHandlers(container);
   return toolHandlers.handleListInstructionModules(args);
@@ -44,7 +46,9 @@ export function handleListInstructionModules(args: ToolArgs | undefined) {
  * Convenience function to handle search_instruction_modules using the global container.
  */
 export function handleSearchInstructionModules(args: ToolArgs | undefined) {
-  const { getContainer } = require('./container.js');
+  // Dynamic import to avoid circular dependency issues
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { getContainer } = require('./container.js') as typeof import('./container.js');
   const container = getContainer();
   const toolHandlers = new ToolHandlers(container);
   return toolHandlers.handleSearchInstructionModules(args);
@@ -54,7 +58,9 @@ export function handleSearchInstructionModules(args: ToolArgs | undefined) {
  * Convenience function to handle get_modules_content using the global container.
  */
 export function handleGetModulesContent(args: ToolArgs | undefined) {
-  const { getContainer } = require('./container.js');
+  // Dynamic import to avoid circular dependency issues
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { getContainer } = require('./container.js') as typeof import('./container.js');
   const container = getContainer();
   const toolHandlers = new ToolHandlers(container);
   return toolHandlers.handleGetModulesContent(args);
@@ -111,7 +117,7 @@ export class ToolHandlers {
 
     // Filter by category if specified
     const filteredModules = categoryFilter
-      ? modules.filter((m: any) => m.category === categoryFilter)
+      ? modules.filter(m => m.category === categoryFilter)
       : modules;
 
     return {

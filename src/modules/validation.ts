@@ -69,8 +69,10 @@ export function validateFilePath(
   }
 
   // Use injected path utils or fall back to Node.js path module
-  const resolveFunc = pathUtils?.resolve || resolve;
-  const relativeFunc = pathUtils?.relative || relative;
+  // eslint-disable-next-line @typescript-eslint/unbound-method
+  const resolveFunc = pathUtils ? pathUtils.resolve : resolve;
+  // eslint-disable-next-line @typescript-eslint/unbound-method
+  const relativeFunc = pathUtils ? pathUtils.relative : relative;
 
   // Resolve the full path and check it's within baseDir
   const fullPath = resolveFunc(baseDir, filePath);

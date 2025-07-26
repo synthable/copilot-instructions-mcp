@@ -318,7 +318,9 @@ export class SearchService implements ISearchService {
 export function searchInstructionModules(
   searchTerms: string[]
 ): SearchResult[] {
-  const { getContainer } = require('./container.js');
+  // Dynamic import to avoid circular dependency issues
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { getContainer } = require('./container.js') as typeof import('./container.js');
   const container = getContainer();
   const searchService = container.getSearchService();
   return searchService.searchInstructionModules(searchTerms);
