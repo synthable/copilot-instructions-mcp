@@ -77,9 +77,7 @@ export class ContentService implements IContentService {
         );
 
         if (!this.dependencies.fileSystem.existsSync(contentPath)) {
-          errors.push(
-            `File not found for module "${moduleId}": ${module.filePath}`
-          );
+          errors.push(`File not found for module "${moduleId}": ${module.filePath}`);
           continue;
         }
 
@@ -100,8 +98,7 @@ export class ContentService implements IContentService {
 
         contents.push(moduleHeader + fileContent);
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : 'Unknown error';
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
         errors.push(`Error reading module "${moduleId}": ${errorMessage}`);
         contentLogger.warn(`Error reading module ${moduleId}`, err);
       }
@@ -127,9 +124,7 @@ export class ContentService implements IContentService {
  * @param moduleIds Array of module IDs to retrieve
  * @returns Result object with success status, combined content, and error details
  */
-export function getModulesContent(
-  moduleIds: string[]
-): GetModulesContentResult {
+export function getModulesContent(moduleIds: string[]): GetModulesContentResult {
   // Dynamic import to avoid circular dependency issues
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { getContainer } = require('./container.js') as typeof import('./container.js');

@@ -202,19 +202,12 @@ export function validateCategoryFilter(category: unknown): string | null {
     return null;
   }
 
-  const validCategories = [
-    'Foundation',
-    'Principle',
-    'Technology',
-    'Execution',
-  ];
+  const validCategories = ['Foundation', 'Principle', 'Technology', 'Execution'];
   const normalizedCategory =
     trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
 
   if (!validCategories.includes(normalizedCategory)) {
-    throw new Error(
-      `Invalid category. Must be one of: ${validCategories.join(', ')}`
-    );
+    throw new Error(`Invalid category. Must be one of: ${validCategories.join(', ')}`);
   }
 
   return normalizedCategory;
@@ -252,9 +245,7 @@ export function validateModuleIds(moduleIds: unknown): string[] {
   }
 
   if (moduleIds.length > CONFIG.MAX_MODULE_IDS) {
-    throw new Error(
-      `Too many module IDs (max ${CONFIG.MAX_MODULE_IDS.toString()})`
-    );
+    throw new Error(`Too many module IDs (max ${CONFIG.MAX_MODULE_IDS.toString()})`);
   }
 
   const validatedIds: string[] = [];

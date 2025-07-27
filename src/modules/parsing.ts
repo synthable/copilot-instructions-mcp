@@ -265,14 +265,9 @@ export class InstructionModuleParser implements IInstructionModuleParser {
 
       parsingLogger.debug(`Reading README from: ${readmePath}`);
 
-      const content = this.dependencies.fileSystem.readFileSync(
-        readmePath,
-        'utf-8'
-      );
+      const content = this.dependencies.fileSystem.readFileSync(readmePath, 'utf-8');
 
-      parsingLogger.debug(
-        `README content length: ${content.length.toString()}`
-      );
+      parsingLogger.debug(`README content length: ${content.length.toString()}`);
 
       const modules = parseReadmeContent(content);
       parsingLogger.info(
@@ -314,7 +309,7 @@ export class InstructionModuleParser implements IInstructionModuleParser {
  */
 export function parseInstructionModules(): InstructionModule[] {
   // Dynamic import to avoid circular dependency issues
-  // eslint-disable-next-line @typescript-eslint/no-require-imports  
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { getContainer } = require('./container.js') as typeof import('./container.js');
   const container = getContainer();
   const parser = container.getInstructionModuleParser();

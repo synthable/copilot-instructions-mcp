@@ -118,9 +118,7 @@ function extractContentMatches(term: string, content: string): string[] {
       const context = lines.slice(start, end).join(' ').trim();
 
       if (context.length > 0 && !matches.includes(context)) {
-        matches.push(
-          context.substring(0, 200) + (context.length > 200 ? '...' : '')
-        );
+        matches.push(context.substring(0, 200) + (context.length > 200 ? '...' : ''));
       }
     }
   }
@@ -283,11 +281,7 @@ export class SearchService implements ISearchService {
     const results: SearchResult[] = [];
 
     for (const module of modules) {
-      const scoreData = calculateModuleScore(
-        module,
-        searchTerms,
-        this.dependencies
-      );
+      const scoreData = calculateModuleScore(module, searchTerms, this.dependencies);
 
       // Only include results with meaningful matches
       if (
@@ -315,9 +309,7 @@ export class SearchService implements ISearchService {
  * @param searchTerms Array of search terms to match against
  * @returns Array of matching modules sorted by score descending
  */
-export function searchInstructionModules(
-  searchTerms: string[]
-): SearchResult[] {
+export function searchInstructionModules(searchTerms: string[]): SearchResult[] {
   // Dynamic import to avoid circular dependency issues
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { getContainer } = require('./container.js') as typeof import('./container.js');

@@ -92,9 +92,7 @@ export interface ISearchService {
   /**
    * Performs fuzzy search over instruction modules.
    */
-  searchInstructionModules(
-    searchTerms: string[]
-  ): import('./types.js').SearchResult[];
+  searchInstructionModules(searchTerms: string[]): import('./types.js').SearchResult[];
 }
 
 /**
@@ -105,7 +103,5 @@ export interface IContentService {
   /**
    * Retrieves and combines content from multiple instruction modules.
    */
-  getModulesContent(
-    moduleIds: string[]
-  ): import('./types.js').GetModulesContentResult;
+  getModulesContent(moduleIds: string[]): import('./types.js').GetModulesContentResult;
 }

@@ -150,8 +150,7 @@ export function setupServerHandlers(
           throw new Error(`Unknown tool: ${name}`);
       }
     } catch (err) {
-      const error =
-        err instanceof Error ? err : new Error(getErrorMessage(err));
+      const error = err instanceof Error ? err : new Error(getErrorMessage(err));
       const fallbackData = getToolFallbackData(name);
       const errorResponse = createToolErrorResponse(name, error, fallbackData);
       return createJsonResponse(errorResponse);
@@ -175,8 +174,7 @@ export function setupServerHandlers(
       },
       {
         name: 'concise-integration',
-        description:
-          'Minimal prompt for adding MCP capabilities to existing prompts',
+        description: 'Minimal prompt for adding MCP capabilities to existing prompts',
         arguments: [],
       },
       {
@@ -203,11 +201,7 @@ export function setupServerHandlers(
           break;
 
         case 'system-prompt-generator':
-          promptPath = join(
-            process.cwd(),
-            'docs',
-            'system-prompt-generator.md'
-          );
+          promptPath = join(process.cwd(), 'docs', 'system-prompt-generator.md');
           description =
             'Focused prompt for production AI assistants with dynamic capability enhancement';
           break;

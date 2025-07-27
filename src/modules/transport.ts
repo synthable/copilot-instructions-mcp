@@ -1,14 +1,14 @@
 /**
  * @fileoverview MCP server transport layer implementations.
- * 
+ *
  * This module provides multiple transport mechanisms for the MCP server:
  * - stdio: For command-line and MCP Inspector connections
  * - HTTP: For web applications with streamable HTTP transport
  * - SSE: Deprecated Server-Sent Events transport
- * 
+ *
  * All transports share the same MCP server instance and provide consistent
  * functionality across different connection types.
- * 
+ *
  * @author MCP Server Team
  * @version 1.0.0
  * @since 1.0.0
@@ -21,7 +21,6 @@ import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { randomUUID } from 'node:crypto';
 import express from 'express';
 import { transportLogger } from './logger.js';
-
 
 /**
  * Runs the MCP server using stdio transport.
@@ -116,10 +115,7 @@ export async function runHttp(server: Server, port = 3000): Promise<void> {
  * @returns {void}
  */
 export function runSSE(serverFactory: () => Server, port = 3000): void {
-  const sessions = new Map<
-    string,
-    { transport: SSEServerTransport; server: Server }
-  >();
+  const sessions = new Map<string, { transport: SSEServerTransport; server: Server }>();
 
   const app = express();
 

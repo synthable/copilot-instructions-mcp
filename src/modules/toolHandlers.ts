@@ -59,8 +59,9 @@ export function handleSearchInstructionModules(args: ToolArgs | undefined) {
  */
 export function handleGetModulesContent(args: ToolArgs | undefined) {
   // Dynamic import to avoid circular dependency issues
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { getContainer } = require('./container.js') as typeof import('./container.js');
+  const { getContainer } =
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('./container.js') as typeof import('./container.js');
   const container = getContainer();
   const toolHandlers = new ToolHandlers(container);
   return toolHandlers.handleGetModulesContent(args);
@@ -172,9 +173,7 @@ export class ToolHandlers {
 
     const moduleIds = validateModuleIds(args.moduleIds);
 
-    toolHandlersLogger.debug(
-      `Getting content for modules: ${moduleIds.join(', ')}`
-    );
+    toolHandlersLogger.debug(`Getting content for modules: ${moduleIds.join(', ')}`);
 
     // Get the combined content
     const contentService = this.container.getContentService();

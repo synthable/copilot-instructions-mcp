@@ -96,9 +96,7 @@ export class Container {
    * Gets or creates the instruction module parser service.
    */
   getInstructionModuleParser(): IInstructionModuleParser {
-    this.instructionModuleParser ??= new InstructionModuleParser(
-      this.dependencies
-    );
+    this.instructionModuleParser ??= new InstructionModuleParser(this.dependencies);
     return this.instructionModuleParser;
   }
 

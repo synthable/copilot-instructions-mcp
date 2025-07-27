@@ -1,11 +1,11 @@
 /**
  * @fileoverview Centralized logging system for the MCP server.
- * 
+ *
  * This module provides a structured logging framework with configurable levels,
  * module-specific loggers, and support for both development and production formats.
  * Designed to maintain clean JSON output for MCP protocol while enabling rich
  * debugging information when needed.
- * 
+ *
  * @author MCP Server Team
  * @version 1.0.0
  * @since 1.0.0
@@ -13,10 +13,10 @@
 
 /**
  * Enumeration of available log levels in order of severity.
- * 
+ *
  * Used to control which messages are output based on the configured
  * minimum log level. Higher numeric values indicate higher severity.
- * 
+ *
  * @enum {number}
  * @since 1.0.0
  */
@@ -30,7 +30,7 @@ export enum LogLevel {
 
 /**
  * Structure of a log entry containing all metadata and content.
- * 
+ *
  * @interface LogEntry
  * @property {string} timestamp - ISO timestamp when the log entry was created
  * @property {string} level - Log level as string (DEBUG, INFO, WARN, ERROR)
@@ -38,7 +38,7 @@ export enum LogLevel {
  * @property {string} message - Primary log message
  * @property {unknown} [data] - Optional structured data associated with the log
  * @property {Error} [error] - Optional error object with stack trace
- * 
+ *
  * @since 1.0.0
  */
 export interface LogEntry {
@@ -52,14 +52,14 @@ export interface LogEntry {
 
 /**
  * Configuration options for the logging system.
- * 
+ *
  * @interface LoggerConfig
  * @property {LogLevel} level - Minimum log level to output
  * @property {boolean} enableConsole - Whether to output to console
  * @property {boolean} enableStructured - Whether to use JSON format
  * @property {boolean} includeTimestamp - Whether to include timestamps
  * @property {boolean} includeModule - Whether to include module names
- * 
+ *
  * @since 1.0.0
  */
 export interface LoggerConfig {
@@ -81,17 +81,17 @@ class Logger {
 
   /**
    * Updates the logger configuration with provided settings.
-   * 
+   *
    * Allows partial configuration updates - only specified properties
    * will be changed, others remain at their current values.
-   * 
+   *
    * @param config - Partial configuration object with settings to update
-   * 
+   *
    * @example
    * ```typescript
    * logger.configure({ level: LogLevel.DEBUG, enableStructured: true });
    * ```
-   * 
+   *
    * @since 1.0.0
    */
   configure(config: Partial<LoggerConfig>): void {
@@ -100,17 +100,17 @@ class Logger {
 
   /**
    * Sets the minimum log level for output filtering.
-   * 
+   *
    * Messages below this level will be ignored. This provides a quick
    * way to adjust verbosity without changing the full configuration.
-   * 
+   *
    * @param level - The minimum LogLevel to output
-   * 
+   *
    * @example
    * ```typescript
    * logger.setLevel(LogLevel.WARN); // Only show warnings and errors
    * ```
-   * 
+   *
    * @since 1.0.0
    */
   setLevel(level: LogLevel): void {
@@ -119,17 +119,17 @@ class Logger {
 
   /**
    * Convenience method to enable or disable debug-level logging.
-   * 
+   *
    * When enabled, sets level to DEBUG. When disabled, sets level to INFO.
    * This provides an easy way to toggle detailed logging.
-   * 
+   *
    * @param enabled - Whether to enable debug logging
-   * 
+   *
    * @example
    * ```typescript
    * logger.setDebugEnabled(true); // Show all messages including debug
    * ```
-   * 
+   *
    * @since 1.0.0
    */
   setDebugEnabled(enabled: boolean): void {
@@ -138,20 +138,20 @@ class Logger {
 
   /**
    * Creates a module-specific logger instance with pre-configured module name.
-   * 
+   *
    * Returns an object with convenience methods for each log level that
    * automatically include the module name in all log entries.
-   * 
+   *
    * @param moduleName - Name of the module for log identification
    * @returns Object with debug, info, warn, and error logging methods
-   * 
+   *
    * @example
    * ```typescript
    * const moduleLogger = logger.createModuleLogger('parsing');
    * moduleLogger.info('Module initialized');
    * moduleLogger.error('Parsing failed', error);
    * ```
-   * 
+   *
    * @since 1.0.0
    */
   createModuleLogger(moduleName: string) {
@@ -256,12 +256,12 @@ const globalLogger = new Logger();
 
 /**
  * Configures the global logger instance with the provided settings.
- * 
+ *
  * This function provides a convenient way to configure the singleton logger
  * instance used throughout the application.
- * 
+ *
  * @param config - Partial configuration object with settings to update
- * 
+ *
  * @example
  * ```typescript
  * configureLogger({
@@ -269,7 +269,7 @@ const globalLogger = new Logger();
  *   enableStructured: true
  * });
  * ```
- * 
+ *
  * @since 1.0.0
  */
 export function configureLogger(config: Partial<LoggerConfig>): void {
@@ -278,14 +278,14 @@ export function configureLogger(config: Partial<LoggerConfig>): void {
 
 /**
  * Sets the minimum log level for the global logger instance.
- * 
+ *
  * @param level - The minimum LogLevel to output globally
- * 
+ *
  * @example
  * ```typescript
  * setLogLevel(LogLevel.WARN); // Only show warnings and errors globally
  * ```
- * 
+ *
  * @since 1.0.0
  */
 export function setLogLevel(level: LogLevel): void {
@@ -294,17 +294,17 @@ export function setLogLevel(level: LogLevel): void {
 
 /**
  * Enables or disables debug logging globally across all modules.
- * 
+ *
  * This is a convenience function that adjusts the global log level
  * to either DEBUG (when enabled) or INFO (when disabled).
- * 
+ *
  * @param enabled - Whether to enable debug logging globally
- * 
+ *
  * @example
  * ```typescript
  * setDebugLogging(true); // Enable debug logs for all modules
  * ```
- * 
+ *
  * @since 1.0.0
  */
 export function setDebugLogging(enabled: boolean): void {
@@ -313,19 +313,19 @@ export function setDebugLogging(enabled: boolean): void {
 
 /**
  * Creates a module-specific logger instance from the global logger.
- * 
+ *
  * This is the primary way to create loggers for individual modules.
  * Each logger will automatically include the module name in all log entries.
- * 
+ *
  * @param moduleName - Name of the module for log identification
  * @returns Module-specific logger with debug, info, warn, and error methods
- * 
+ *
  * @example
  * ```typescript
  * const logger = createLogger('my-module');
  * logger.info('Module started'); // Output: [INFO] [my-module] Module started
  * ```
- * 
+ *
  * @since 1.0.0
  */
 export function createLogger(moduleName: string) {
