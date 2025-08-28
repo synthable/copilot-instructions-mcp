@@ -26,11 +26,11 @@ Compile selected modules into a single instruction document.
 
 The instruction modules follow a hierarchical structure:
 
-1. **Foundation** (Layer 0-3): Core reasoning, logic, and cognitive frameworks
-   - Layer 0: Fundamental logic (if-then, quantifiers)
-   - Layer 1: Basic reasoning (deductive, inductive)
-   - Layer 2: Applied reasoning (problem-solving, analysis)
-   - Layer 3: Meta-cognitive skills (self-correction, confidence evaluation)
+1. **Foundation** (Order 0-3): Core reasoning, logic, and cognitive frameworks
+   - Order 0: Fundamental logic (if-then, quantifiers)
+   - Order 1: Basic reasoning (deductive, inductive)
+   - Order 2: Applied reasoning (problem-solving, analysis)
+   - Order 3: Meta-cognitive skills (self-correction, confidence evaluation)
 
 2. **Principle**: Software development principles and methodologies
    - Architecture patterns, design principles
@@ -120,7 +120,7 @@ Include concrete workflows:
 ```
 module_compile {
   "moduleIds": [
-    // Foundation (ordered by layer)
+    // Foundation (ordered by order field)
     "foundation/logic/if-then-statements.md",
     "foundation/reasoning/deductive-reasoning.md",
     "foundation/problem-solving/root-cause-analysis.md",
@@ -167,7 +167,7 @@ Execution: debug-issue, debug-failing-test playbooks
 
 ## Best Practices
 
-1. **Layer Ordering**: Always order Foundation modules by their layer metadata (0→3)
+1. **Ordering**: Always order Foundation modules by their `order` metadata (0→3)
 2. **Avoid Redundancy**: Don't include modules that cover the same concepts
 3. **Purpose-Driven**: Every module should contribute to the persona's core purpose
 4. **Test the Compilation**: Review the compiled output for coherence

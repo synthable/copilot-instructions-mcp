@@ -6,25 +6,25 @@ These bootstrap prompts enable AI models to dynamically generate specialized sys
 
 ## Available Bootstrap Prompts
 
-### 1. **Full Bootstrap Prompt** (`bootstrap-prompt.md`)
+### 1. **Full Bootstrap Prompt** ([`bootstrap-prompt.md`](/prompts/bootstrap-prompt.md))
 Comprehensive guide explaining the entire module system, search strategies, and compilation best practices. Use this for:
 - Training new AI instances
 - Understanding the complete system
 - Reference documentation
 
-### 2. **System Prompt Generator** (`system-prompt-generator.md`)
+### 2. **System Prompt Generator** ([`system-prompt-generator.md`](/prompts/system-prompt-generator.md))
 Focused prompt that enables dynamic capability enhancement. Use this for:
 - Production AI assistants
 - Dynamic expertise adaptation
 - Real-time persona switching
 
-### 3. **Concise Integration** (`concise-mcp-prompt.md`)
+### 3. **Concise Integration** ([`concise-mcp-prompt.md`](/prompts/concise-mcp-prompt.md))
 Minimal prompt for space-constrained contexts. Use this for:
 - Adding MCP capabilities to existing prompts
 - Quick integration testing
 - Embedded systems
 
-### 4. **Persona Builder Specialist** (`persona-builder-prompt.md`)
+### 4. **Persona Builder Specialist** ([`persona-builder-prompt.md`](/prompts/persona-builder-prompt.md))
 Specialized for creating well-structured personas. Use this for:
 - Persona development workflows
 - Following the four-tier philosophy
