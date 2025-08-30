@@ -130,8 +130,14 @@ export function setupServerHandlers(
         inputSchema: {
           type: 'object',
           properties: {
-            query: { type: 'string', description: 'Natural language query to embed and search.' },
-            limit: { type: 'number', description: 'Max results to return (default 10).' },
+            query: {
+              type: 'string',
+              description: 'Natural language query to embed and search.',
+            },
+            limit: {
+              type: 'number',
+              description: 'Max results to return (default 10).',
+            },
           },
           required: ['query'],
         },
@@ -144,8 +150,14 @@ export function setupServerHandlers(
           type: 'object',
           properties: {
             query: { type: 'string', description: 'Search query terms.' },
-            limit: { type: 'number', description: 'Max results to return (default 10).' },
-            alpha: { type: 'number', description: 'Weight for lexical score (0..1, default 0.6).' },
+            limit: {
+              type: 'number',
+              description: 'Max results to return (default 10).',
+            },
+            alpha: {
+              type: 'number',
+              description: 'Weight for lexical score (0..1, default 0.6).',
+            },
           },
           required: ['query'],
         },

@@ -102,7 +102,10 @@ export interface ISemanticSearchService {
   /** Build or rebuild the embedding index. */
   buildIndex(force?: boolean): Promise<void>;
   /** Pure semantic search using embeddings. */
-  semanticSearch(query: string, limit?: number): Promise<import('./types.js').SearchResult[]>;
+  semanticSearch(
+    query: string,
+    limit?: number
+  ): Promise<import('./types.js').SearchResult[]>;
   /** Hybrid re-rank combining lexical and semantic signals. */
   hybridSearch(
     queryTerms: string[],
