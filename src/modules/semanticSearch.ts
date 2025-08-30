@@ -6,86 +6,98 @@
  * and exposes semantic and hybrid search across the modules.
  */
 
-import type { IDependencies, IInstructionModuleParser } from './interfaces.js';
+import type { 
+  IDependencies, 
+  IInstructionModuleParser, 
+  IEmbeddingService,
+  ILogger 
+} from './interfaces.js';
 import type { InstructionModule, SearchResult } from './types.js';
 import { cosine } from './semantic.js';
-
-// Minimal types for the embedder without relying on upstream types
-interface EmbedOptions {
-  pooling?: 'mean' | 'max';
-  normalize?: boolean;
-}
-type EmbeddingTensor = Float32Array | number[] | { data?: Float32Array | number[] };
-type EmbedOutput = EmbeddingTensor | EmbeddingTensor[];
-type EmbedderFunc = (
-  input: string | string[],
-  options?: EmbedOptions
-) => Promise<EmbedOutput>;
 
 export interface EmbeddingDoc {
   id: string; // module id
   filePath: string;
   text: string; // concatenated fields
-  vector: number[]; // 768 dims
+  vector: number[]; // embedding dimensions
 }
 
 /**
- * Simple semantic searcher with lazy model loading and small in-memory index.
+ * Production semantic searcher with proper dependency injection and error handling.
  */
 export class SemanticSearchService {
-  private embedder: EmbedderFunc | undefined;
   private index: EmbeddingDoc[] = [];
   private building = false;
+  private logger: ILogger;
 
   constructor(
     private dependencies: IDependencies,
-    private parser: IInstructionModuleParser
-  ) {}
+    private parser: IInstructionModuleParser,
+    private embeddingService: IEmbeddingService
+  ) {
+    this.logger = dependencies.logger;
+  }
 
-  /** Ensure the embedding pipeline is loaded. */
-  private async ensureEmbedder() {
-    if (this.embedder) return;
-    const mod: unknown = await import('@xenova/transformers');
-    const pipeline = (
-      mod as { pipeline: (task: string, model?: string) => Promise<EmbedderFunc> }
-    ).pipeline;
-    // sentence-transformers style model; Xenova auto-downloads on first use
-    this.embedder = await pipeline('feature-extraction', 'Xenova/all-mpnet-base-v2');
+  /** Ensure the embedding service is initialized. */
+  private async ensureEmbedder(): Promise<void> {
+    if (!this.embeddingService.isInitialized()) {
+      this.logger.debug('Initializing embedding service for semantic search');
+      await this.embeddingService.initialize();
+    }
   }
 
   /** Build or rebuild the in-memory embedding index from modules. */
-  async buildIndex(force = false) {
-    if (this.index.length > 0 && !force) return;
-    if (this.building) return; // avoid concurrent builds
-    this.building = true;
-    try {
-      await this.ensureEmbedder();
-      const modules = this.parser.parseInstructionModules();
-      const docs: { mod: InstructionModule; text: string }[] = [];
+  async buildIndex(force = false): Promise<void> {
+    if (this.index.length > 0 && !force) {
+      this.logger.debug('Semantic search index already built, skipping');
+      return;
+    }
+    
+    if (this.building) {
+      this.logger.debug('Index building already in progress, waiting');
+      return;
+    }
 
-      for (const mod of modules) {
+    this.building = true;
+    
+    try {
+      this.logger.info('Building semantic search index');
+      await this.ensureEmbedder();
+      
+      const modules = this.parser.parseInstructionModules();
+      this.logger.debug(`Processing ${modules.length} modules for semantic indexing`);
+      
+      const docs = this.prepareDocumentsForEmbedding(modules);
+      const embeddedDocs = await this.embedDocuments(docs);
+      
+      this.index = embeddedDocs;
+      this.logger.info(`Successfully built semantic search index with ${this.index.length} documents`);
+    } catch (error) {
+      this.logger.error('Failed to build semantic search index', error instanceof Error ? error : undefined, {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw new Error(`Semantic search index build failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      this.building = false;
+    }
+  }
+
+  /**
+   * Prepares documents for embedding by extracting and concatenating relevant text.
+   */
+  private prepareDocumentsForEmbedding(modules: InstructionModule[]): Array<{ mod: InstructionModule; text: string }> {
+    const docs: { mod: InstructionModule; text: string }[] = [];
+
+    for (const mod of modules) {
+      try {
         let bodyText = '';
+        
         // Prefer UMS semantic field when available
         if (mod.semantic && mod.semantic.trim().length > 0) {
           bodyText = mod.semantic.trim();
         } else {
-          // As a fallback, read file content if it's not a YAML module
-          try {
-            const baseDir = this.dependencies.pathUtils.join(
-              this.dependencies.processUtils.cwd(),
-              'instructions-modules'
-            );
-            const abs = this.dependencies.pathUtils.join(baseDir, mod.filePath);
-            if (
-              this.dependencies.fileSystem.existsSync(abs) &&
-              !mod.filePath.endsWith('.module.yml')
-            ) {
-              const raw = this.dependencies.fileSystem.readFileSync(abs, 'utf-8');
-              bodyText = raw.slice(0, 3000);
-            }
-          } catch {
-            // ignore content read errors
-          }
+          // Fallback: read file content if it's not a YAML module
+          bodyText = this.readModuleContent(mod);
         }
 
         const text = [
@@ -98,74 +110,159 @@ export class SemanticSearchService {
         ]
           .filter(Boolean)
           .join('\n\n');
+
         docs.push({ mod, text });
+      } catch (error) {
+        this.logger.warn(`Failed to prepare document for module ${mod.id}`, error instanceof Error ? error : undefined);
+        // Continue processing other modules
       }
-
-      // Batch embed to reduce overhead
-      const batches: EmbeddingDoc[] = [];
-      const batchSize = 8;
-      for (let i = 0; i < docs.length; i += batchSize) {
-        const batch = docs.slice(i, i + batchSize);
-        const inputs = batch.map(b => b.text);
-        if (!this.embedder) throw new Error('Embedder not initialized');
-        const outputs = await this.embedder(inputs, {
-          pooling: 'mean',
-          normalize: true,
-        });
-        const vectors: number[][] = normalizeEmbedOutput(outputs);
-        for (let j = 0; j < batch.length; j++) {
-          batches.push({
-            id: batch[j].mod.id,
-            filePath: batch[j].mod.filePath,
-            text: batch[j].text,
-            vector: vectors[j] ?? [],
-          });
-        }
-      }
-
-      this.index = batches.filter(d => d.vector.length > 0);
-    } finally {
-      this.building = false;
     }
+
+    return docs;
+  }
+
+  /**
+   * Reads module content from file system with proper error handling.
+   */
+  private readModuleContent(mod: InstructionModule): string {
+    try {
+      const baseDir = this.dependencies.pathUtils.join(
+        this.dependencies.processUtils.cwd(),
+        'instructions-modules'
+      );
+      const abs = this.dependencies.pathUtils.join(baseDir, mod.filePath);
+      
+      if (
+        this.dependencies.fileSystem.existsSync(abs) &&
+        !mod.filePath.endsWith('.module.yml')
+      ) {
+        const raw = this.dependencies.fileSystem.readFileSync(abs, 'utf-8');
+        return raw.slice(0, 3000); // Limit content size
+      }
+    } catch (error) {
+      this.logger.debug(`Could not read content for module ${mod.id}`, error instanceof Error ? error : undefined);
+    }
+    
+    return '';
+  }
+
+  /**
+   * Embeds documents using the embedding service with proper batching.
+   */
+  private async embedDocuments(docs: Array<{ mod: InstructionModule; text: string }>): Promise<EmbeddingDoc[]> {
+    const batches: EmbeddingDoc[] = [];
+    const batchSize = 8; // TODO: Get from config
+    
+    for (let i = 0; i < docs.length; i += batchSize) {
+      const batch = docs.slice(i, i + batchSize);
+      
+      try {
+        this.logger.debug(`Processing embedding batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(docs.length / batchSize)}`);
+        
+        const inputs = batch.map(b => b.text);
+        const vectors = await this.embeddingService.embedBatch(inputs);
+        
+        for (let j = 0; j < batch.length; j++) {
+          if (vectors[j] && vectors[j].length > 0) {
+            batches.push({
+              id: batch[j].mod.id,
+              filePath: batch[j].mod.filePath,
+              text: batch[j].text,
+              vector: vectors[j],
+            });
+          } else {
+            this.logger.warn(`Empty embedding vector for module ${batch[j].mod.id}`);
+          }
+        }
+      } catch (error) {
+        this.logger.error(`Failed to process embedding batch starting at index ${i}`, error instanceof Error ? error : undefined);
+        // Continue with next batch rather than failing entire index build
+      }
+    }
+
+    return batches;
   }
 
   /** Embed a query string. */
   async embedQuery(query: string): Promise<number[]> {
     await this.ensureEmbedder();
-    if (!this.embedder) throw new Error('Embedder not initialized');
-    const out = await this.embedder(query, { pooling: 'mean', normalize: true });
-    const arrs = normalizeEmbedOutput(out);
-    return arrs[0] ?? [];
+    
+    try {
+      return await this.embeddingService.embed(query);
+    } catch (error) {
+      this.logger.error('Failed to embed query string', error instanceof Error ? error : undefined, {
+        queryLength: query.length,
+      });
+      throw new Error(`Query embedding failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   /** Pure semantic search over embedding index. */
   async semanticSearch(query: string, limit = 10): Promise<SearchResult[]> {
-    await this.buildIndex();
-    const q = await this.embedQuery(query);
-    const modules = this.parser.parseInstructionModules();
-    const byId = new Map(modules.map(m => [m.id, m] as const));
+    try {
+      this.logger.debug('Performing semantic search', { query: query.slice(0, 100), limit });
+      
+      await this.buildIndex();
+      const queryVector = await this.embedQuery(query);
+      
+      if (this.index.length === 0) {
+        this.logger.warn('Semantic search index is empty');
+        return [];
+      }
+      
+      const modules = this.parser.parseInstructionModules();
+      const byId = new Map(modules.map(m => [m.id, m] as const));
 
-    const sims = new Map<string, number>();
-    for (const doc of this.index) {
-      sims.set(doc.id, cosine(q, doc.vector));
-    }
-    const scored = this.index
-      .map(doc => ({ doc, sim: sims.get(doc.id) ?? 0 }))
-      .sort((a, b) => b.sim - a.sim)
-      .slice(0, Math.max(1, limit));
+      // Calculate similarities
+      const similarities = new Map<string, number>();
+      for (const doc of this.index) {
+        try {
+          const similarity = cosine(queryVector, doc.vector);
+          similarities.set(doc.id, similarity);
+        } catch (error) {
+          this.logger.warn(`Failed to calculate similarity for document ${doc.id}`, error instanceof Error ? error : undefined);
+        }
+      }
 
-    const out: SearchResult[] = [];
-    for (const s of scored) {
-      const m = byId.get(s.doc.id);
-      if (!m) continue;
-      out.push({
-        ...m,
-        score: s.sim,
-        matchedFields: ['semantic'],
-        semanticScore: s.sim,
+      // Sort by similarity and limit results
+      const scored = this.index
+        .map(doc => ({
+          doc,
+          similarity: similarities.get(doc.id) ?? 0,
+        }))
+        .filter(item => item.similarity > 0) // Filter out failed calculations
+        .sort((a, b) => b.similarity - a.similarity)
+        .slice(0, Math.max(1, limit));
+
+      // Build results
+      const results: SearchResult[] = [];
+      for (const item of scored) {
+        const module = byId.get(item.doc.id);
+        if (module) {
+          results.push({
+            ...module,
+            score: item.similarity,
+            matchedFields: ['semantic'],
+            semanticScore: item.similarity,
+          });
+        } else {
+          this.logger.warn(`Module not found for indexed document ${item.doc.id}`);
+        }
+      }
+
+      this.logger.debug(`Semantic search completed`, {
+        resultsCount: results.length,
+        topScore: results[0]?.score || 0,
       });
+
+      return results;
+    } catch (error) {
+      this.logger.error('Semantic search failed', error instanceof Error ? error : undefined, {
+        query: query.slice(0, 100),
+        limit,
+      });
+      throw new Error(`Semantic search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-    return out;
   }
 
   /** Hybrid search: combine existing lexical score with semantic similarity. */
@@ -201,28 +298,3 @@ export class SemanticSearchService {
   }
 }
 
-// Helpers
-function hasData(x: unknown): x is { data: Float32Array | number[] } {
-  return (
-    typeof x === 'object' && x !== null && 'data' in (x as Record<string, unknown>)
-  );
-}
-
-function toNumberArray(t: EmbeddingTensor): number[] {
-  if (Array.isArray(t)) return t.map(n => Number(n));
-  if (t instanceof Float32Array) return Array.from(t);
-  if (hasData(t)) {
-    const d = t.data;
-    return d instanceof Float32Array
-      ? Array.from(d)
-      : Array.isArray(d)
-        ? d.map(n => Number(n))
-        : [];
-  }
-  return [];
-}
-
-function normalizeEmbedOutput(out: EmbedOutput): number[][] {
-  if (Array.isArray(out)) return out.map(toNumberArray);
-  return [toNumberArray(out)];
-}

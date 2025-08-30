@@ -1,0 +1,178 @@
+/**
+ * @fileoverview Semantic search configuration service.
+ *
+ * This module provides configurable semantic search parameters with
+ * sensible defaults and validation for production use.
+ *
+ * @author MCP Server Team
+ * @version 1.0.0
+ * @since 1.0.0
+ */
+
+import type { ISemanticConfig } from './interfaces.js';
+
+/**
+ * Configuration options for semantic search service.
+ */
+export interface SemanticConfigOptions {
+  modelName?: string;
+  batchSize?: number;
+  maxContentLength?: number;
+  defaultAlpha?: number;
+  embeddingDimensions?: number;
+}
+
+/**
+ * Production semantic search configuration with validation.
+ */
+export class SemanticConfig implements ISemanticConfig {
+  private readonly modelName: string;
+  private readonly batchSize: number;
+  private readonly maxContentLength: number;
+  private readonly defaultAlpha: number;
+  private readonly embeddingDimensions: number;
+
+  constructor(options: SemanticConfigOptions = {}) {
+    this.modelName = this.validateModelName(options.modelName ?? 'Xenova/all-mpnet-base-v2');
+    this.batchSize = this.validateBatchSize(options.batchSize ?? 32);
+    this.maxContentLength = this.validateMaxContentLength(options.maxContentLength ?? 5000);
+    this.defaultAlpha = this.validateDefaultAlpha(options.defaultAlpha ?? 0.6);
+    this.embeddingDimensions = this.validateEmbeddingDimensions(options.embeddingDimensions ?? 768);
+  }
+
+  /**
+   * Gets the embedding model name to use.
+   */
+  getModelName(): string {
+    return this.modelName;
+  }
+
+  /**
+   * Gets the batch size for processing embeddings.
+   */
+  getBatchSize(): number {
+    return this.batchSize;
+  }
+
+  /**
+   * Gets the maximum content length for embedding.
+   */
+  getMaxContentLength(): number {
+    return this.maxContentLength;
+  }
+
+  /**
+   * Gets the default alpha value for hybrid search weighting.
+   */
+  getDefaultAlpha(): number {
+    return this.defaultAlpha;
+  }
+
+  /**
+   * Gets the embedding dimensions for the configured model.
+   */
+  getEmbeddingDimensions(): number {
+    return this.embeddingDimensions;
+  }
+
+  /**
+   * Validates model name configuration.
+   */
+  private validateModelName(modelName: string): string {
+    if (typeof modelName !== 'string' || modelName.trim().length === 0) {
+      throw new Error('Model name must be a non-empty string');
+    }
+
+    const trimmed = modelName.trim();
+    
+    // Basic validation for HuggingFace model format
+    if (!trimmed.includes('/') && !trimmed.startsWith('Xenova/')) {
+      throw new Error('Model name should follow HuggingFace format (e.g., "Xenova/all-mpnet-base-v2")');
+    }
+
+    return trimmed;
+  }
+
+  /**
+   * Validates batch size configuration.
+   */
+  private validateBatchSize(batchSize: number): number {
+    if (!Number.isInteger(batchSize) || batchSize < 1) {
+      throw new Error('Batch size must be a positive integer');
+    }
+
+    if (batchSize > 1000) {
+      throw new Error('Batch size too large (max 1000)');
+    }
+
+    return batchSize;
+  }
+
+  /**
+   * Validates maximum content length configuration.
+   */
+  private validateMaxContentLength(maxContentLength: number): number {
+    if (!Number.isInteger(maxContentLength) || maxContentLength < 1) {
+      throw new Error('Max content length must be a positive integer');
+    }
+
+    if (maxContentLength > 50000) {
+      throw new Error('Max content length too large (max 50000 characters)');
+    }
+
+    return maxContentLength;
+  }
+
+  /**
+   * Validates default alpha configuration.
+   */
+  private validateDefaultAlpha(defaultAlpha: number): number {
+    if (typeof defaultAlpha !== 'number' || isNaN(defaultAlpha)) {
+      throw new Error('Default alpha must be a valid number');
+    }
+
+    if (defaultAlpha < 0 || defaultAlpha > 1) {
+      throw new Error('Default alpha must be between 0 and 1');
+    }
+
+    return defaultAlpha;
+  }
+
+  /**
+   * Validates embedding dimensions configuration.
+   */
+  private validateEmbeddingDimensions(embeddingDimensions: number): number {
+    if (!Number.isInteger(embeddingDimensions) || embeddingDimensions < 1) {
+      throw new Error('Embedding dimensions must be a positive integer');
+    }
+
+    if (embeddingDimensions > 4096) {
+      throw new Error('Embedding dimensions too large (max 4096)');
+    }
+
+    return embeddingDimensions;
+  }
+}
+
+/**
+ * Creates a production semantic configuration with validated defaults.
+ */
+export function createProductionSemanticConfig(options?: SemanticConfigOptions): SemanticConfig {
+  return new SemanticConfig(options);
+}
+
+/**
+ * Creates a test semantic configuration with minimal settings.
+ */
+export function createTestSemanticConfig(options?: SemanticConfigOptions): SemanticConfig {
+  const testDefaults: SemanticConfigOptions = {
+    modelName: 'test/mock-model',
+    batchSize: 4,
+    maxContentLength: 1000,
+    defaultAlpha: 0.5,
+    embeddingDimensions: 384,
+    ...options,
+  };
+
+  return new SemanticConfig(testDefaults);
+}

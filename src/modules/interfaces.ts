@@ -76,6 +76,7 @@ export interface IDependencies {
   fileSystem: IFileSystem;
   pathUtils: IPathUtils;
   processUtils: IProcessUtils;
+  logger: ILogger;
 }
 
 /**
@@ -134,4 +135,61 @@ export interface IContentService {
    * Retrieves and combines content from multiple instruction modules.
    */
   getModulesContent(moduleIds: string[]): import('./types.js').GetModulesContentResult;
+}
+
+/**
+ * Interface for embedding service operations.
+ * Abstracts transformer model operations for dependency injection and testing.
+ */
+export interface IEmbeddingService {
+  /**
+   * Initializes the embedding pipeline with the configured model.
+   */
+  initialize(): Promise<void>;
+
+  /**
+   * Generates embeddings for a single text input.
+   */
+  embed(text: string): Promise<number[]>;
+
+  /**
+   * Generates embeddings for multiple text inputs in a batch.
+   */
+  embedBatch(texts: string[]): Promise<number[][]>;
+
+  /**
+   * Checks if the service is properly initialized.
+   */
+  isInitialized(): boolean;
+}
+
+/**
+ * Interface for semantic search configuration.
+ * Enables dependency injection for semantic search parameters.
+ */
+export interface ISemanticConfig {
+  /**
+   * Gets the embedding model name to use.
+   */
+  getModelName(): string;
+
+  /**
+   * Gets the batch size for processing embeddings.
+   */
+  getBatchSize(): number;
+
+  /**
+   * Gets the maximum content length for embedding.
+   */
+  getMaxContentLength(): number;
+
+  /**
+   * Gets the default alpha value for hybrid search weighting.
+   */
+  getDefaultAlpha(): number;
+
+  /**
+   * Gets the embedding dimensions for the configured model.
+   */
+  getEmbeddingDimensions(): number;
 }
