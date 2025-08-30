@@ -13,6 +13,7 @@
     "dev": "tsc --watch",
     "test": "vitest",
     "test:search": "npm run build && node test_search.js",
+    "test:semantic": "npm run build && node test_semantic_search.js",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
     "format": "prettier --write 'src/**/*.{ts,js,json,md,test.ts}'",
@@ -25,6 +26,7 @@
   "license": "ISC",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.7",
+    "@xenova/transformers": "^2.17.2",
     "commander": "^12.0.0",
     "express": "^5.1.0"
   },
