@@ -1,0 +1,10 @@
+{
+  "k": 5,
+  "queries": [
+    { "q": "semantic search", "relevantIds": [] },
+    { "q": "hybrid search", "relevantIds": [] },
+    { "q": "embedding pipeline", "relevantIds": [] },
+    { "q": "dependency injection container", "relevantIds": [] },
+    { "q": "MCP tools and handlers", "relevantIds": [] }
+  ]
+}
