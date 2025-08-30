@@ -24,7 +24,7 @@ import {
   getToolFallbackData,
   ToolHandlers,
 } from './toolHandlers.js';
-import { handleHybridSearch, handleSemanticSearch } from './toolHandlers.js';
+// Note: Avoid convenience wrappers that use require() (not available in ESM)
 import { Container } from './container.js';
 
 /**
@@ -187,12 +187,12 @@ export function setupServerHandlers(
         }
 
         case 'semantic_search': {
-          const result = await handleSemanticSearch(args);
+          const result = await toolHandlers.handleSemanticSearch(args);
           return createJsonResponse(result);
         }
 
         case 'hybrid_search': {
-          const result = await handleHybridSearch(args);
+          const result = await toolHandlers.handleHybridSearch(args);
           return createJsonResponse(result);
         }
 
