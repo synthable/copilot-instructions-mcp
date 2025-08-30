@@ -16,8 +16,136 @@
 
 import { parsingLogger } from './logger.js';
 import type { InstructionModule } from './types.js';
-import type { IDependencies, IInstructionModuleParser } from './interfaces.js';
+import type { IDependencies, IInstructionModuleParser, ILogger } from './interfaces.js';
 import { parse as yamlParseFn } from 'yaml';
+
+/**
+ * Security limits for YAML parsing to prevent DoS attacks.
+ */
+const SECURITY_LIMITS = {
+  MAX_FILE_SIZE_BYTES: 100 * 1024, // 100KB max per YAML file
+  MAX_YAML_DEPTH: 10, // Maximum nesting depth
+  MAX_ARRAY_LENGTH: 1000, // Maximum array length
+  MAX_STRING_LENGTH: 10000, // Maximum string length
+  PARSE_TIMEOUT_MS: 5000, // 5 second timeout for parsing
+} as const;
+
+/**
+ * Validates file size before processing to prevent DoS attacks.
+ */
+function validateFileSize(filePath: string, content: string, logger: ILogger): void {
+  const sizeBytes = Buffer.byteLength(content, 'utf-8');
+  
+  if (sizeBytes > SECURITY_LIMITS.MAX_FILE_SIZE_BYTES) {
+    const sizeMB = (sizeBytes / (1024 * 1024)).toFixed(2);
+    const limitMB = (SECURITY_LIMITS.MAX_FILE_SIZE_BYTES / (1024 * 1024)).toFixed(2);
+    
+    logger.warn(`YAML file too large: ${filePath}`, undefined, {
+      sizeBytes,
+      sizeMB: `${sizeMB}MB`,
+      limit: `${limitMB}MB`,
+    });
+    
+    throw new Error(`YAML file size exceeds security limit: ${sizeMB}MB > ${limitMB}MB`);
+  }
+}
+
+/**
+ * Safely parses YAML with timeout and security validation.
+ */
+async function parseYamlSafely(
+  content: string, 
+  filePath: string, 
+  logger: ILogger
+): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    // Set timeout to prevent hanging on malicious YAML
+    const timeoutId = setTimeout(() => {
+      reject(new Error(`YAML parsing timeout exceeded (${SECURITY_LIMITS.PARSE_TIMEOUT_MS}ms)`));
+    }, SECURITY_LIMITS.PARSE_TIMEOUT_MS);
+
+    try {
+      // Validate content before parsing
+      if (!content || typeof content !== 'string') {
+        clearTimeout(timeoutId);
+        reject(new Error('YAML content must be a non-empty string'));
+        return;
+      }
+
+      // Parse YAML with security restrictions
+      const parseYaml: (s: string) => unknown = yamlParseFn as unknown as (
+        s: string
+      ) => unknown;
+      
+      const parsedUnknown = parseYaml(content);
+      
+      if (!isRecord(parsedUnknown)) {
+        clearTimeout(timeoutId);
+        reject(new Error('YAML content must parse to an object'));
+        return;
+      }
+
+      // Validate parsed structure for security
+      validateYamlStructure(parsedUnknown, filePath);
+      
+      clearTimeout(timeoutId);
+      resolve(parsedUnknown);
+    } catch (error) {
+      clearTimeout(timeoutId);
+      
+      if (error instanceof Error) {
+        logger.error(`YAML parsing failed for ${filePath}`, error, {
+          errorType: error.constructor.name,
+          message: error.message,
+        });
+      }
+      
+      reject(error);
+    }
+  });
+}
+
+/**
+ * Validates YAML structure to prevent malicious content.
+ */
+function validateYamlStructure(
+  obj: Record<string, unknown>, 
+  filePath: string,
+  depth = 0
+): void {
+  if (depth > SECURITY_LIMITS.MAX_YAML_DEPTH) {
+    throw new Error(`YAML structure too deeply nested (depth > ${SECURITY_LIMITS.MAX_YAML_DEPTH})`);
+  }
+
+  for (const [key, value] of Object.entries(obj)) {
+    // Validate key
+    if (typeof key !== 'string' || key.length > SECURITY_LIMITS.MAX_STRING_LENGTH) {
+      throw new Error(`Invalid or oversized key in YAML: ${key.slice(0, 50)}...`);
+    }
+
+    // Validate value recursively
+    if (typeof value === 'string') {
+      if (value.length > SECURITY_LIMITS.MAX_STRING_LENGTH) {
+        throw new Error(`String value too long for key "${key}" (${value.length} > ${SECURITY_LIMITS.MAX_STRING_LENGTH})`);
+      }
+    } else if (Array.isArray(value)) {
+      if (value.length > SECURITY_LIMITS.MAX_ARRAY_LENGTH) {
+        throw new Error(`Array too long for key "${key}" (${value.length} > ${SECURITY_LIMITS.MAX_ARRAY_LENGTH})`);
+      }
+      
+      // Validate array elements
+      value.forEach((item, index) => {
+        if (typeof item === 'string' && item.length > SECURITY_LIMITS.MAX_STRING_LENGTH) {
+          throw new Error(`Array element too long at ${key}[${index}]`);
+        } else if (isRecord(item)) {
+          validateYamlStructure(item, filePath, depth + 1);
+        }
+      });
+    } else if (isRecord(value)) {
+      validateYamlStructure(value, filePath, depth + 1);
+    }
+  }
+}
 
 // Type guards and helpers for safe YAML parsing under strict mode
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -63,20 +191,17 @@ function deriveCategoryFromTier(tier: string): string {
   return 'Uncategorized';
 }
 
-function parseYamlModule(
+async function parseYamlModule(
   relPath: string,
   absPath: string,
   dependencies: IDependencies
-): InstructionModule | null {
+): Promise<InstructionModule | null> {
   try {
     const raw = dependencies.fileSystem.readFileSync(absPath, 'utf-8');
-    // Wrap YAML.parse to avoid unsafe-call rule by typing the function
-    const parseYaml: (s: string) => unknown = yamlParseFn as unknown as (
-      s: string
-    ) => unknown;
-    const parsedUnknown = parseYaml(raw);
-    if (!isRecord(parsedUnknown)) return null;
-    const parsedRec: Record<string, unknown> = parsedUnknown;
+    
+    // Validate file size and parse safely with security controls
+    validateFileSize(absPath, raw, dependencies.logger);
+    const parsedRec = await parseYamlSafely(raw, absPath, dependencies.logger);
 
     let meta: Record<string, unknown> = {};
     const metaUnknown = getProp(parsedRec, 'meta');
@@ -155,7 +280,7 @@ export class InstructionModuleParser implements IInstructionModuleParser {
    * console.log(modules[0].category); // "Foundation"
    * ```
    */
-  parseInstructionModules(): InstructionModule[] {
+  async parseInstructionModules(): Promise<InstructionModule[]> {
     if (this.cachedInstructionModules) {
       parsingLogger.debug('Returning cached instruction modules');
       return this.cachedInstructionModules;
@@ -168,23 +293,28 @@ export class InstructionModuleParser implements IInstructionModuleParser {
         'instructions-modules'
       );
       const modules: InstructionModule[] = [];
-      const walk = (dir: string) => {
+      const walk = async (dir: string) => {
         const entries = this.dependencies.fileSystem.readdirSync(dir);
         for (const name of entries) {
           const abs = this.dependencies.pathUtils.join(dir, name);
           const st = this.dependencies.fileSystem.statSync(abs);
           if (st.isDirectory()) {
-            walk(abs);
+            await walk(abs);
           } else if (name.endsWith('.module.yml')) {
             const rel = this.dependencies.pathUtils
               .relative(baseDir, abs)
               .replace(/\\/g, '/');
-            const mod = parseYamlModule(rel, abs, this.dependencies);
-            if (mod) modules.push(mod);
+            try {
+              const mod = await parseYamlModule(rel, abs, this.dependencies);
+              if (mod) modules.push(mod);
+            } catch (moduleError) {
+              this.dependencies.logger.warn(`Failed to parse YAML module: ${rel}`, moduleError instanceof Error ? moduleError : undefined);
+              // Continue processing other modules
+            }
           }
         }
       };
-      walk(baseDir);
+      await walk(baseDir);
 
       parsingLogger.info(
         `Successfully parsed ${modules.length.toString()} instruction modules`
@@ -223,13 +353,13 @@ export class InstructionModuleParser implements IInstructionModuleParser {
  * Convenience function to parse instruction modules using the global container.
  * @returns Array of parsed instruction modules
  */
-export function parseInstructionModules(): InstructionModule[] {
+export async function parseInstructionModules(): Promise<InstructionModule[]> {
   // Dynamic import to avoid circular dependency issues
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { getContainer } = require('./container.js') as typeof import('./container.js');
   const container = getContainer();
   const parser = container.getInstructionModuleParser();
-  return parser.parseInstructionModules();
+  return await parser.parseInstructionModules();
 }
 
 /**

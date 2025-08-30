@@ -69,6 +69,32 @@ export interface IProcessUtils {
 }
 
 /**
+ * Interface for logging operations.
+ * Abstracts logging functionality for dependency injection and testing.
+ */
+export interface ILogger {
+  /**
+   * Logs an informational message.
+   */
+  info(message: string, metadata?: Record<string, unknown>): void;
+
+  /**
+   * Logs a warning message.
+   */
+  warn(message: string, error?: Error, metadata?: Record<string, unknown>): void;
+
+  /**
+   * Logs an error message.
+   */
+  error(message: string, error?: Error, metadata?: Record<string, unknown>): void;
+
+  /**
+   * Logs a debug message.
+   */
+  debug(message: string, metadata?: Record<string, unknown>): void;
+}
+
+/**
  * Combined interface for all external dependencies.
  * Provides a single injection point for all external dependencies.
  */
@@ -87,7 +113,7 @@ export interface IInstructionModuleParser {
   /**
    * Parses instruction modules from the README file.
    */
-  parseInstructionModules(): import('./types.js').InstructionModule[];
+  parseInstructionModules(): Promise<import('./types.js').InstructionModule[]>;
 
   /**
    * Clears the cached instruction modules.
@@ -103,7 +129,7 @@ export interface ISearchService {
   /**
    * Performs fuzzy search over instruction modules.
    */
-  searchInstructionModules(searchTerms: string[]): import('./types.js').SearchResult[];
+  searchInstructionModules(searchTerms: string[]): Promise<import('./types.js').SearchResult[]>;
 }
 
 /**
@@ -134,7 +160,7 @@ export interface IContentService {
   /**
    * Retrieves and combines content from multiple instruction modules.
    */
-  getModulesContent(moduleIds: string[]): import('./types.js').GetModulesContentResult;
+  getModulesContent(moduleIds: string[]): Promise<import('./types.js').GetModulesContentResult>;
 }
 
 /**

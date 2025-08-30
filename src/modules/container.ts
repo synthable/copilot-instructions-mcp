@@ -23,7 +23,6 @@ import type {
   IFileSystem,
   IPathUtils,
   IProcessUtils,
-  ILogger,
   IInstructionModuleParser,
   ISearchService,
   IContentService,

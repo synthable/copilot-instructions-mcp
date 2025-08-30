@@ -64,7 +64,7 @@ export class SemanticSearchService {
       this.logger.info('Building semantic search index');
       await this.ensureEmbedder();
       
-      const modules = this.parser.parseInstructionModules();
+      const modules = await this.parser.parseInstructionModules();
       this.logger.debug(`Processing ${modules.length} modules for semantic indexing`);
       
       const docs = this.prepareDocumentsForEmbedding(modules);
@@ -140,7 +140,7 @@ export class SemanticSearchService {
         return raw.slice(0, 3000); // Limit content size
       }
     } catch (error) {
-      this.logger.debug(`Could not read content for module ${mod.id}`, error instanceof Error ? error : undefined);
+      this.logger.debug(`Could not read content for module ${mod.id}`);
     }
     
     return '';
@@ -210,7 +210,7 @@ export class SemanticSearchService {
         return [];
       }
       
-      const modules = this.parser.parseInstructionModules();
+      const modules = await this.parser.parseInstructionModules();
       const byId = new Map(modules.map(m => [m.id, m] as const));
 
       // Calculate similarities
