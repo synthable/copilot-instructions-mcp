@@ -15,15 +15,21 @@ import { join, resolve, relative } from 'node:path';
 import { InstructionModuleParser } from './parsing.js';
 import { SearchService } from './search.js';
 import { ContentService } from './content.js';
+import { EmbeddingService } from './embeddingService.js';
+import { createProductionSemanticConfig } from './semanticConfig.js';
+import { createLogger } from './logger.js';
 import type {
   IDependencies,
   IFileSystem,
   IPathUtils,
   IProcessUtils,
+  ILogger,
   IInstructionModuleParser,
   ISearchService,
   IContentService,
   ISemanticSearchService,
+  IEmbeddingService,
+  ISemanticConfig,
 } from './interfaces.js';
 import { SemanticSearchService } from './semanticSearch.js';
 
@@ -87,12 +93,15 @@ export class Container {
   private searchService?: ISearchService;
   private contentService?: IContentService;
   private semanticSearchService?: ISemanticSearchService;
+  private embeddingService?: IEmbeddingService;
+  private semanticConfig?: ISemanticConfig;
 
   constructor(dependencies?: Partial<IDependencies>) {
     this.dependencies = {
       fileSystem: dependencies?.fileSystem ?? new FileSystem(),
       pathUtils: dependencies?.pathUtils ?? new PathUtils(),
       processUtils: dependencies?.processUtils ?? new ProcessUtils(),
+      logger: dependencies?.logger ?? createLogger('container'),
     };
   }
 
@@ -139,9 +148,29 @@ export class Container {
   getSemanticSearchService(): ISemanticSearchService {
     this.semanticSearchService ??= new SemanticSearchService(
       this.dependencies,
-      this.getInstructionModuleParser()
+      this.getInstructionModuleParser(),
+      this.getEmbeddingService()
     );
     return this.semanticSearchService;
+  }
+
+  /**
+   * Gets or creates the embedding service.
+   */
+  getEmbeddingService(): IEmbeddingService {
+    this.embeddingService ??= new EmbeddingService(
+      this.getSemanticConfig(),
+      this.dependencies.logger
+    );
+    return this.embeddingService;
+  }
+
+  /**
+   * Gets or creates the semantic configuration.
+   */
+  getSemanticConfig(): ISemanticConfig {
+    this.semanticConfig ??= createProductionSemanticConfig();
+    return this.semanticConfig;
   }
 
   /**
@@ -168,6 +197,16 @@ export class Container {
   /** Set a custom semantic search service (testing). */
   setSemanticSearchService(svc: ISemanticSearchService): void {
     this.semanticSearchService = svc;
+  }
+
+  /** Set a custom embedding service (testing). */
+  setEmbeddingService(service: IEmbeddingService): void {
+    this.embeddingService = service;
+  }
+
+  /** Set a custom semantic config (testing). */
+  setSemanticConfig(config: ISemanticConfig): void {
+    this.semanticConfig = config;
   }
 }
 
