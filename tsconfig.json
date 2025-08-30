@@ -10,7 +10,7 @@
     "noUncheckedIndexedAccess": false,
     "noPropertyAccessFromIndexSignature": false,
     "incremental": true,
-    "noEmitOnError": true,
+    "noEmitOnError": true
   },
   "include": [
     "src/**/*",
