@@ -65,13 +65,13 @@ export class SemanticSearchService {
       await this.ensureEmbedder();
       
       const modules = await this.parser.parseInstructionModules();
-      this.logger.debug(`Processing ${modules.length} modules for semantic indexing`);
+      this.logger.debug(`Processing ${modules.length.toString()} modules for semantic indexing`);
       
       const docs = this.prepareDocumentsForEmbedding(modules);
       const embeddedDocs = await this.embedDocuments(docs);
       
       this.index = embeddedDocs;
-      this.logger.info(`Successfully built semantic search index with ${this.index.length} documents`);
+      this.logger.info(`Successfully built semantic search index with ${this.index.length.toString()} documents`);
     } catch (error) {
       this.logger.error('Failed to build semantic search index', error instanceof Error ? error : undefined, {
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -85,7 +85,7 @@ export class SemanticSearchService {
   /**
    * Prepares documents for embedding by extracting and concatenating relevant text.
    */
-  private prepareDocumentsForEmbedding(modules: InstructionModule[]): Array<{ mod: InstructionModule; text: string }> {
+  private prepareDocumentsForEmbedding(modules: InstructionModule[]): { mod: InstructionModule; text: string }[] {
     const docs: { mod: InstructionModule; text: string }[] = [];
 
     for (const mod of modules) {
@@ -140,7 +140,7 @@ export class SemanticSearchService {
         return raw.slice(0, 3000); // Limit content size
       }
     } catch (error) {
-      this.logger.debug(`Could not read content for module ${mod.id}`);
+      this.logger.warn(`Could not read content for module ${mod.id}`, error instanceof Error ? error : undefined);
     }
     
     return '';
@@ -149,7 +149,7 @@ export class SemanticSearchService {
   /**
    * Embeds documents using the embedding service with proper batching.
    */
-  private async embedDocuments(docs: Array<{ mod: InstructionModule; text: string }>): Promise<EmbeddingDoc[]> {
+  private async embedDocuments(docs: { mod: InstructionModule; text: string }[]): Promise<EmbeddingDoc[]> {
     const batches: EmbeddingDoc[] = [];
     const batchSize = 8; // TODO: Get from config
     
@@ -157,7 +157,7 @@ export class SemanticSearchService {
       const batch = docs.slice(i, i + batchSize);
       
       try {
-        this.logger.debug(`Processing embedding batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(docs.length / batchSize)}`);
+        this.logger.debug(`Processing embedding batch ${(Math.floor(i / batchSize) + 1).toString()}/${Math.ceil(docs.length / batchSize).toString()}`);
         
         const inputs = batch.map(b => b.text);
         const vectors = await this.embeddingService.embedBatch(inputs);
@@ -175,7 +175,7 @@ export class SemanticSearchService {
           }
         }
       } catch (error) {
-        this.logger.error(`Failed to process embedding batch starting at index ${i}`, error instanceof Error ? error : undefined);
+        this.logger.error(`Failed to process embedding batch starting at index ${i.toString()}`, error instanceof Error ? error : undefined);
         // Continue with next batch rather than failing entire index build
       }
     }
