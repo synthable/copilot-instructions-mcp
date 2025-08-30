@@ -19,7 +19,10 @@ export type EmbeddingIndex = Record<string, EmbeddingIndexEntry>;
  * Returns null if the file does not exist or is invalid.
  */
 export function loadEmbeddingIndex(
-  fs: { readFileSync: (p: string, enc: BufferEncoding) => string; existsSync: (p: string) => boolean },
+  fs: {
+    readFileSync: (p: string, enc: BufferEncoding) => string;
+    existsSync: (p: string) => boolean;
+  },
   path: { join: (...p: string[]) => string },
   cwd: string,
   filename = 'data/embeddings.json'
@@ -39,7 +42,7 @@ export function loadEmbeddingIndex(
     return Object.keys(idx).length > 0 ? idx : null;
   } catch (err) {
     // Optionally log error
-    
+
     return null;
   }
 }
@@ -48,12 +51,18 @@ export function loadEmbeddingIndex(
  * Calculates the cosine similarity between two vectors.
  */
 export function cosine(a: number[], b: number[]): number {
-  if (!Array.isArray(a) || !Array.isArray(b) || a.length === 0 || b.length === 0) return 0;
-  let dot = 0, na = 0, nb = 0;
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length === 0 || b.length === 0)
+    return 0;
+  let dot = 0,
+    na = 0,
+    nb = 0;
   const len = Math.min(a.length, b.length);
   for (let i = 0; i < len; i++) {
-    const x = a[i], y = b[i];
-    dot += x * y; na += x * x; nb += y * y;
+    const x = a[i],
+      y = b[i];
+    dot += x * y;
+    na += x * x;
+    nb += y * y;
   }
   if (na === 0 || nb === 0) return 0;
   return dot / (Math.sqrt(na) * Math.sqrt(nb));
@@ -98,7 +107,13 @@ export function rerankWithEmbeddings(
   index: EmbeddingIndex | null,
   alpha = 0.6
 ): SearchResult[] {
-  if (!index || !Array.isArray(results) || results.length === 0 || !Array.isArray(queryEmbedding)) return results;
+  if (
+    !index ||
+    !Array.isArray(results) ||
+    results.length === 0 ||
+    !Array.isArray(queryEmbedding)
+  )
+    return results;
 
   const lex = results.map(r => r.score);
   const norm = minMaxNormalize(lex);

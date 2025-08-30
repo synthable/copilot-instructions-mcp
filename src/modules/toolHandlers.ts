@@ -223,7 +223,12 @@ export class ToolHandlers {
     const limit = validateSearchLimit(args.limit);
     const svc = this.container.getSemanticSearchService();
     const results = await svc.semanticSearch(query, limit);
-    return { query, totalResults: results.length, returnedResults: results.length, results };
+    return {
+      query,
+      totalResults: results.length,
+      returnedResults: results.length,
+      results,
+    };
   }
 
   /**
@@ -237,11 +242,16 @@ export class ToolHandlers {
     }
     const query = validateSearchQuery(args.query);
     const limit = validateSearchLimit(args.limit);
-    const alpha = typeof args.alpha === 'number' && args.alpha >= 0 && args.alpha <= 1 ? args.alpha : 0.6;
+    const alpha =
+      typeof args.alpha === 'number' && args.alpha >= 0 && args.alpha <= 1
+        ? args.alpha
+        : 0.6;
 
     const terms = splitSearchQuery(query);
     const lexical = this.container.getSearchService().searchInstructionModules(terms);
-    const semantic = await this.container.getSemanticSearchService().hybridSearch(terms, lexical, alpha, limit);
+    const semantic = await this.container
+      .getSemanticSearchService()
+      .hybridSearch(terms, lexical, alpha, limit);
     return {
       query,
       alpha,

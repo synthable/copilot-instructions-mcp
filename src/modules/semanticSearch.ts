@@ -11,10 +11,16 @@ import type { InstructionModule, SearchResult } from './types.js';
 import { cosine } from './semantic.js';
 
 // Minimal types for the embedder without relying on upstream types
-interface EmbedOptions { pooling?: 'mean' | 'max'; normalize?: boolean }
+interface EmbedOptions {
+  pooling?: 'mean' | 'max';
+  normalize?: boolean;
+}
 type EmbeddingTensor = Float32Array | number[] | { data?: Float32Array | number[] };
 type EmbedOutput = EmbeddingTensor | EmbeddingTensor[];
-type EmbedderFunc = (input: string | string[], options?: EmbedOptions) => Promise<EmbedOutput>;
+type EmbedderFunc = (
+  input: string | string[],
+  options?: EmbedOptions
+) => Promise<EmbedOutput>;
 
 export interface EmbeddingDoc {
   id: string; // module id
@@ -39,10 +45,12 @@ export class SemanticSearchService {
   /** Ensure the embedding pipeline is loaded. */
   private async ensureEmbedder() {
     if (this.embedder) return;
-  const mod: unknown = await import('@xenova/transformers');
-  const pipeline = (mod as { pipeline: (task: string, model?: string) => Promise<EmbedderFunc> }).pipeline;
-  // sentence-transformers style model; Xenova auto-downloads on first use
-  this.embedder = await pipeline('feature-extraction', 'Xenova/all-mpnet-base-v2');
+    const mod: unknown = await import('@xenova/transformers');
+    const pipeline = (
+      mod as { pipeline: (task: string, model?: string) => Promise<EmbedderFunc> }
+    ).pipeline;
+    // sentence-transformers style model; Xenova auto-downloads on first use
+    this.embedder = await pipeline('feature-extraction', 'Xenova/all-mpnet-base-v2');
   }
 
   /** Build or rebuild the in-memory embedding index from modules. */
@@ -72,7 +80,13 @@ export class SemanticSearchService {
           // ignore content read errors
         }
 
-        const text = [mod.name, mod.description, mod.category, mod.subcategory ?? '', contentSnippet]
+        const text = [
+          mod.name,
+          mod.description,
+          mod.category,
+          mod.subcategory ?? '',
+          contentSnippet,
+        ]
           .filter(Boolean)
           .join('\n\n');
         docs.push({ mod, text });
@@ -85,7 +99,10 @@ export class SemanticSearchService {
         const batch = docs.slice(i, i + batchSize);
         const inputs = batch.map(b => b.text);
         if (!this.embedder) throw new Error('Embedder not initialized');
-        const outputs = await this.embedder(inputs, { pooling: 'mean', normalize: true });
+        const outputs = await this.embedder(inputs, {
+          pooling: 'mean',
+          normalize: true,
+        });
         const vectors: number[][] = normalizeEmbedOutput(outputs);
         for (let j = 0; j < batch.length; j++) {
           batches.push({
@@ -106,10 +123,10 @@ export class SemanticSearchService {
   /** Embed a query string. */
   async embedQuery(query: string): Promise<number[]> {
     await this.ensureEmbedder();
-  if (!this.embedder) throw new Error('Embedder not initialized');
-  const out = await this.embedder(query, { pooling: 'mean', normalize: true });
-  const arrs = normalizeEmbedOutput(out);
-  return arrs[0] ?? [];
+    if (!this.embedder) throw new Error('Embedder not initialized');
+    const out = await this.embedder(query, { pooling: 'mean', normalize: true });
+    const arrs = normalizeEmbedOutput(out);
+    return arrs[0] ?? [];
   }
 
   /** Pure semantic search over embedding index. */
@@ -132,7 +149,12 @@ export class SemanticSearchService {
     for (const s of scored) {
       const m = byId.get(s.doc.id);
       if (!m) continue;
-      out.push({ ...m, score: s.sim, matchedFields: ['semantic'], semanticScore: s.sim });
+      out.push({
+        ...m,
+        score: s.sim,
+        matchedFields: ['semantic'],
+        semanticScore: s.sim,
+      });
     }
     return out;
   }
@@ -172,7 +194,9 @@ export class SemanticSearchService {
 
 // Helpers
 function hasData(x: unknown): x is { data: Float32Array | number[] } {
-  return typeof x === 'object' && x !== null && 'data' in (x as Record<string, unknown>);
+  return (
+    typeof x === 'object' && x !== null && 'data' in (x as Record<string, unknown>)
+  );
 }
 
 function toNumberArray(t: EmbeddingTensor): number[] {
@@ -180,7 +204,11 @@ function toNumberArray(t: EmbeddingTensor): number[] {
   if (t instanceof Float32Array) return Array.from(t);
   if (hasData(t)) {
     const d = t.data;
-    return d instanceof Float32Array ? Array.from(d) : Array.isArray(d) ? d.map(n => Number(n)) : [];
+    return d instanceof Float32Array
+      ? Array.from(d)
+      : Array.isArray(d)
+        ? d.map(n => Number(n))
+        : [];
   }
   return [];
 }
