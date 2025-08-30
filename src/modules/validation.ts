@@ -217,8 +217,8 @@ export function validateCategoryFilter(category: unknown): string | null {
  * Validates an array of instruction module IDs.
  *
  * Ensures all module IDs are valid strings with proper formatting and
- * within acceptable quantity limits. Module IDs must follow the dot notation
- * pattern used throughout the system.
+ * within acceptable quantity limits. Module IDs can be dot- or slash-separated
+ * (legacy vs. UMS identifiers).
  *
  * @param moduleIds - The array of module IDs to validate (unknown type from user input)
  * @returns Array of validated and trimmed module ID strings
@@ -259,7 +259,7 @@ export function validateModuleIds(moduleIds: unknown): string[] {
       throw new Error('Module IDs cannot be empty');
     }
 
-    if (!/^[a-zA-Z0-9._-]+$/.test(trimmed)) {
+    if (!/^[a-zA-Z0-9._/\-]+$/.test(trimmed)) {
       throw new Error(`Invalid module ID format: ${trimmed}`);
     }
 
