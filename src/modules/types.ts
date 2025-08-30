@@ -66,6 +66,8 @@ export interface SearchResult extends InstructionModule {
   score: number;
   matchedFields: string[];
   contentMatches?: string[];
+  /** Optional semantic similarity score (0..1) when semantic search/rerank is used */
+  semanticScore?: number;
 }
 
 /**
