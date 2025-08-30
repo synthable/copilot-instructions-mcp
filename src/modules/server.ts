@@ -172,17 +172,17 @@ export function setupServerHandlers(
       const toolHandlers = new ToolHandlers(container);
       switch (name) {
         case 'list_instruction_modules': {
-          const result = toolHandlers.handleListInstructionModules(args);
+          const result = await toolHandlers.handleListInstructionModules(args);
           return createJsonResponse(result);
         }
 
         case 'search_instruction_modules': {
-          const result = toolHandlers.handleSearchInstructionModules(args);
+          const result = await toolHandlers.handleSearchInstructionModules(args);
           return createJsonResponse(result);
         }
 
         case 'get_modules_content': {
-          const result = toolHandlers.handleGetModulesContent(args);
+          const result = await toolHandlers.handleGetModulesContent(args);
           return createJsonResponse(result);
         }
 
