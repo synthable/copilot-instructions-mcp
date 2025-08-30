@@ -96,6 +96,23 @@ export interface ISearchService {
 }
 
 /**
+ * Interface for semantic search functionality.
+ */
+export interface ISemanticSearchService {
+  /** Build or rebuild the embedding index. */
+  buildIndex(force?: boolean): Promise<void>;
+  /** Pure semantic search using embeddings. */
+  semanticSearch(query: string, limit?: number): Promise<import('./types.js').SearchResult[]>;
+  /** Hybrid re-rank combining lexical and semantic signals. */
+  hybridSearch(
+    queryTerms: string[],
+    lexicalResults: import('./types.js').SearchResult[],
+    alpha?: number,
+    limit?: number
+  ): Promise<import('./types.js').SearchResult[]>;
+}
+
+/**
  * Interface for content retrieval functionality.
  * Enables dependency injection for content operations.
  */
