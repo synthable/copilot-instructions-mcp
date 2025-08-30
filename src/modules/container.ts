@@ -23,7 +23,9 @@ import type {
   IInstructionModuleParser,
   ISearchService,
   IContentService,
+  ISemanticSearchService,
 } from './interfaces.js';
+import { SemanticSearchService } from './semanticSearch.js';
 
 /**
  * Production implementation of file system operations.
@@ -76,6 +78,7 @@ export class Container {
   private instructionModuleParser?: IInstructionModuleParser;
   private searchService?: ISearchService;
   private contentService?: IContentService;
+  private semanticSearchService?: ISemanticSearchService;
 
   constructor(dependencies?: Partial<IDependencies>) {
     this.dependencies = {
@@ -123,6 +126,17 @@ export class Container {
   }
 
   /**
+   * Gets or creates the semantic search service.
+   */
+  getSemanticSearchService(): ISemanticSearchService {
+    this.semanticSearchService ??= new SemanticSearchService(
+      this.dependencies,
+      this.getInstructionModuleParser()
+    );
+    return this.semanticSearchService;
+  }
+
+  /**
    * Sets a custom instruction module parser (mainly for testing).
    */
   setInstructionModuleParser(parser: IInstructionModuleParser): void {
@@ -141,6 +155,11 @@ export class Container {
    */
   setContentService(contentService: IContentService): void {
     this.contentService = contentService;
+  }
+
+  /** Set a custom semantic search service (testing). */
+  setSemanticSearchService(svc: ISemanticSearchService): void {
+    this.semanticSearchService = svc;
   }
 }
 
