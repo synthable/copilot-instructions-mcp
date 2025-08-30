@@ -5,6 +5,8 @@
  * - list_instruction_modules: Lists all available instruction modules
  * - search_instruction_modules: Performs fuzzy search across modules
  * - get_modules_content: Retrieves and combines module content
+ * - semantic_search: Embedding-based semantic search across modules
+ * - hybrid_search: Re-rank fuzzy results with semantic similarity
  *
  * Provides input validation, error handling, and standardized response formatting.
  *
@@ -67,6 +69,24 @@ export function handleGetModulesContent(args: ToolArgs | undefined) {
   return toolHandlers.handleGetModulesContent(args);
 }
 
+/** Convenience function to handle semantic_search using the global container. */
+export function handleSemanticSearch(args: ToolArgs | undefined) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { getContainer } = require('./container.js') as typeof import('./container.js');
+  const container = getContainer();
+  const toolHandlers = new ToolHandlers(container);
+  return toolHandlers.handleSemanticSearch(args);
+}
+
+/** Convenience function to handle hybrid_search using the global container. */
+export function handleHybridSearch(args: ToolArgs | undefined) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { getContainer } = require('./container.js') as typeof import('./container.js');
+  const container = getContainer();
+  const toolHandlers = new ToolHandlers(container);
+  return toolHandlers.handleHybridSearch(args);
+}
+
 /**
  * Creates a standardized error response for tool handlers
  */
@@ -94,6 +114,10 @@ export function getToolFallbackData(toolName: string): Record<string, unknown> {
       return { results: [] };
     case 'get_modules_content':
       return { success: false };
+    case 'semantic_search':
+      return { results: [] };
+    case 'hybrid_search':
+      return { results: [] };
     default:
       return {};
   }
@@ -185,6 +209,45 @@ export class ToolHandlers {
       processedModules: result.success
         ? moduleIds.length - (result.errors?.length ?? 0)
         : 0,
+    };
+  }
+
+  /**
+   * Handles the semantic_search tool request
+   */
+  async handleSemanticSearch(args: ToolArgs | undefined) {
+    if (!args) {
+      throw new Error("Missing arguments for semantic_search. 'query' is required.");
+    }
+    const query = validateSearchQuery(args.query);
+    const limit = validateSearchLimit(args.limit);
+    const svc = this.container.getSemanticSearchService();
+    const results = await svc.semanticSearch(query, limit);
+    return { query, totalResults: results.length, returnedResults: results.length, results };
+  }
+
+  /**
+   * Handles the hybrid_search tool request
+   */
+  async handleHybridSearch(args: ToolArgs | undefined) {
+    if (!args) {
+      throw new Error(
+        "Missing arguments for hybrid_search. 'query' is required. Optional: alpha (0..1), limit."
+      );
+    }
+    const query = validateSearchQuery(args.query);
+    const limit = validateSearchLimit(args.limit);
+    const alpha = typeof args.alpha === 'number' && args.alpha >= 0 && args.alpha <= 1 ? args.alpha : 0.6;
+
+    const terms = splitSearchQuery(query);
+    const lexical = this.container.getSearchService().searchInstructionModules(terms);
+    const semantic = await this.container.getSemanticSearchService().hybridSearch(terms, lexical, alpha, limit);
+    return {
+      query,
+      alpha,
+      totalResults: semantic.length,
+      returnedResults: Math.min(limit, semantic.length),
+      results: semantic.slice(0, limit),
     };
   }
 
