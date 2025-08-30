@@ -64,20 +64,28 @@ export class SemanticSearchService {
       const docs: { mod: InstructionModule; text: string }[] = [];
 
       for (const mod of modules) {
-        let contentSnippet = '';
-        try {
-          const baseDir = this.dependencies.pathUtils.join(
-            this.dependencies.processUtils.cwd(),
-            'instructions-modules'
-          );
-          const abs = this.dependencies.pathUtils.join(baseDir, mod.filePath);
-          if (this.dependencies.fileSystem.existsSync(abs)) {
-            const raw = this.dependencies.fileSystem.readFileSync(abs, 'utf-8');
-            // trim to 2-3k chars to cap tokenization; keep headings
-            contentSnippet = raw.slice(0, 3000);
+        let bodyText = '';
+        // Prefer UMS semantic field when available
+        if (mod.semantic && mod.semantic.trim().length > 0) {
+          bodyText = mod.semantic.trim();
+        } else {
+          // As a fallback, read file content if it's not a YAML module
+          try {
+            const baseDir = this.dependencies.pathUtils.join(
+              this.dependencies.processUtils.cwd(),
+              'instructions-modules'
+            );
+            const abs = this.dependencies.pathUtils.join(baseDir, mod.filePath);
+            if (
+              this.dependencies.fileSystem.existsSync(abs) &&
+              !mod.filePath.endsWith('.module.yml')
+            ) {
+              const raw = this.dependencies.fileSystem.readFileSync(abs, 'utf-8');
+              bodyText = raw.slice(0, 3000);
+            }
+          } catch {
+            // ignore content read errors
           }
-        } catch {
-          // ignore content read errors
         }
 
         const text = [
@@ -85,7 +93,8 @@ export class SemanticSearchService {
           mod.description,
           mod.category,
           mod.subcategory ?? '',
-          contentSnippet,
+          (mod.tags ?? []).join(', '),
+          bodyText,
         ]
           .filter(Boolean)
           .join('\n\n');
