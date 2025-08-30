@@ -226,6 +226,30 @@ function calculateModuleScore(
       );
     }
 
+    // Search in tags (UMS)
+    if (module.tags && module.tags.length > 0) {
+      fieldScore += searchModuleField(
+        term,
+        module.tags.join(' '),
+        'tags',
+        CONFIG.SCORING.CATEGORY_WEIGHT,
+        CONFIG.SCORING.MIN_FIELD_SCORE,
+        matchedFields
+      );
+    }
+
+    // Search in semantic paragraph (UMS) as a strong signal
+    if (module.semantic && module.semantic.length > 0) {
+      fieldScore += searchModuleField(
+        term,
+        module.semantic,
+        'semantic',
+        CONFIG.SCORING.DESCRIPTION_WEIGHT,
+        CONFIG.SCORING.MIN_FIELD_SCORE,
+        matchedFields
+      );
+    }
+
     // Search in file content
     const contentResult = searchModuleContent(
       term,
