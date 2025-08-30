@@ -24,6 +24,7 @@ import {
   getToolFallbackData,
   ToolHandlers,
 } from './toolHandlers.js';
+import { handleHybridSearch, handleSemanticSearch } from './toolHandlers.js';
 import { Container } from './container.js';
 
 /**
@@ -122,10 +123,37 @@ export function setupServerHandlers(
           required: ['moduleIds'],
         },
       },
+      {
+        name: 'semantic_search',
+        description:
+          'Embedding-based semantic search across instruction modules using all-mpnet-base-v2 embeddings via @xenova/transformers.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: 'Natural language query to embed and search.' },
+            limit: { type: 'number', description: 'Max results to return (default 10).' },
+          },
+          required: ['query'],
+        },
+      },
+      {
+        name: 'hybrid_search',
+        description:
+          'Hybrid re-rank combining fuzzy lexical search with semantic similarity using all-mpnet-base-v2 embeddings.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: 'Search query terms.' },
+            limit: { type: 'number', description: 'Max results to return (default 10).' },
+            alpha: { type: 'number', description: 'Weight for lexical score (0..1, default 0.6).' },
+          },
+          required: ['query'],
+        },
+      },
     ],
   }));
 
-  serverInstance.setRequestHandler(CallToolRequestSchema, request => {
+  serverInstance.setRequestHandler(CallToolRequestSchema, async request => {
     const { name, arguments: args } = request.params;
 
     try {
@@ -143,6 +171,16 @@ export function setupServerHandlers(
 
         case 'get_modules_content': {
           const result = toolHandlers.handleGetModulesContent(args);
+          return createJsonResponse(result);
+        }
+
+        case 'semantic_search': {
+          const result = await handleSemanticSearch(args);
+          return createJsonResponse(result);
+        }
+
+        case 'hybrid_search': {
+          const result = await handleHybridSearch(args);
           return createJsonResponse(result);
         }
 
