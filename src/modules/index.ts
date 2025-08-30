@@ -27,6 +27,7 @@ export * from './container.js';
 export { InstructionModuleParser } from './parsing.js';
 export { SearchService } from './search.js';
 export { ContentService } from './content.js';
+export { SemanticSearchService } from './semanticSearch.js';
 export { ToolHandlers } from './toolHandlers.js';
 
 // Export convenience functions (thin wrappers around DI container)
@@ -37,6 +38,8 @@ export {
   handleListInstructionModules,
   handleSearchInstructionModules,
   handleGetModulesContent,
+  handleSemanticSearch,
+  handleHybridSearch,
   createToolErrorResponse,
   getToolFallbackData,
 } from './toolHandlers.js';
