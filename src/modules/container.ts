@@ -10,7 +10,7 @@
  * @since 1.0.0
  */
 
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve, relative } from 'node:path';
 import { InstructionModuleParser } from './parsing.js';
 import { SearchService } from './search.js';
@@ -38,6 +38,14 @@ class FileSystem implements IFileSystem {
 
   existsSync(path: string): boolean {
     return existsSync(path);
+  }
+
+  readdirSync(path: string): string[] {
+    return readdirSync(path);
+  }
+
+  statSync(path: string): { isDirectory(): boolean } {
+    return statSync(path);
   }
 }
 

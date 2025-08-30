@@ -24,6 +24,16 @@ export interface IFileSystem {
    * Synchronously tests whether or not the given path exists.
    */
   existsSync(path: string): boolean;
+
+  /**
+   * Synchronously reads the contents of a directory.
+   */
+  readdirSync(path: string): string[];
+
+  /**
+   * Synchronously returns file/directory stats (at least isDirectory()).
+   */
+  statSync(path: string): { isDirectory(): boolean };
 }
 
 /**
