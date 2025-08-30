@@ -11,25 +11,30 @@
  */
 
 /**
- * Represents an instruction module parsed from the README.
+ * Represents an instruction module.
+ *
+ * Supports both legacy Markdown-listed modules (from README.md) and UMS v1.0 YAML modules (*.module.yml).
  *
  * @interface InstructionModule
- * @property {string} id - Unique identifier derived from file path (e.g., "foundation.logic.deductive-reasoning")
+ * @property {string} id - Unique identifier (dot-separated for legacy, slash-separated for UMS, e.g., "foundation.logic.deductive-reasoning" or "foundation/reasoning/systems-thinking")
  * @property {string} name - Human-readable display name (e.g., "Deductive Reasoning")
  * @property {string} description - Brief description of the module's purpose and capabilities
  * @property {string} category - Main category: "Foundation", "Principle", "Technology", or "Execution"
- * @property {string} [subcategory] - Optional subcategory for finer classification (e.g., "Logic", "Problem Solving")
- * @property {string} filePath - Relative path to the module's markdown file from instructions-modules/
+ * @property {string} [subcategory] - Optional subcategory/context (derived from subject path when available)
+ * @property {string} filePath - Relative path to the module file from instructions-modules/ (Markdown or .module.yml)
+ * @property {string} [semantic] - Optional semantic-rich paragraph used for embeddings (UMS meta.semantic)
+ * @property {string[]} [tags] - Optional tags for filtering/boosting (UMS meta.tags)
  *
  * @example
  * ```typescript
  * const module: InstructionModule = {
- *   id: "foundation.logic.deductive-reasoning",
- *   name: "Deductive Reasoning",
- *   description: "Apply logical deduction to draw valid conclusions",
+ *   id: "foundation/reasoning/systems-thinking",
+ *   name: "Systems Thinking",
+ *   description: "Reason about systems, feedback loops, and emergent behavior",
  *   category: "Foundation",
- *   subcategory: "Logic",
- *   filePath: "foundation/logic/deductive-reasoning.md"
+ *   filePath: "foundation/reasoning/systems-thinking.module.yml",
+ *   semantic: "Dense, keyword-rich semantic description used for embeddings.",
+ *   tags: ["reasoning", "systems"]
  * };
  * ```
  */
@@ -40,6 +45,10 @@ export interface InstructionModule {
   category: string;
   subcategory?: string;
   filePath: string;
+  /** Optional semantic paragraph from UMS meta for vectorization */
+  semantic?: string;
+  /** Optional tags from UMS meta for filtering/boosting */
+  tags?: string[];
 }
 
 /**

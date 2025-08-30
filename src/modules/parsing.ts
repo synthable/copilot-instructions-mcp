@@ -1,222 +1,131 @@
 /**
- * @fileoverview Instruction module parsing functionality.
+ * @fileoverview Instruction module parsing functionality (UMS v1.0).
  *
- * This module handles parsing the README.md file from the instructions-modules
- * directory to extract the hierarchical structure of instruction modules.
- * Provides caching for performance and comprehensive error handling.
+ * Discovers and parses Unified Module System YAML files (*.module.yml) under
+ * the instructions-modules directory to extract the hierarchical structure and
+ * metadata of instruction modules. Provides caching for performance and
+ * comprehensive error handling.
+ *
+ * Note: Legacy README.md parsing has been removed; this module operates in
+ * UMS-only mode.
  *
  * @author MCP Server Team
  * @version 1.0.0
  * @since 1.0.0
  */
 
-import { validateFilePath } from './validation.js';
 import { parsingLogger } from './logger.js';
-import type { InstructionModule, ParsingState } from './types.js';
+import type { InstructionModule } from './types.js';
 import type { IDependencies, IInstructionModuleParser } from './interfaces.js';
+import { parse as yamlParseFn } from 'yaml';
 
-/**
- * Parses a category line from the README and updates parsing state.
- *
- * Categories are identified by lines starting with `## ` followed by the category name.
- * When found, updates the current category and resets the subcategory.
- *
- * @param line - The line to parse for category information
- * @param state - Parsing state object to update
- * @returns True if the line contained a category, false otherwise
- *
- * @example
- * ```typescript
- * const line = "## Foundation";
- * const found = parseCategoryLine(line, state);
- * // Returns: true, state.currentCategory = "Foundation"
- * ```
- *
- * @since 1.0.0
- * @internal
- */
-function parseCategoryLine(
-  line: string,
-  state: {
-    currentCategory: string;
-    currentSubcategory: string;
-    categoryCount: number;
-  }
-): boolean {
-  const categoryMatch = /^## (.+)$/.exec(line);
-  if (categoryMatch) {
-    state.currentCategory = categoryMatch[1].trim();
-    state.currentSubcategory = '';
-    state.categoryCount++;
-    parsingLogger.debug(
-      `Found category ${state.categoryCount.toString()}: ${state.currentCategory}`
-    );
-    return true;
-  }
-  return false;
+// Type guards and helpers for safe YAML parsing under strict mode
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null;
 }
 
-/**
- * Parses a subcategory line from the README and updates parsing state.
- *
- * Subcategories are identified by lines matching the pattern `- **Title**`.
- * When found, updates the current subcategory for subsequent module entries.
- *
- * @param line - The line to parse for subcategory information
- * @param state - Parsing state object to update
- * @returns True if the line contained a subcategory, false otherwise
- *
- * @example
- * ```typescript
- * const line = "- **Logic**";
- * const found = parseSubcategoryLine(line, state);
- * // Returns: true, state.currentSubcategory = "Logic"
- * ```
- *
- * @since 1.0.0
- * @internal
- */
-function parseSubcategoryLine(
-  line: string,
-  state: { currentSubcategory: string; subcategoryCount: number }
-): boolean {
-  const subcategoryMatch = /^- \*\*(.+)\*\*$/.exec(line);
-  if (subcategoryMatch) {
-    state.currentSubcategory = subcategoryMatch[1].trim();
-    state.subcategoryCount++;
-    parsingLogger.debug(
-      `Found subcategory ${state.subcategoryCount.toString()}: ${state.currentSubcategory}`
-    );
-    return true;
-  }
-  return false;
+// (no-op)
+
+function getString(obj: Record<string, unknown>, key: string): string | undefined {
+  const val = obj[key];
+  return typeof val === 'string' ? val : undefined;
 }
 
-/**
- * Parses a module entry line and creates an InstructionModule object.
- *
- * Module entries follow the pattern: `- [Name](path) - Description`
- * Uses the current category and subcategory from parsing state to build
- * the complete module metadata.
- *
- * @param line - The line to parse for module information
- * @param state - Current parsing state with category context
- * @returns InstructionModule object if parsed successfully, null otherwise
- *
- * @example
- * ```typescript
- * const line = "- [Deductive Reasoning](foundation/logic/deductive-reasoning.md) - Apply logical deduction";
- * const module = parseModuleLine(line, state);
- * // Returns: { id: "foundation.logic.deductive-reasoning", name: "Deductive Reasoning", ... }
- * ```
- *
- * @since 1.0.0
- * @internal
- */
-function parseModuleLine(
-  line: string,
-  state: {
-    currentCategory: string;
-    currentSubcategory: string;
-    moduleCount: number;
+function getStringArray(
+  obj: Record<string, unknown>,
+  key: string
+): string[] | undefined {
+  const val = obj[key];
+  if (!Array.isArray(val)) return undefined;
+  const out: string[] = [];
+  for (const x of val) {
+    if (typeof x === 'string') out.push(x);
   }
+  return out.length > 0 ? out : undefined;
+}
+
+function getProp(obj: Record<string, unknown>, key: string): unknown {
+  return Object.prototype.hasOwnProperty.call(obj, key) ? obj[key] : undefined;
+}
+
+// README parsing removed in UMS-only mode
+
+/**
+ * Parses a UMS v1.0 YAML module file and returns an InstructionModule.
+ * Gracefully handles missing optional fields; validates required `meta` fields when present.
+ */
+function deriveCategoryFromTier(tier: string): string {
+  const t = tier.toLowerCase();
+  if (t === 'foundation') return 'Foundation';
+  if (t === 'principle') return 'Principle';
+  if (t === 'technology') return 'Technology';
+  if (t === 'execution') return 'Execution';
+  return 'Uncategorized';
+}
+
+function parseYamlModule(
+  relPath: string,
+  absPath: string,
+  dependencies: IDependencies
 ): InstructionModule | null {
-  // Match module entries with links and descriptions
-  // Modules can be indented with either 2 or 4 spaces:
-  // "  - [Name](path) - Description" (direct subcategory)
-  // "    - [Name](path) - Description" (nested subcategory)
-  const moduleMatch = /^(  |    )- \[([^\]]+)\]\(([^)]+)\) - (.+)$/.exec(line);
+  try {
+    const raw = dependencies.fileSystem.readFileSync(absPath, 'utf-8');
+    // Wrap YAML.parse to avoid unsafe-call rule by typing the function
+    const parseYaml: (s: string) => unknown = yamlParseFn as unknown as (
+      s: string
+    ) => unknown;
+    const parsedUnknown = parseYaml(raw);
+    if (!isRecord(parsedUnknown)) return null;
+    const parsedRec: Record<string, unknown> = parsedUnknown;
 
-  if (!moduleMatch) {
+    let meta: Record<string, unknown> = {};
+    const metaUnknown = getProp(parsedRec, 'meta');
+    if (isRecord(metaUnknown)) meta = metaUnknown;
+    const name = (getString(meta, 'name') ?? '').trim();
+    const description = (getString(meta, 'description') ?? '').trim();
+    const semanticRaw = getString(meta, 'semantic');
+    const semantic = semanticRaw ? semanticRaw.trim() : undefined;
+    const tags = getStringArray(meta, 'tags');
+
+    const idUnknown = getProp(parsedRec, 'id');
+    const idSource =
+      typeof idUnknown === 'string' && idUnknown.trim().length > 0
+        ? idUnknown
+        : undefined;
+    const id = (
+      idSource ?? relPath.replace(/\.module\.yml$/, '').replace(/\//g, '/')
+    ).trim();
+
+    const parts = relPath.split('/');
+    const tier = parts.length > 0 ? parts[0] : '';
+    const category = deriveCategoryFromTier(tier);
+    const subjectPath = parts.slice(1, Math.max(1, parts.length - 1)).join('/');
+    const subcategory = subjectPath ? subjectPath.replace(/\//g, ' / ') : undefined;
+
+    const fileStem =
+      relPath
+        .replace(/\.module\.yml$/, '')
+        .split('/')
+        .pop() ?? 'module';
+    const prettyName =
+      name || fileStem.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    const desc = description || 'Module (parsed from YAML)';
+
+    const mod: InstructionModule = {
+      id,
+      name: prettyName,
+      description: desc,
+      category,
+      ...(subcategory ? { subcategory } : {}),
+      filePath: relPath,
+      ...(semantic ? { semantic } : {}),
+      ...(tags ? { tags } : {}),
+    };
+    return mod;
+  } catch (err) {
+    parsingLogger.warn(`Failed to parse YAML module: ${relPath}`, err);
     return null;
   }
-
-  const [, indent, name, filePath, description] = moduleMatch;
-
-  // Skip if we don't have a valid category (before any ## section)
-  if (!state.currentCategory) {
-    return null;
-  }
-
-  // Generate ID from file path
-  const id = filePath.replace(/\.md$/, '').replace(/\//g, '.');
-
-  const module: InstructionModule = {
-    id: id.trim(),
-    name: name.trim(),
-    description: description.trim(),
-    category: state.currentCategory,
-    filePath: filePath.trim(),
-  };
-
-  if (state.currentSubcategory) {
-    module.subcategory = state.currentSubcategory;
-  }
-
-  state.moduleCount++;
-  if (state.moduleCount <= 3) {
-    parsingLogger.debug(
-      `Module ${state.moduleCount.toString()}: ${name.trim()} (indent: ${indent.length.toString()} spaces)`
-    );
-  }
-
-  return module;
-}
-
-/**
- * Parses the complete README content and extracts all instruction modules.
- *
- * Processes the markdown content line by line, maintaining state to track
- * the current category and subcategory context for each module entry.
- *
- * @param content - The complete README.md file content as a string
- * @returns Array of parsed InstructionModule objects
- *
- * @example
- * ```typescript
- * const content = readFileSync('README.md', 'utf-8');
- * const modules = parseReadmeContent(content);
- * console.log(`Parsed ${modules.length} modules`);
- * ```
- *
- * @since 1.0.0
- * @internal
- */
-function parseReadmeContent(content: string): InstructionModule[] {
-  const modules: InstructionModule[] = [];
-  const lines = content.split('\n');
-
-  const state: ParsingState = {
-    currentCategory: '',
-    currentSubcategory: '',
-    categoryCount: 0,
-    subcategoryCount: 0,
-    moduleCount: 0,
-  };
-
-  for (const line of lines) {
-    // Try to parse as category first
-    if (parseCategoryLine(line, state)) {
-      continue;
-    }
-
-    // Try to parse as subcategory
-    if (parseSubcategoryLine(line, state)) {
-      continue;
-    }
-
-    // Try to parse as module
-    const module = parseModuleLine(line, state);
-    if (module) {
-      modules.push(module);
-    }
-  }
-
-  parsingLogger.debug(
-    `Final counts - Categories: ${state.categoryCount.toString()}, Subcategories: ${state.subcategoryCount.toString()}, Modules: ${state.moduleCount.toString()}`
-  );
-
-  return modules;
 }
 
 /**
@@ -229,15 +138,15 @@ export class InstructionModuleParser implements IInstructionModuleParser {
   constructor(private dependencies: IDependencies) {}
 
   /**
-   * Parses the instruction modules from the README file in the instructions-modules directory.
+   * Parses instruction modules by recursively discovering all *.module.yml
+   * files under the instructions-modules directory (UMS v1.0).
    *
-   * Extracts hierarchical structure using regex patterns:
-   * - Categories: `## Title` (e.g., "## Foundation")
-   * - Subcategories: `- **Title**` (e.g., "- **Logic**")
-   * - Modules: `- [Name](path) - Description` (e.g., "- [Deductive Reasoning](foundation/logic/deductive-reasoning.md) - Apply logical deduction")
+   * Extracts key metadata from each YAML file: id, meta.name, meta.description,
+   * optional meta.semantic and meta.tags, and derives category/subcategory
+   * based on folder structure.
    *
    * @returns {InstructionModule[]} Array of parsed instruction modules with metadata
-   * @throws {Error} Logs error to console and returns empty array if README.md cannot be read
+   * @throws {Error} Logs error and returns empty array if discovery/parsing fails
    *
    * @example
    * ```typescript
@@ -253,23 +162,30 @@ export class InstructionModuleParser implements IInstructionModuleParser {
     }
 
     try {
+      // UMS-only: discover and parse all .module.yml files
       const baseDir = this.dependencies.pathUtils.join(
         this.dependencies.processUtils.cwd(),
         'instructions-modules'
       );
-      const readmePath = validateFilePath(
-        'README.md',
-        baseDir,
-        this.dependencies.pathUtils
-      );
+      const modules: InstructionModule[] = [];
+      const walk = (dir: string) => {
+        const entries = this.dependencies.fileSystem.readdirSync(dir);
+        for (const name of entries) {
+          const abs = this.dependencies.pathUtils.join(dir, name);
+          const st = this.dependencies.fileSystem.statSync(abs);
+          if (st.isDirectory()) {
+            walk(abs);
+          } else if (name.endsWith('.module.yml')) {
+            const rel = this.dependencies.pathUtils
+              .relative(baseDir, abs)
+              .replace(/\\/g, '/');
+            const mod = parseYamlModule(rel, abs, this.dependencies);
+            if (mod) modules.push(mod);
+          }
+        }
+      };
+      walk(baseDir);
 
-      parsingLogger.debug(`Reading README from: ${readmePath}`);
-
-      const content = this.dependencies.fileSystem.readFileSync(readmePath, 'utf-8');
-
-      parsingLogger.debug(`README content length: ${content.length.toString()}`);
-
-      const modules = parseReadmeContent(content);
       parsingLogger.info(
         `Successfully parsed ${modules.length.toString()} instruction modules`
       );
@@ -291,7 +207,7 @@ export class InstructionModuleParser implements IInstructionModuleParser {
    * @example
    * ```typescript
    * parser.clearModuleCache();
-   * const freshModules = parser.parseInstructionModules(); // Will re-parse from disk
+   * const freshModules = parser.parseInstructionModules(); // Will re-parse YAML files from disk
    * ```
    *
    * @since 1.0.0
