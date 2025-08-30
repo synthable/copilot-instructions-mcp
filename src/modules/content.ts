@@ -81,18 +81,17 @@ export class ContentService implements IContentService {
           continue;
         }
 
-        const fileContent = this.dependencies.fileSystem.readFileSync(
-          contentPath,
-          'utf-8'
-        );
+        const isYaml = module.filePath.endsWith('.module.yml');
+        const fileContent = isYaml
+          ? this.renderYamlModuleContent(module)
+          : this.dependencies.fileSystem.readFileSync(contentPath, 'utf-8');
 
         // Format as markdown section with module info header
         const moduleHeader =
           `# ${module.name}\n\n` +
-          `**ID:** \`${module.id}\`  \n` +
-          `**Category:** ${module.category}` +
-          (module.subcategory ? ` > ${module.subcategory}` : '') +
-          '  \n' +
+          `**ID:** ` +
+          `${module.id}\n` +
+          `**Category:** ${module.category}` + (module.subcategory ? ` > ${module.subcategory}` : '') + '  \n' +
           `**Description:** ${module.description}\n\n` +
           `---\n\n`;
 
@@ -116,6 +115,38 @@ export class ContentService implements IContentService {
       content: combinedContent,
       ...(errors.length > 0 && { errors }),
     };
+  }
+
+  /**
+   * Renders a simple markdown view for a YAML module (UMS) using metadata only.
+   * In v1.0, Markdown is a rendered artifact; we expose meta fields here.
+   */
+  private renderYamlModuleContent(module: {
+    id: string;
+    name: string;
+    description: string;
+    category: string;
+    subcategory?: string;
+    semantic?: string;
+    tags?: string[];
+  }): string {
+    const lines: string[] = [];
+    lines.push(`## Summary`);
+    lines.push(module.description);
+    lines.push('');
+    if (module.tags && module.tags.length > 0) {
+      lines.push(`Tags: ${module.tags.join(', ')}`);
+    }
+  if (module.semantic && module.semantic.trim().length > 0) {
+      lines.push('');
+      lines.push('### Semantic');
+      lines.push(module.semantic.trim());
+    }
+    lines.push('');
+    lines.push(
+      '_Note: This module is defined as YAML (.module.yml). Body directives are not rendered here._'
+    );
+    return lines.join('\n');
   }
 }
 
