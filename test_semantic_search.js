@@ -19,6 +19,21 @@ function runMCP(query) {
       if (code !== 0) return reject(new Error(`Exit ${code}: ${err}`));
       try {
         const resp = JSON.parse(out.trim().split('\n')[0]);
+        // Extract embedded JSON result from MCP content envelope
+        const item = resp && resp.result && Array.isArray(resp.result.content)
+          ? resp.result.content[0]
+          : null;
+        if (item && item.type === 'text' && typeof item.text === 'string') {
+          try {
+            const parsed = JSON.parse(item.text);
+            resolve(parsed);
+            return;
+          } catch {
+            // fall through: return raw text
+            resolve(item.text);
+            return;
+          }
+        }
         resolve(resp);
       } catch (e) {
         reject(new Error(`Failed to parse response: ${out}`));
@@ -52,11 +67,11 @@ async function main() {
 
   console.log('Running semantic_search... (first call may download model)');
   const s = await runMCP(semanticQuery);
-  console.log(s);
+  console.log(JSON.stringify(s, null, 2));
 
   console.log('Running hybrid_search...');
   const h = await runMCP(hybridQuery);
-  console.log(h);
+  console.log(JSON.stringify(h, null, 2));
 }
 
 main().catch(err => {
