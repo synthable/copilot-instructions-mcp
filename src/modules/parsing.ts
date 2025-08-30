@@ -61,7 +61,7 @@ async function parseYamlSafely(
   return new Promise((resolve, reject) => {
     // Set timeout to prevent hanging on malicious YAML
     const timeoutId = setTimeout(() => {
-      reject(new Error(`YAML parsing timeout exceeded (${SECURITY_LIMITS.PARSE_TIMEOUT_MS}ms)`));
+      reject(new Error(`YAML parsing timeout exceeded (${SECURITY_LIMITS.PARSE_TIMEOUT_MS.toString()}ms)`));
     }, SECURITY_LIMITS.PARSE_TIMEOUT_MS);
 
     try {
@@ -100,7 +100,7 @@ async function parseYamlSafely(
         });
       }
       
-      reject(error);
+      reject(error instanceof Error ? error : new Error(String(error)));
     }
   });
 }
@@ -114,7 +114,7 @@ function validateYamlStructure(
   depth = 0
 ): void {
   if (depth > SECURITY_LIMITS.MAX_YAML_DEPTH) {
-    throw new Error(`YAML structure too deeply nested (depth > ${SECURITY_LIMITS.MAX_YAML_DEPTH})`);
+    throw new Error(`YAML structure too deeply nested (depth > ${SECURITY_LIMITS.MAX_YAML_DEPTH.toString()})`);
   }
 
   for (const [key, value] of Object.entries(obj)) {
@@ -126,17 +126,17 @@ function validateYamlStructure(
     // Validate value recursively
     if (typeof value === 'string') {
       if (value.length > SECURITY_LIMITS.MAX_STRING_LENGTH) {
-        throw new Error(`String value too long for key "${key}" (${value.length} > ${SECURITY_LIMITS.MAX_STRING_LENGTH})`);
+        throw new Error(`String value too long for key "${key}" (${value.length.toString()} > ${SECURITY_LIMITS.MAX_STRING_LENGTH.toString()})`);
       }
     } else if (Array.isArray(value)) {
       if (value.length > SECURITY_LIMITS.MAX_ARRAY_LENGTH) {
-        throw new Error(`Array too long for key "${key}" (${value.length} > ${SECURITY_LIMITS.MAX_ARRAY_LENGTH})`);
+        throw new Error(`Array too long for key "${key}" (${value.length.toString()} > ${SECURITY_LIMITS.MAX_ARRAY_LENGTH.toString()})`);
       }
       
       // Validate array elements
       value.forEach((item, index) => {
         if (typeof item === 'string' && item.length > SECURITY_LIMITS.MAX_STRING_LENGTH) {
-          throw new Error(`Array element too long at ${key}[${index}]`);
+          throw new Error(`Array element too long at ${key}[${index.toString()}]`);
         } else if (isRecord(item)) {
           validateYamlStructure(item, filePath, depth + 1);
         }
