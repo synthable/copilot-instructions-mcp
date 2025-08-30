@@ -62,7 +62,7 @@ async function main() {
   const dims = 768;
 
   // Estimate index size in memory (vectors only)
-  const modules = parser.parseInstructionModules();
+  const modules = await parser.parseInstructionModules();
   const numItems = modules.length;
   const indexBytes = numItems * dims * 4; // float32
   const indexMB = indexBytes / (1024 * 1024);

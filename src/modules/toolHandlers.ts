@@ -35,38 +35,38 @@ function splitSearchQuery(query: string): string[] {
 /**
  * Convenience function to handle list_instruction_modules using the global container.
  */
-export function handleListInstructionModules(args: ToolArgs | undefined) {
+export async function handleListInstructionModules(args: ToolArgs | undefined) {
   // Dynamic import to avoid circular dependency issues
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { getContainer } = require('./container.js') as typeof import('./container.js');
   const container = getContainer();
   const toolHandlers = new ToolHandlers(container);
-  return toolHandlers.handleListInstructionModules(args);
+  return await toolHandlers.handleListInstructionModules(args);
 }
 
 /**
  * Convenience function to handle search_instruction_modules using the global container.
  */
-export function handleSearchInstructionModules(args: ToolArgs | undefined) {
+export async function handleSearchInstructionModules(args: ToolArgs | undefined) {
   // Dynamic import to avoid circular dependency issues
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { getContainer } = require('./container.js') as typeof import('./container.js');
   const container = getContainer();
   const toolHandlers = new ToolHandlers(container);
-  return toolHandlers.handleSearchInstructionModules(args);
+  return await toolHandlers.handleSearchInstructionModules(args);
 }
 
 /**
  * Convenience function to handle get_modules_content using the global container.
  */
-export function handleGetModulesContent(args: ToolArgs | undefined) {
+export async function handleGetModulesContent(args: ToolArgs | undefined) {
   // Dynamic import to avoid circular dependency issues
   const { getContainer } =
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     require('./container.js') as typeof import('./container.js');
   const container = getContainer();
   const toolHandlers = new ToolHandlers(container);
-  return toolHandlers.handleGetModulesContent(args);
+  return await toolHandlers.handleGetModulesContent(args);
 }
 
 /** Convenience function to handle semantic_search using the global container. */
@@ -133,10 +133,10 @@ export class ToolHandlers {
   /**
    * Handles the list_instruction_modules tool request
    */
-  handleListInstructionModules(args: ToolArgs | undefined) {
+  async handleListInstructionModules(args: ToolArgs | undefined) {
     const categoryFilter = validateCategoryFilter(args?.category);
     const parser = this.container.getInstructionModuleParser();
-    const modules = parser.parseInstructionModules();
+    const modules = await parser.parseInstructionModules();
 
     toolHandlersLogger.debug(`Parsed ${modules.length.toString()} modules`);
 
@@ -155,7 +155,7 @@ export class ToolHandlers {
   /**
    * Handles the search_instruction_modules tool request
    */
-  handleSearchInstructionModules(args: ToolArgs | undefined) {
+  async handleSearchInstructionModules(args: ToolArgs | undefined) {
     if (!args) {
       throw new Error(
         "Missing arguments for search_instruction_modules. 'query' is required."
@@ -172,7 +172,7 @@ export class ToolHandlers {
 
     // Perform fuzzy search
     const searchService = this.container.getSearchService();
-    const searchResults = searchService.searchInstructionModules(searchTerms);
+    const searchResults = await searchService.searchInstructionModules(searchTerms);
 
     // Limit results
     const limitedResults = searchResults.slice(0, limit);
@@ -188,7 +188,7 @@ export class ToolHandlers {
   /**
    * Handles the get_modules_content tool request
    */
-  handleGetModulesContent(args: ToolArgs | undefined) {
+  async handleGetModulesContent(args: ToolArgs | undefined) {
     if (!args) {
       throw new Error(
         "Missing arguments for get_modules_content. 'moduleIds' is required."
@@ -201,7 +201,7 @@ export class ToolHandlers {
 
     // Get the combined content
     const contentService = this.container.getContentService();
-    const result = contentService.getModulesContent(moduleIds);
+    const result = await contentService.getModulesContent(moduleIds);
 
     return {
       ...result,
@@ -248,7 +248,7 @@ export class ToolHandlers {
         : 0.6;
 
     const terms = splitSearchQuery(query);
-    const lexical = this.container.getSearchService().searchInstructionModules(terms);
+    const lexical = await this.container.getSearchService().searchInstructionModules(terms);
     const semantic = await this.container
       .getSemanticSearchService()
       .hybridSearch(terms, lexical, alpha, limit);

@@ -50,8 +50,8 @@ export class ContentService implements IContentService {
    * // }
    * ```
    */
-  getModulesContent(moduleIds: string[]): GetModulesContentResult {
-    const modules = this.parser.parseInstructionModules();
+  async getModulesContent(moduleIds: string[]): Promise<GetModulesContentResult> {
+    const modules = await this.parser.parseInstructionModules();
     const moduleMap = new Map(modules.map(m => [m.id, m]));
 
     const errors: string[] = [];
@@ -155,11 +155,11 @@ export class ContentService implements IContentService {
  * @param moduleIds Array of module IDs to retrieve
  * @returns Result object with success status, combined content, and error details
  */
-export function getModulesContent(moduleIds: string[]): GetModulesContentResult {
+export async function getModulesContent(moduleIds: string[]): Promise<GetModulesContentResult> {
   // Dynamic import to avoid circular dependency issues
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { getContainer } = require('./container.js') as typeof import('./container.js');
   const container = getContainer();
   const contentService = container.getContentService();
-  return contentService.getModulesContent(moduleIds);
+  return await contentService.getModulesContent(moduleIds);
 }

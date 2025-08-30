@@ -300,8 +300,8 @@ export class SearchService implements ISearchService {
    * console.log(results[0].contentMatches);  // ["TypeScript generics allow..."]
    * ```
    */
-  searchInstructionModules(searchTerms: string[]): SearchResult[] {
-    const modules = this.parser.parseInstructionModules();
+  async searchInstructionModules(searchTerms: string[]): Promise<SearchResult[]> {
+    const modules = await this.parser.parseInstructionModules();
     const results: SearchResult[] = [];
 
     for (const module of modules) {
@@ -333,11 +333,11 @@ export class SearchService implements ISearchService {
  * @param searchTerms Array of search terms to match against
  * @returns Array of matching modules sorted by score descending
  */
-export function searchInstructionModules(searchTerms: string[]): SearchResult[] {
+export async function searchInstructionModules(searchTerms: string[]): Promise<SearchResult[]> {
   // Dynamic import to avoid circular dependency issues
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { getContainer } = require('./container.js') as typeof import('./container.js');
   const container = getContainer();
   const searchService = container.getSearchService();
-  return searchService.searchInstructionModules(searchTerms);
+  return await searchService.searchInstructionModules(searchTerms);
 }
