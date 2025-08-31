@@ -148,7 +148,8 @@ export class Container {
     this.semanticSearchService ??= new SemanticSearchService(
       this.dependencies,
       this.getInstructionModuleParser(),
-      this.getEmbeddingService()
+      this.getEmbeddingService(),
+      this.getSemanticConfig()
     );
     return this.semanticSearchService;
   }

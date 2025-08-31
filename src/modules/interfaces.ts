@@ -218,4 +218,9 @@ export interface ISemanticConfig {
    * Gets the embedding dimensions for the configured model.
    */
   getEmbeddingDimensions(): number;
+
+  /**
+   * Gets the batch size for indexing operations.
+   */
+  getIndexingBatchSize(): number;
 }

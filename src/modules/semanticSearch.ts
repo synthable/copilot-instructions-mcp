@@ -10,6 +10,7 @@ import type {
   IDependencies, 
   IInstructionModuleParser, 
   IEmbeddingService,
+  ISemanticConfig,
   ILogger 
 } from './interfaces.js';
 import type { InstructionModule, SearchResult } from './types.js';
@@ -33,7 +34,8 @@ export class SemanticSearchService {
   constructor(
     private dependencies: IDependencies,
     private parser: IInstructionModuleParser,
-    private embeddingService: IEmbeddingService
+    private embeddingService: IEmbeddingService,
+    private config: ISemanticConfig
   ) {
     this.logger = dependencies.logger;
   }
@@ -147,24 +149,35 @@ export class SemanticSearchService {
   }
 
   /**
-   * Embeds documents using the embedding service with proper batching.
+   * Embeds documents using the embedding service with parallel batch processing.
    */
   private async embedDocuments(docs: { mod: InstructionModule; text: string }[]): Promise<EmbeddingDoc[]> {
-    const batches: EmbeddingDoc[] = [];
-    const batchSize = 8; // TODO: Get from config
+    const batchSize = this.config.getIndexingBatchSize();
     
+    // Create all batches upfront
+    const batches: { batch: { mod: InstructionModule; text: string }[]; index: number }[] = [];
     for (let i = 0; i < docs.length; i += batchSize) {
-      const batch = docs.slice(i, i + batchSize);
-      
+      batches.push({
+        batch: docs.slice(i, i + batchSize),
+        index: i,
+      });
+    }
+    
+    this.logger.info(`Processing ${batches.length.toString()} embedding batches in parallel`);
+    
+    // Process all batches in parallel
+    const batchPromises = batches.map(async ({ batch, index }) => {
       try {
-        this.logger.debug(`Processing embedding batch ${(Math.floor(i / batchSize) + 1).toString()}/${Math.ceil(docs.length / batchSize).toString()}`);
+        const batchNumber = Math.floor(index / batchSize) + 1;
+        this.logger.debug(`Processing embedding batch ${batchNumber.toString()}/${batches.length.toString()}`);
         
         const inputs = batch.map(b => b.text);
         const vectors = await this.embeddingService.embedBatch(inputs);
         
+        const embeddingDocs: EmbeddingDoc[] = [];
         for (let j = 0; j < batch.length; j++) {
           if (vectors[j] && vectors[j].length > 0) {
-            batches.push({
+            embeddingDocs.push({
               id: batch[j].mod.id,
               filePath: batch[j].mod.filePath,
               text: batch[j].text,
@@ -174,13 +187,32 @@ export class SemanticSearchService {
             this.logger.warn(`Empty embedding vector for module ${batch[j].mod.id}`);
           }
         }
+        
+        return embeddingDocs;
       } catch (error) {
-        this.logger.error(`Failed to process embedding batch starting at index ${i.toString()}`, error instanceof Error ? error : undefined);
-        // Continue with next batch rather than failing entire index build
+        this.logger.error(`Failed to process embedding batch starting at index ${index.toString()}`, error instanceof Error ? error : undefined);
+        return []; // Return empty array for failed batches
+      }
+    });
+    
+    // Wait for all batches to complete
+    const results = await Promise.allSettled(batchPromises);
+    
+    // Collect successful results and log failures
+    const allEmbeddingDocs: EmbeddingDoc[] = [];
+    let failedBatches = 0;
+    
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        allEmbeddingDocs.push(...result.value);
+      } else {
+        failedBatches++;
+        this.logger.warn('Embedding batch failed', result.reason instanceof Error ? result.reason : undefined);
       }
     }
-
-    return batches;
+    
+    this.logger.info(`Completed parallel embedding processing: ${allEmbeddingDocs.length.toString()} successful embeddings, ${failedBatches.toString()} failed batches`);
+    return allEmbeddingDocs;
   }
 
   /** Embed a query string. */
