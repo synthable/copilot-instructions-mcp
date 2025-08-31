@@ -149,39 +149,89 @@ Step-by-step playbooks for common development tasks:
 }
 ```
 
+## Vector Search System
+
+The server includes an advanced semantic search system that combines keyword and embedding-based search for superior result quality.
+
+### Features
+- **Local embeddings**: Uses `@xenova/transformers` with all-mpnet-base-v2 model
+- **Pre-computed vectors**: Build-time generation for fast startup
+- **Hybrid search**: Combines keyword and semantic similarity
+- **Intelligent caching**: Automatic model disposal and embedding cache
+
+### Quick Start with Vector Search
+```bash
+# Generate pre-computed vectors
+npm run build:vectors
+
+# Test semantic search
+npm run test:semantic
+
+# Start server with vector support
+npm start
+```
+
+### New MCP Tools
+- `semantic_search` - Pure embedding-based search
+- Enhanced `search_instruction_modules` - Now includes semantic scoring
+
+### Documentation
+- [Architecture Overview](docs/ARCHITECTURE.md) - Comprehensive system design
+- [Migration Guide](docs/MIGRATION.md) - Upgrade from keyword-only search
+- [Troubleshooting Guide](docs/TROUBLESHOOTING.md) - Performance optimization and debugging
+
 ## Development
 
 ### Project Structure
 ```
 src/
-  index.ts           # Main MCP server implementation
-instructions-modules/ # Instruction module library
-  README.md          # Module registry and metadata
-  foundation/        # Core reasoning capabilities
-  principle/         # Best practices and methodologies  
-  technology/        # Language/framework specifics
-  execution/         # Step-by-step playbooks
-docs/                # Bootstrap prompts for AI enhancement
+  index.ts              # Main MCP server implementation
+  modules/
+    embeddingService.ts # Local text embedding with transformers
+    vectorStore.ts      # Pre-computed vector storage
+    semanticSearch.ts   # Similarity-based search
+    semantic.ts         # Hybrid search integration
+  tools/
+    vectorGenerator.ts  # Build-time vector generation
+instructions-modules/   # Instruction module library
+  README.md            # Module registry and metadata
+  foundation/          # Core reasoning capabilities
+  principle/           # Best practices and methodologies  
+  technology/          # Language/framework specifics
+  execution/           # Step-by-step playbooks
+docs/                  # Documentation
+  ARCHITECTURE.md      # Vector search system architecture
+  MIGRATION.md         # Migration guide for vector search
+  TROUBLESHOOTING.md   # Performance and debugging guide
+prompts/               # Bootstrap prompts for AI enhancement
   bootstrap-prompt.md
   system-prompt-generator.md
   concise-mcp-prompt.md
   persona-builder-prompt.md
-test_search.js       # Comprehensive test suite
+  bootloader-v1.1.md
+dist/vectors/          # Pre-computed embeddings (generated)
+  vectors.msgpack      # Binary vector storage
+  vectors.json         # Human-readable fallback
+  metadata.json        # Module metadata index
+test_search.js         # Comprehensive test suite
 ```
 
 ### Key Implementation Details
 
 - **Module Parsing**: Extracts metadata from `instructions-modules/README.md` using regex patterns
 - **Fuzzy Search**: Weighted Levenshtein distance algorithm with field-specific scoring
+- **Vector Search**: Cosine similarity with pre-computed embeddings for semantic understanding
+- **Hybrid Search**: Weighted combination of keyword and semantic results
 - **Transport Abstraction**: Shared handlers across stdio, HTTP, and SSE transports
-- **Dynamic Prompt Loading**: Bootstrap prompts loaded from docs/ with tool name mapping
+- **Dynamic Prompt Loading**: Bootstrap prompts loaded from prompts/ with tool name mapping
 
 ### Adding New Modules
 
 1. Create the module file in the appropriate category directory
 2. Follow the three-section format: Context, Implementation, Validation
-3. Add an entry to `instructions-modules/README.md`
-4. Use machine-centric, imperative language for AI comprehension
+3. Add an entry to `instructions-modules/README.md` with semantic content
+4. Regenerate vectors: `npm run build:vectors`
+5. Use machine-centric, imperative language for AI comprehension
 
 ## License
 
