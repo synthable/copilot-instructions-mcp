@@ -16,6 +16,7 @@ import type {
 import type { InstructionModule, SearchResult } from './types.js';
 import { cosine } from './semantic.js';
 import { MemoryMonitor, LazyContentLoader } from './memoryUtils.js';
+import { PerformanceCollector } from './performanceMetrics.js';
 
 export interface EmbeddingDoc {
   id: string; // module id
@@ -33,6 +34,7 @@ export class SemanticSearchService {
   private logger: ILogger;
   private memoryMonitor: MemoryMonitor;
   private contentLoader: LazyContentLoader<string>;
+  private performanceCollector: PerformanceCollector;
 
   constructor(
     private dependencies: IDependencies,
@@ -43,6 +45,7 @@ export class SemanticSearchService {
     this.logger = dependencies.logger;
     this.memoryMonitor = new MemoryMonitor(config.getMaxMemoryUsageMB(), this.logger);
     this.contentLoader = new LazyContentLoader(50, this.logger); // Cache up to 50 content items
+    this.performanceCollector = new PerformanceCollector(this.logger);
   }
 
   /** Ensure the embedding service is initialized. */
@@ -55,6 +58,15 @@ export class SemanticSearchService {
 
   /** Build or rebuild the in-memory embedding index from modules. */
   async buildIndex(force = false): Promise<void> {
+    await this.performanceCollector.time(
+      'semantic_index_build',
+      () => this.buildIndexInternal(force),
+      { force }
+    );
+  }
+
+  /** Internal index building implementation with performance monitoring. */
+  private async buildIndexInternal(force = false): Promise<void> {
     if (this.index.length > 0 && !force) {
       this.logger.debug('Semantic search index already built, skipping');
       return;
@@ -240,84 +252,96 @@ export class SemanticSearchService {
 
   /** Embed a query string. */
   async embedQuery(query: string): Promise<number[]> {
-    await this.ensureEmbedder();
-    
-    try {
-      return await this.embeddingService.embed(query);
-    } catch (error) {
-      this.logger.error('Failed to embed query string', error instanceof Error ? error : undefined, {
-        queryLength: query.length,
-      });
-      throw new Error(`Query embedding failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+    return await this.performanceCollector.time(
+      'query_embedding',
+      async () => {
+        await this.ensureEmbedder();
+        
+        try {
+          return await this.embeddingService.embed(query);
+        } catch (error) {
+          this.logger.error('Failed to embed query string', error instanceof Error ? error : undefined, {
+            queryLength: query.length,
+          });
+          throw new Error(`Query embedding failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      },
+      { queryLength: query.length }
+    );
   }
 
   /** Pure semantic search over embedding index. */
   async semanticSearch(query: string, limit = 10): Promise<SearchResult[]> {
-    try {
-      this.logger.debug('Performing semantic search', { query: query.slice(0, 100), limit });
-      
-      await this.buildIndex();
-      const queryVector = await this.embedQuery(query);
-      
-      if (this.index.length === 0) {
-        this.logger.warn('Semantic search index is empty');
-        return [];
-      }
-      
-      const modules = await this.parser.parseInstructionModules();
-      const byId = new Map(modules.map(m => [m.id, m] as const));
-
-      // Calculate similarities
-      const similarities = new Map<string, number>();
-      for (const doc of this.index) {
+    return await this.performanceCollector.time(
+      'semantic_search',
+      async () => {
         try {
-          const similarity = cosine(queryVector, doc.vector);
-          similarities.set(doc.id, similarity);
-        } catch (error) {
-          this.logger.warn(`Failed to calculate similarity for document ${doc.id}`, error instanceof Error ? error : undefined);
-        }
-      }
+          this.logger.debug('Performing semantic search', { query: query.slice(0, 100), limit });
+          
+          await this.buildIndex();
+          const queryVector = await this.embedQuery(query);
+          
+          if (this.index.length === 0) {
+            this.logger.warn('Semantic search index is empty');
+            return [];
+          }
+          
+          const modules = await this.parser.parseInstructionModules();
+          const byId = new Map(modules.map(m => [m.id, m] as const));
 
-      // Sort by similarity and limit results
-      const scored = this.index
-        .map(doc => ({
-          doc,
-          similarity: similarities.get(doc.id) ?? 0,
-        }))
-        .filter(item => item.similarity > 0) // Filter out failed calculations
-        .sort((a, b) => b.similarity - a.similarity)
-        .slice(0, Math.max(1, limit));
+          // Calculate similarities
+          const similarities = new Map<string, number>();
+          for (const doc of this.index) {
+            try {
+              const similarity = cosine(queryVector, doc.vector);
+              similarities.set(doc.id, similarity);
+            } catch (error) {
+              this.logger.warn(`Failed to calculate similarity for document ${doc.id}`, error instanceof Error ? error : undefined);
+            }
+          }
 
-      // Build results
-      const results: SearchResult[] = [];
-      for (const item of scored) {
-        const module = byId.get(item.doc.id);
-        if (module) {
-          results.push({
-            ...module,
-            score: item.similarity,
-            matchedFields: ['semantic'],
-            semanticScore: item.similarity,
+          // Sort by similarity and limit results
+          const scored = this.index
+            .map(doc => ({
+              doc,
+              similarity: similarities.get(doc.id) ?? 0,
+            }))
+            .filter(item => item.similarity > 0) // Filter out failed calculations
+            .sort((a, b) => b.similarity - a.similarity)
+            .slice(0, Math.max(1, limit));
+
+          // Build results
+          const results: SearchResult[] = [];
+          for (const item of scored) {
+            const module = byId.get(item.doc.id);
+            if (module) {
+              results.push({
+                ...module,
+                score: item.similarity,
+                matchedFields: ['semantic'],
+                semanticScore: item.similarity,
+              });
+            } else {
+              this.logger.warn(`Module not found for indexed document ${item.doc.id}`);
+            }
+          }
+
+          this.logger.debug(`Semantic search completed`, {
+            resultsCount: results.length,
+            topScore: results[0]?.score || 0,
           });
-        } else {
-          this.logger.warn(`Module not found for indexed document ${item.doc.id}`);
+
+          return results;
+        } catch (error) {
+          this.logger.error('Semantic search failed', error instanceof Error ? error : undefined, {
+            query: query.slice(0, 100),
+            limit,
+          });
+          throw new Error(`Semantic search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
-      }
-
-      this.logger.debug(`Semantic search completed`, {
-        resultsCount: results.length,
-        topScore: results[0]?.score || 0,
-      });
-
-      return results;
-    } catch (error) {
-      this.logger.error('Semantic search failed', error instanceof Error ? error : undefined, {
-        query: query.slice(0, 100),
-        limit,
-      });
-      throw new Error(`Semantic search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+      },
+      { query: query.slice(0, 100), limit }
+    );
   }
 
   /** Hybrid search: combine existing lexical score with semantic similarity. */
@@ -327,29 +351,35 @@ export class SemanticSearchService {
     alpha = 0.6,
     limit = 10
   ): Promise<SearchResult[]> {
-    await this.buildIndex();
-    const q = await this.embedQuery(queryTerms.join(' '));
-    const semByPath = new Map<string, number>();
-    for (const d of this.index) {
-      semByPath.set(d.filePath, cosine(q, d.vector));
-    }
+    return await this.performanceCollector.time(
+      'hybrid_search',
+      async () => {
+        await this.buildIndex();
+        const q = await this.embedQuery(queryTerms.join(' '));
+        const semByPath = new Map<string, number>();
+        for (const d of this.index) {
+          semByPath.set(d.filePath, cosine(q, d.vector));
+        }
 
-    // Normalize lexical scores 0..1
-    const lex = lexicalResults.map(r => r.score);
-    const min = Math.min(...lex);
-    const max = Math.max(...lex);
-    const norm = (x: number) => (max === min ? 0 : (x - min) / (max - min));
+        // Normalize lexical scores 0..1
+        const lex = lexicalResults.map(r => r.score);
+        const min = Math.min(...lex);
+        const max = Math.max(...lex);
+        const norm = (x: number) => (max === min ? 0 : (x - min) / (max - min));
 
-    const merged = lexicalResults
-      .map(r => {
-        const sem = semByPath.get(r.filePath) ?? 0;
-        const final = alpha * norm(r.score) + (1 - alpha) * sem;
-        return { ...r, score: final, semanticScore: sem } as SearchResult;
-      })
-      .sort((a, b) => b.score - a.score)
-      .slice(0, Math.max(1, limit));
+        const merged = lexicalResults
+          .map(r => {
+            const sem = semByPath.get(r.filePath) ?? 0;
+            const final = alpha * norm(r.score) + (1 - alpha) * sem;
+            return { ...r, score: final, semanticScore: sem } as SearchResult;
+          })
+          .sort((a, b) => b.score - a.score)
+          .slice(0, Math.max(1, limit));
 
-    return merged;
+        return merged;
+      },
+      { queryTerms, alpha, limit, lexicalResultsCount: lexicalResults.length }
+    );
   }
 }
 
