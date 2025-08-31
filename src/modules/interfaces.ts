@@ -223,4 +223,14 @@ export interface ISemanticConfig {
    * Gets the batch size for indexing operations.
    */
   getIndexingBatchSize(): number;
+
+  /**
+   * Gets the maximum memory usage limit in MB.
+   */
+  getMaxMemoryUsageMB(): number;
+
+  /**
+   * Gets whether lazy loading is enabled.
+   */
+  isLazyLoadingEnabled(): boolean;
 }
