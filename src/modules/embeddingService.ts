@@ -2,15 +2,22 @@
  * @fileoverview Production embedding service implementation.
  *
  * This module provides a type-safe, properly validated embedding service
- * that abstracts transformer model operations with comprehensive error handling
- * and resource management.
+ * that abstracts transformer model operations with comprehensive error handling,
+ * resource management, embedding caching, and progress callbacks.
  *
  * @author MCP Server Team
  * @version 1.0.0
  * @since 1.0.0
  */
 
-import type { IEmbeddingService, ISemanticConfig, ILogger } from './interfaces.js';
+import { createHash } from 'node:crypto';
+import type { 
+  IEmbeddingService, 
+  ISemanticConfig, 
+  ILogger,
+  EmbeddingProgressCallback,
+  EmbeddingCacheEntry
+} from './interfaces.js';
 
 /**
  * Validated embedding tensor type from transformer output.
@@ -39,11 +46,14 @@ interface TransformersModule {
 }
 
 /**
- * Production embedding service with proper type safety and error handling.
+ * Production embedding service with proper type safety, error handling, caching, and progress callbacks.
  */
 export class EmbeddingService implements IEmbeddingService {
   private pipeline: TransformerPipeline | null = null;
   private initialized = false;
+  private embeddingCache = new Map<string, EmbeddingCacheEntry>();
+  private cacheStats = { hits: 0, misses: 0 };
+  private disposeTimer: NodeJS.Timeout | null = null;
 
   constructor(
     private config: ISemanticConfig,
@@ -51,11 +61,12 @@ export class EmbeddingService implements IEmbeddingService {
   ) {}
 
   /**
-   * Initializes the embedding pipeline with comprehensive error handling.
+   * Initializes the embedding pipeline with comprehensive error handling and progress callbacks.
    */
-  async initialize(): Promise<void> {
+  async initialize(progressCallback?: EmbeddingProgressCallback): Promise<void> {
     if (this.initialized) {
       this.logger.debug('Embedding service already initialized');
+      progressCallback?.('initialization', 1.0, 'Already initialized');
       return;
     }
 
@@ -65,15 +76,25 @@ export class EmbeddingService implements IEmbeddingService {
         batchSize: this.config.getBatchSize(),
       });
 
+      progressCallback?.('initialization', 0.1, 'Starting initialization');
+
       // Dynamic import with proper error handling
+      progressCallback?.('loading', 0.2, 'Loading transformers module');
       const transformersModule = await this.loadTransformersModule();
+      
+      progressCallback?.('loading', 0.5, 'Creating pipeline');
       this.pipeline = await this.createPipeline(transformersModule);
 
       // Validate pipeline with test embedding
+      progressCallback?.('loading', 0.8, 'Validating pipeline');
       await this.validatePipeline();
 
       this.initialized = true;
+      progressCallback?.('initialization', 1.0, 'Initialization complete');
       this.logger.info('Embedding service initialized successfully');
+
+      // Set up idle disposal timer
+      this.resetDisposeTimer();
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown initialization error';
@@ -85,26 +106,54 @@ export class EmbeddingService implements IEmbeddingService {
           error: errorMessage,
         }
       );
+      progressCallback?.('initialization', 0, `Initialization failed: ${errorMessage}`);
       throw new Error(`Embedding service initialization failed: ${errorMessage}`);
     }
   }
 
   /**
-   * Generates embeddings for a single text input with validation.
+   * Generates embeddings for a single text input with validation, caching, and progress callbacks.
    */
-  async embed(text: string): Promise<number[]> {
+  async embed(text: string, progressCallback?: EmbeddingProgressCallback): Promise<number[]> {
     this.ensureInitialized();
     this.validateTextInput(text);
 
+    // Check cache first
+    const hash = this.computeTextHash(text);
+    const cached = this.embeddingCache.get(hash);
+    
+    if (cached) {
+      this.cacheStats.hits++;
+      progressCallback?.('processing', 1.0, 'Retrieved from cache');
+      this.logger.debug('Cache hit for embedding', { hash, textLength: text.length });
+      this.resetDisposeTimer();
+      return cached.embedding;
+    }
+
+    this.cacheStats.misses++;
+
     try {
-      const results = await this.embedBatch([text]);
-      return results[0];
+      progressCallback?.('processing', 0.1, 'Computing embedding');
+      const results = await this.embedBatch([text], progressCallback);
+      const embedding = results[0];
+      
+      // Cache the result
+      this.embeddingCache.set(hash, {
+        hash,
+        embedding,
+        timestamp: Date.now()
+      });
+      
+      progressCallback?.('processing', 1.0, 'Embedding computed and cached');
+      this.resetDisposeTimer();
+      return embedding;
     } catch (error) {
       this.logger.error(
         'Failed to generate single embedding',
         error instanceof Error ? error : undefined,
         {
           textLength: text.length.toString(),
+          hash,
         }
       );
       throw new Error(
@@ -114,9 +163,9 @@ export class EmbeddingService implements IEmbeddingService {
   }
 
   /**
-   * Generates embeddings for multiple text inputs with proper batching and validation.
+   * Generates embeddings for multiple text inputs with proper batching, caching, and validation.
    */
-  async embedBatch(texts: string[]): Promise<number[][]> {
+  async embedBatch(texts: string[], progressCallback?: EmbeddingProgressCallback): Promise<number[][]> {
     this.ensureInitialized();
     this.validateBatchInput(texts);
 
@@ -124,38 +173,92 @@ export class EmbeddingService implements IEmbeddingService {
       throw new Error('Pipeline not initialized');
     }
 
-    try {
-      this.logger.debug('Generating batch embeddings', {
-        batchSize: texts.length.toString(),
-        totalChars: texts.reduce((sum, text) => sum + text.length, 0),
-      });
+    // Check cache for existing embeddings
+    const results: number[][] = [];
+    const uncachedTexts: string[] = [];
+    const uncachedIndices: number[] = [];
 
-      const result = await this.pipeline(texts, {
-        pooling: 'mean',
-        normalize: true,
-      });
+    progressCallback?.('processing', 0.1, 'Checking cache for batch');
 
-      const embeddings = this.validateAndExtractEmbeddings(result, texts.length);
+    texts.forEach((text, index) => {
+      const hash = this.computeTextHash(text);
+      const cached = this.embeddingCache.get(hash);
+      
+      if (cached) {
+        results[index] = cached.embedding;
+        this.cacheStats.hits++;
+      } else {
+        uncachedTexts.push(text);
+        uncachedIndices.push(index);
+        this.cacheStats.misses++;
+      }
+    });
 
-      this.logger.debug('Successfully generated batch embeddings', {
-        count: embeddings.length.toString(),
-        dimensions: (embeddings[0]?.length || 0).toString(),
-      });
+    this.logger.debug('Batch cache analysis', {
+      totalTexts: texts.length,
+      cachedCount: texts.length - uncachedTexts.length,
+      uncachedCount: uncachedTexts.length,
+    });
 
-      return embeddings;
-    } catch (error) {
-      this.logger.error(
-        'Failed to generate batch embeddings',
-        error instanceof Error ? error : undefined,
-        {
-          batchSize: texts.length.toString(),
-          error: error instanceof Error ? error.message : 'Unknown error',
-        }
-      );
-      throw new Error(
-        `Batch embedding generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
+    // Process uncached texts
+    if (uncachedTexts.length > 0) {
+      try {
+        progressCallback?.('processing', 0.3, `Computing ${uncachedTexts.length.toString()} new embeddings`);
+
+        this.logger.debug('Generating batch embeddings', {
+          batchSize: uncachedTexts.length.toString(),
+          totalChars: uncachedTexts.reduce((sum, text) => sum + text.length, 0),
+        });
+
+        const result = await this.pipeline(uncachedTexts, {
+          pooling: 'mean',
+          normalize: true,
+        });
+
+        progressCallback?.('processing', 0.8, 'Extracting embeddings');
+        const embeddings = this.validateAndExtractEmbeddings(result, uncachedTexts.length);
+
+        // Cache new embeddings and fill results
+        embeddings.forEach((embedding, embeddingIndex) => {
+          const originalIndex = uncachedIndices[embeddingIndex];
+          const text = uncachedTexts[embeddingIndex];
+          const hash = this.computeTextHash(text);
+          
+          // Cache the result
+          this.embeddingCache.set(hash, {
+            hash,
+            embedding,
+            timestamp: Date.now()
+          });
+          
+          results[originalIndex] = embedding;
+        });
+
+        progressCallback?.('processing', 1.0, 'Batch processing complete');
+
+        this.logger.debug('Successfully generated batch embeddings', {
+          count: embeddings.length.toString(),
+          dimensions: (embeddings[0]?.length || 0).toString(),
+        });
+      } catch (error) {
+        this.logger.error(
+          'Failed to generate batch embeddings',
+          error instanceof Error ? error : undefined,
+          {
+            batchSize: uncachedTexts.length.toString(),
+            error: error instanceof Error ? error.message : 'Unknown error',
+          }
+        );
+        throw new Error(
+          `Batch embedding generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+        );
+      }
+    } else {
+      progressCallback?.('processing', 1.0, 'All embeddings retrieved from cache');
     }
+
+    this.resetDisposeTimer();
+    return results;
   }
 
   /**
@@ -412,5 +515,63 @@ export class EmbeddingService implements IEmbeddingService {
     }
 
     throw new Error('Invalid data type for conversion to numbers');
+  }
+
+  /**
+   * Clears the embedding cache.
+   */
+  clearCache(): void {
+    this.embeddingCache.clear();
+    this.cacheStats = { hits: 0, misses: 0 };
+    this.logger.debug('Embedding cache cleared');
+  }
+
+  /**
+   * Gets cache statistics.
+   */
+  getCacheStats(): { hits: number; misses: number; size: number } {
+    return {
+      hits: this.cacheStats.hits,
+      misses: this.cacheStats.misses,
+      size: this.embeddingCache.size
+    };
+  }
+
+  /**
+   * Disposes of the embedding model to free memory.
+   */
+  dispose(): void {
+    if (this.disposeTimer) {
+      clearTimeout(this.disposeTimer);
+      this.disposeTimer = null;
+    }
+
+    this.pipeline = null;
+    this.initialized = false;
+    this.clearCache();
+    
+    this.logger.info('Embedding service disposed');
+  }
+
+  /**
+   * Computes MD5 hash of text for cache keys.
+   */
+  private computeTextHash(text: string): string {
+    return createHash('md5').update(text, 'utf8').digest('hex');
+  }
+
+  /**
+   * Resets the dispose timer for idle disposal.
+   */
+  private resetDisposeTimer(): void {
+    if (this.disposeTimer) {
+      clearTimeout(this.disposeTimer);
+    }
+
+    // Dispose after 5 minutes of inactivity
+    this.disposeTimer = setTimeout(() => {
+      this.logger.debug('Disposing embedding service due to inactivity');
+      this.dispose();
+    }, 5 * 60 * 1000);
   }
 }

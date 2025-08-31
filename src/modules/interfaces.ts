@@ -168,6 +168,28 @@ export interface IContentService {
 }
 
 /**
+ * Progress callback for embedding operations.
+ * Called during model initialization and batch processing.
+ */
+export type EmbeddingProgressCallback = (
+  stage: 'initialization' | 'download' | 'loading' | 'processing',
+  progress: number, // 0-1
+  message?: string
+) => void;
+
+/**
+ * Cache entry for embeddings with MD5-based invalidation.
+ */
+export interface EmbeddingCacheEntry {
+  /** MD5 hash of the input text */
+  hash: string;
+  /** Cached embedding vector */
+  embedding: number[];
+  /** Timestamp when cached */
+  timestamp: number;
+}
+
+/**
  * Interface for embedding service operations.
  * Abstracts transformer model operations for dependency injection and testing.
  */
@@ -175,22 +197,37 @@ export interface IEmbeddingService {
   /**
    * Initializes the embedding pipeline with the configured model.
    */
-  initialize(): Promise<void>;
+  initialize(progressCallback?: EmbeddingProgressCallback): Promise<void>;
 
   /**
    * Generates embeddings for a single text input.
    */
-  embed(text: string): Promise<number[]>;
+  embed(text: string, progressCallback?: EmbeddingProgressCallback): Promise<number[]>;
 
   /**
    * Generates embeddings for multiple text inputs in a batch.
    */
-  embedBatch(texts: string[]): Promise<number[][]>;
+  embedBatch(texts: string[], progressCallback?: EmbeddingProgressCallback): Promise<number[][]>;
 
   /**
    * Checks if the service is properly initialized.
    */
   isInitialized(): boolean;
+
+  /**
+   * Clears the embedding cache.
+   */
+  clearCache(): void;
+
+  /**
+   * Gets cache statistics.
+   */
+  getCacheStats(): { hits: number; misses: number; size: number };
+
+  /**
+   * Disposes of the embedding model to free memory.
+   */
+  dispose(): void;
 }
 
 /**
