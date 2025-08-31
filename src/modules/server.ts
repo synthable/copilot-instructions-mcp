@@ -26,6 +26,7 @@ import {
 } from './toolHandlers.js';
 // Note: Avoid convenience wrappers that use require() (not available in ESM)
 import { Container } from './container.js';
+import { initializeServer } from './serverInitializer.js';
 
 /**
  * Helper function to create JSON response format
@@ -324,4 +325,15 @@ export function createServer(container: Container): Server {
 
   setupServerHandlers(server, container);
   return server;
+}
+
+/**
+ * Creates and initializes an MCP server with vector store initialization.
+ */
+export async function createInitializedServer(container: Container): Promise<Server> {
+  // Initialize server components including vector store
+  await initializeServer(container);
+  
+  // Create the server with initialized components
+  return createServer(container);
 }
