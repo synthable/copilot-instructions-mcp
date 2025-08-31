@@ -433,7 +433,7 @@ export class EmbeddingService implements IEmbeddingService {
       throw new Error('Transformer returned null or undefined result');
     }
 
-    // Handle array of results
+    // Handle array of results (individual tensor objects)
     if (Array.isArray(result)) {
       if (result.length !== expectedCount) {
         throw new Error(
@@ -443,14 +443,40 @@ export class EmbeddingService implements IEmbeddingService {
       return result.map((item, index) => this.extractSingleEmbedding(item, index));
     }
 
-    // Handle single result
+    // Handle single tensor object containing batch data
     if (expectedCount === 1) {
       return [this.extractSingleEmbedding(result, 0)];
     }
 
-    throw new Error(
-      `Expected array result for batch of ${expectedCount.toString()}, got single result`
-    );
+    // For batch processing, the transformer returns a single tensor with all embeddings
+    // We need to extract the batch data and split it into individual embeddings
+    try {
+      const validated = this.validateTensorStructure(result);
+      const embeddingDim = this.config.getEmbeddingDimensions();
+      const totalExpectedElements = expectedCount * embeddingDim;
+
+      if (validated.data.length !== totalExpectedElements) {
+        throw new Error(
+          `Invalid batch tensor size: expected ${totalExpectedElements.toString()} elements (${expectedCount.toString()} × ${embeddingDim.toString()}), got ${validated.data.length.toString()}`
+        );
+      }
+
+      // Split the flattened data into individual embeddings
+      const embeddings: number[][] = [];
+      const numbers = this.convertToNumbers(validated.data);
+
+      for (let i = 0; i < expectedCount; i++) {
+        const start = i * embeddingDim;
+        const end = start + embeddingDim;
+        embeddings.push(numbers.slice(start, end));
+      }
+
+      return embeddings;
+    } catch (error) {
+      throw new Error(
+        `Failed to extract batch embeddings: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
   }
 
   /**
