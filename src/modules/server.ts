@@ -57,7 +57,7 @@ function getErrorMessage(error: unknown): string {
  * - **Prompts**: bootstrap-prompt, system-prompt-generator, concise-integration, persona-builder
  *
  * All handlers include comprehensive error handling and return JSON-formatted responses.
- * Prompt handlers dynamically load content from docs/ and map tool names.
+ * Prompt handlers dynamically load content from prompts/ and map tool names.
  *
  * @param {Server} serverInstance - The MCP Server instance to configure with handlers
  * @param {Container} container - Dependency injection container
@@ -212,6 +212,12 @@ export function setupServerHandlers(
   serverInstance.setRequestHandler(ListPromptsRequestSchema, () => ({
     prompts: [
       {
+        name: 'bootloader-v1.1-prompt',
+        description:
+          'A Module Integration Specialist that dynamically discovers, selects, and applies specialized instruction modules from an MCP library through a four-phase process (deconstruct, discover & select, synthesize & execute, constraints & communication) to solve user requests using foundation, principle, technology, and execution tier modules while treating user context as absolute source of truth.',
+        arguments: [],
+      },
+      {
         name: 'bootstrap-prompt',
         description:
           'Comprehensive bootstrap prompt for dynamic system prompt generation with MCP instruction modules',
@@ -245,26 +251,32 @@ export function setupServerHandlers(
       let description: string;
 
       switch (name) {
+        case 'bootloader-v1.1-prompt':
+          promptPath = join(process.cwd(), 'prompts', 'bootloader-v1.1.md');
+          description =
+            'A Module Integration Specialist that dynamically discovers, selects, and applies specialized instruction modules from an MCP library through a four-phase process (deconstruct, discover & select, synthesize & execute, constraints & communication) to solve user requests using foundation, principle, technology, and execution tier modules while treating user context as absolute source of truth.';
+          break;
+
         case 'bootstrap-prompt':
-          promptPath = join(process.cwd(), 'docs', 'bootstrap-prompt.md');
+          promptPath = join(process.cwd(), 'prompts', 'bootstrap-prompt.md');
           description =
             'Comprehensive bootstrap prompt for dynamic system prompt generation with MCP instruction modules';
           break;
 
         case 'system-prompt-generator':
-          promptPath = join(process.cwd(), 'docs', 'system-prompt-generator.md');
+          promptPath = join(process.cwd(), 'prompts', 'system-prompt-generator.md');
           description =
             'Focused prompt for production AI assistants with dynamic capability enhancement';
           break;
 
         case 'concise-integration':
-          promptPath = join(process.cwd(), 'docs', 'concise-mcp-prompt.md');
+          promptPath = join(process.cwd(), 'prompts', 'concise-mcp-prompt.md');
           description =
             'Minimal prompt for adding MCP capabilities to existing prompts';
           break;
 
         case 'persona-builder':
-          promptPath = join(process.cwd(), 'docs', 'persona-builder-prompt.md');
+          promptPath = join(process.cwd(), 'prompts', 'persona-builder-prompt.md');
           description =
             'Specialized prompt for creating well-structured personas following the four-tier philosophy';
           break;
@@ -312,7 +324,7 @@ export function setupServerHandlers(
 export function createServer(container: Container): Server {
   const server = new Server(
     {
-      name: 'simple-mcp-server',
+      name: 'copilot-instructions-mcp',
       version: '1.0.0',
     },
     {
