@@ -44,7 +44,10 @@ export function loadEmbeddingIndex(
     }
     return Object.keys(idx).length > 0 ? idx : null;
   } catch (err) {
-    semanticLogger.error('Failed to create inverted index', err instanceof Error ? err : undefined);
+    semanticLogger.error(
+      'Failed to create inverted index',
+      err instanceof Error ? err : undefined
+    );
     return null;
   }
 }

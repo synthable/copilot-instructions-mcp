@@ -248,7 +248,9 @@ export class ToolHandlers {
         : 0.6;
 
     const terms = splitSearchQuery(query);
-    const lexical = await this.container.getSearchService().searchInstructionModules(terms);
+    const lexical = await this.container
+      .getSearchService()
+      .searchInstructionModules(terms);
     const semantic = await this.container
       .getSemanticSearchService()
       .hybridSearch(terms, lexical, alpha, limit);

@@ -58,7 +58,9 @@ export class MemoryMonitor {
    */
   logMemoryUsage(context: string): void {
     const info = this.getMemoryInfo();
-    this.logger.debug(`Memory usage (${context}): ${info.usedMB.toString()}MB / ${info.totalMB.toString()}MB (${info.percentUsed.toString()}%)`);
+    this.logger.debug(
+      `Memory usage (${context}): ${info.usedMB.toString()}MB / ${info.totalMB.toString()}MB (${info.percentUsed.toString()}%)`
+    );
   }
 
   /**
@@ -85,14 +87,16 @@ export class MemoryMonitor {
     const info = this.getMemoryInfo();
     const availableMB = info.totalMB * 0.8 - info.usedMB; // Keep 20% buffer
     const availableBytes = availableMB * 1024 * 1024;
-    
+
     const calculatedBatchSize = Math.floor(availableBytes / itemSizeBytes);
     const optimalBatchSize = Math.max(
       minBatchSize,
       Math.min(maxBatchSize, calculatedBatchSize)
     );
 
-    this.logger.debug(`Calculated optimal batch size: ${optimalBatchSize.toString()} (available: ${availableMB.toFixed(1)}MB)`);
+    this.logger.debug(
+      `Calculated optimal batch size: ${optimalBatchSize.toString()} (available: ${availableMB.toFixed(1)}MB)`
+    );
     return optimalBatchSize;
   }
 }
@@ -123,14 +127,18 @@ export class StreamingProcessor<T, R> {
     let currentBatchSize = options.initialBatchSize;
     let processed = 0;
 
-    this.logger.info(`Starting streaming processing of ${items.length.toString()} items`);
+    this.logger.info(
+      `Starting streaming processing of ${items.length.toString()} items`
+    );
     this.memoryMonitor.logMemoryUsage('before processing');
 
     for (let i = 0; i < items.length; i += currentBatchSize) {
       // Check memory pressure and adjust batch size
       if (this.memoryMonitor.isMemoryPressure(75)) {
         currentBatchSize = Math.max(1, Math.floor(currentBatchSize * 0.7));
-        this.logger.warn(`Memory pressure detected, reducing batch size to ${currentBatchSize.toString()}`);
+        this.logger.warn(
+          `Memory pressure detected, reducing batch size to ${currentBatchSize.toString()}`
+        );
         this.memoryMonitor.suggestGarbageCollection();
       } else if (options.estimatedItemSizeBytes) {
         // Calculate optimal batch size based on available memory
@@ -142,29 +150,37 @@ export class StreamingProcessor<T, R> {
       }
 
       const batch = items.slice(i, i + currentBatchSize);
-      
+
       try {
-        this.logger.debug(`Processing batch ${(Math.floor(i / currentBatchSize) + 1).toString()} (${batch.length.toString()} items)`);
+        this.logger.debug(
+          `Processing batch ${(Math.floor(i / currentBatchSize) + 1).toString()} (${batch.length.toString()} items)`
+        );
         const batchResults = await processor(batch);
         results.push(...batchResults);
-        
+
         processed += batch.length;
         options.onProgress?.(processed, items.length);
-        
+
         // Log memory usage periodically
         if (processed % (currentBatchSize * 5) === 0 || processed === items.length) {
-          this.memoryMonitor.logMemoryUsage(`processed ${processed.toString()}/${items.length.toString()}`);
+          this.memoryMonitor.logMemoryUsage(
+            `processed ${processed.toString()}/${items.length.toString()}`
+          );
         }
-        
       } catch (error) {
-        this.logger.error(`Failed to process batch starting at index ${i.toString()}`, error instanceof Error ? error : undefined);
+        this.logger.error(
+          `Failed to process batch starting at index ${i.toString()}`,
+          error instanceof Error ? error : undefined
+        );
         // Continue with next batch rather than failing entirely
       }
     }
 
     this.memoryMonitor.logMemoryUsage('after processing');
-    this.logger.info(`Completed streaming processing: ${results.length.toString()} results from ${items.length.toString()} items`);
-    
+    this.logger.info(
+      `Completed streaming processing: ${results.length.toString()} results from ${items.length.toString()} items`
+    );
+
     return results;
   }
 }
@@ -184,15 +200,12 @@ export class LazyContentLoader<T> {
   /**
    * Gets content with lazy loading and caching.
    */
-  async getContent(
-    key: string,
-    loader: () => Promise<T>
-  ): Promise<T> {
+  async getContent(key: string, loader: () => Promise<T>): Promise<T> {
     // Check cache first
     const cached = this.cache.get(key);
     const now = Date.now();
-    
-    if (cached && (now - cached.timestamp) < this.cacheTimeout) {
+
+    if (cached && now - cached.timestamp < this.cacheTimeout) {
       this.logger.debug(`Cache hit for key: ${key}`);
       return cached.content;
     }
@@ -200,19 +213,22 @@ export class LazyContentLoader<T> {
     // Load content
     this.logger.debug(`Loading content for key: ${key}`);
     const content = await loader();
-    
+
     // Manage cache size
     if (this.cache.size >= this.maxCacheSize) {
-      const oldestKey = Array.from(this.cache.entries())
-        .sort(([, a], [, b]) => a.timestamp - b.timestamp)[0][0];
+      const oldestKey = Array.from(this.cache.entries()).sort(
+        ([, a], [, b]) => a.timestamp - b.timestamp
+      )[0][0];
       this.cache.delete(oldestKey);
       this.logger.debug(`Evicted oldest cache entry: ${oldestKey}`);
     }
-    
+
     // Cache the content
     this.cache.set(key, { content, timestamp: now });
-    this.logger.debug(`Cached content for key: ${key} (cache size: ${this.cache.size.toString()})`);
-    
+    this.logger.debug(
+      `Cached content for key: ${key} (cache size: ${this.cache.size.toString()})`
+    );
+
     return content;
   }
 

@@ -24,12 +24,12 @@ interface ValidatedEmbeddingTensor {
  * Type-safe transformer pipeline interface.
  */
 type TransformerPipeline = (
-    input: string | string[],
-    options?: {
-      pooling?: 'mean' | 'max';
-      normalize?: boolean;
-    }
-  ) => Promise<unknown>;
+  input: string | string[],
+  options?: {
+    pooling?: 'mean' | 'max';
+    normalize?: boolean;
+  }
+) => Promise<unknown>;
 
 /**
  * Type-safe transformers module interface.
@@ -68,18 +68,23 @@ export class EmbeddingService implements IEmbeddingService {
       // Dynamic import with proper error handling
       const transformersModule = await this.loadTransformersModule();
       this.pipeline = await this.createPipeline(transformersModule);
-      
+
       // Validate pipeline with test embedding
       await this.validatePipeline();
-      
+
       this.initialized = true;
       this.logger.info('Embedding service initialized successfully');
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown initialization error';
-      this.logger.error('Failed to initialize embedding service', error instanceof Error ? error : undefined, {
-        model: this.config.getModelName(),
-        error: errorMessage,
-      });
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown initialization error';
+      this.logger.error(
+        'Failed to initialize embedding service',
+        error instanceof Error ? error : undefined,
+        {
+          model: this.config.getModelName(),
+          error: errorMessage,
+        }
+      );
       throw new Error(`Embedding service initialization failed: ${errorMessage}`);
     }
   }
@@ -95,10 +100,16 @@ export class EmbeddingService implements IEmbeddingService {
       const results = await this.embedBatch([text]);
       return results[0];
     } catch (error) {
-      this.logger.error('Failed to generate single embedding', error instanceof Error ? error : undefined, {
-        textLength: text.length.toString(),
-      });
-      throw new Error(`Single embedding generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.logger.error(
+        'Failed to generate single embedding',
+        error instanceof Error ? error : undefined,
+        {
+          textLength: text.length.toString(),
+        }
+      );
+      throw new Error(
+        `Single embedding generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -125,7 +136,7 @@ export class EmbeddingService implements IEmbeddingService {
       });
 
       const embeddings = this.validateAndExtractEmbeddings(result, texts.length);
-      
+
       this.logger.debug('Successfully generated batch embeddings', {
         count: embeddings.length.toString(),
         dimensions: (embeddings[0]?.length || 0).toString(),
@@ -133,11 +144,17 @@ export class EmbeddingService implements IEmbeddingService {
 
       return embeddings;
     } catch (error) {
-      this.logger.error('Failed to generate batch embeddings', error instanceof Error ? error : undefined, {
-        batchSize: texts.length.toString(),
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
-      throw new Error(`Batch embedding generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.logger.error(
+        'Failed to generate batch embeddings',
+        error instanceof Error ? error : undefined,
+        {
+          batchSize: texts.length.toString(),
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      );
+      throw new Error(
+        `Batch embedding generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -154,7 +171,7 @@ export class EmbeddingService implements IEmbeddingService {
   private async loadTransformersModule(): Promise<TransformersModule> {
     try {
       const module = await import('@xenova/transformers');
-      
+
       if (typeof module.pipeline !== 'function') {
         throw new Error('Invalid transformers module: missing pipeline function');
       }
@@ -162,7 +179,9 @@ export class EmbeddingService implements IEmbeddingService {
       return module as TransformersModule;
     } catch (error) {
       if (error instanceof Error && error.message.includes('Cannot resolve module')) {
-        throw new Error('Transformers module not installed. Run: npm install @xenova/transformers');
+        throw new Error(
+          'Transformers module not installed. Run: npm install @xenova/transformers'
+        );
       }
       throw error;
     }
@@ -171,7 +190,9 @@ export class EmbeddingService implements IEmbeddingService {
   /**
    * Creates a validated transformer pipeline.
    */
-  private async createPipeline(transformersModule: TransformersModule): Promise<TransformerPipeline> {
+  private async createPipeline(
+    transformersModule: TransformersModule
+  ): Promise<TransformerPipeline> {
     try {
       const pipeline = await transformersModule.pipeline(
         'feature-extraction',
@@ -185,7 +206,9 @@ export class EmbeddingService implements IEmbeddingService {
       return pipeline;
     } catch (error) {
       const modelName = this.config.getModelName();
-      throw new Error(`Failed to create pipeline for model "${modelName}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to create pipeline for model "${modelName}": ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -204,16 +227,23 @@ export class EmbeddingService implements IEmbeddingService {
       });
 
       const validated = this.validateAndExtractEmbeddings(testResult, 1);
-      
-      if (validated.length !== 1 || validated[0].length !== this.config.getEmbeddingDimensions()) {
-        throw new Error(`Pipeline validation failed: expected ${this.config.getEmbeddingDimensions().toString()} dimensions, got ${(validated[0]?.length || 0).toString()}`);
+
+      if (
+        validated.length !== 1 ||
+        validated[0].length !== this.config.getEmbeddingDimensions()
+      ) {
+        throw new Error(
+          `Pipeline validation failed: expected ${this.config.getEmbeddingDimensions().toString()} dimensions, got ${(validated[0]?.length || 0).toString()}`
+        );
       }
 
       this.logger.debug('Pipeline validation successful', {
         dimensions: validated[0].length.toString(),
       });
     } catch (error) {
-      throw new Error(`Pipeline validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Pipeline validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -240,7 +270,9 @@ export class EmbeddingService implements IEmbeddingService {
 
     const maxLength = this.config.getMaxContentLength();
     if (text.length > maxLength) {
-      throw new Error(`Text input too long: ${text.length.toString()} > ${maxLength.toString()} characters`);
+      throw new Error(
+        `Text input too long: ${text.length.toString()} > ${maxLength.toString()} characters`
+      );
     }
   }
 
@@ -258,14 +290,18 @@ export class EmbeddingService implements IEmbeddingService {
 
     const maxBatchSize = this.config.getBatchSize();
     if (texts.length > maxBatchSize) {
-      throw new Error(`Batch size too large: ${texts.length.toString()} > ${maxBatchSize.toString()}`);
+      throw new Error(
+        `Batch size too large: ${texts.length.toString()} > ${maxBatchSize.toString()}`
+      );
     }
 
     texts.forEach((text, index) => {
       try {
         this.validateTextInput(text);
       } catch (error) {
-        throw new Error(`Invalid text at index ${index.toString()}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        throw new Error(
+          `Invalid text at index ${index.toString()}: ${error instanceof Error ? error.message : 'Unknown error'}`
+        );
       }
     });
   }
@@ -273,7 +309,10 @@ export class EmbeddingService implements IEmbeddingService {
   /**
    * Validates and extracts embeddings from transformer output.
    */
-  private validateAndExtractEmbeddings(result: unknown, expectedCount: number): number[][] {
+  private validateAndExtractEmbeddings(
+    result: unknown,
+    expectedCount: number
+  ): number[][] {
     if (!result) {
       throw new Error('Transformer returned null or undefined result');
     }
@@ -281,7 +320,9 @@ export class EmbeddingService implements IEmbeddingService {
     // Handle array of results
     if (Array.isArray(result)) {
       if (result.length !== expectedCount) {
-        throw new Error(`Expected ${expectedCount.toString()} results, got ${result.length.toString()}`);
+        throw new Error(
+          `Expected ${expectedCount.toString()} results, got ${result.length.toString()}`
+        );
       }
       return result.map((item, index) => this.extractSingleEmbedding(item, index));
     }
@@ -291,7 +332,9 @@ export class EmbeddingService implements IEmbeddingService {
       return [this.extractSingleEmbedding(result, 0)];
     }
 
-    throw new Error(`Expected array result for batch of ${expectedCount.toString()}, got single result`);
+    throw new Error(
+      `Expected array result for batch of ${expectedCount.toString()}, got single result`
+    );
   }
 
   /**
@@ -301,14 +344,18 @@ export class EmbeddingService implements IEmbeddingService {
     try {
       const validated = this.validateTensorStructure(item);
       const numbers = this.convertToNumbers(validated.data);
-      
+
       if (numbers.length !== this.config.getEmbeddingDimensions()) {
-        throw new Error(`Invalid embedding dimensions: expected ${this.config.getEmbeddingDimensions().toString()}, got ${numbers.length.toString()}`);
+        throw new Error(
+          `Invalid embedding dimensions: expected ${this.config.getEmbeddingDimensions().toString()}, got ${numbers.length.toString()}`
+        );
       }
 
       return numbers;
     } catch (error) {
-      throw new Error(`Failed to extract embedding at index ${index.toString()}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to extract embedding at index ${index.toString()}: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -335,7 +382,7 @@ export class EmbeddingService implements IEmbeddingService {
     }
 
     const arrayData = data;
-    
+
     return {
       data: arrayData,
       dimensions: arrayData.length,
@@ -346,8 +393,10 @@ export class EmbeddingService implements IEmbeddingService {
    * Checks if value is array-like (Float32Array or number array).
    */
   private isArrayLike(value: unknown): value is Float32Array | number[] {
-    return value instanceof Float32Array || 
-           (Array.isArray(value) && value.every(item => typeof item === 'number'));
+    return (
+      value instanceof Float32Array ||
+      (Array.isArray(value) && value.every(item => typeof item === 'number'))
+    );
   }
 
   /**
@@ -357,11 +406,11 @@ export class EmbeddingService implements IEmbeddingService {
     if (data instanceof Float32Array) {
       return Array.from(data);
     }
-    
+
     if (Array.isArray(data)) {
       return data.map(Number);
     }
-    
+
     throw new Error('Invalid data type for conversion to numbers');
   }
 }

@@ -333,7 +333,9 @@ export class SearchService implements ISearchService {
  * @param searchTerms Array of search terms to match against
  * @returns Array of matching modules sorted by score descending
  */
-export async function searchInstructionModules(searchTerms: string[]): Promise<SearchResult[]> {
+export async function searchInstructionModules(
+  searchTerms: string[]
+): Promise<SearchResult[]> {
   // Dynamic import to avoid circular dependency issues
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { getContainer } = require('./container.js') as typeof import('./container.js');

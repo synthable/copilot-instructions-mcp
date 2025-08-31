@@ -59,7 +59,7 @@ export class PerformanceTimer {
     this.startTime = performance.now();
     this.startMemory = process.memoryUsage().rss;
     this.peakMemory = this.startMemory;
-    
+
     // Monitor peak memory usage during operation
     this.memoryInterval = setInterval(() => {
       const currentMemory = process.memoryUsage().rss;
@@ -118,15 +118,18 @@ export class PerformanceCollector {
    */
   record(metric: PerformanceMetrics): void {
     this.metrics.push(metric);
-    
+
     // Maintain size limit
     if (this.metrics.length > this.maxMetrics) {
       this.metrics = this.metrics.slice(-this.maxMetrics);
     }
 
     // Log slow operations
-    if (metric.duration > 5000) { // 5 seconds
-      this.logger.warn(`Slow operation detected: ${metric.operation} took ${metric.duration.toFixed(2)}ms`);
+    if (metric.duration > 5000) {
+      // 5 seconds
+      this.logger.warn(
+        `Slow operation detected: ${metric.operation} took ${metric.duration.toFixed(2)}ms`
+      );
     }
   }
 
@@ -167,15 +170,17 @@ export class PerformanceCollector {
    */
   getStats(operation: string): PerformanceStats | null {
     const operationMetrics = this.metrics.filter(m => m.operation === operation);
-    
+
     if (operationMetrics.length === 0) {
       return null;
     }
 
     const durations = operationMetrics.map(m => m.duration).sort((a, b) => a - b);
-    const memoryUsages = operationMetrics.map(m => (m.memoryEnd - m.memoryStart) / 1024 / 1024);
+    const memoryUsages = operationMetrics.map(
+      m => (m.memoryEnd - m.memoryStart) / 1024 / 1024
+    );
     const peakMemories = operationMetrics.map(m => m.memoryPeak / 1024 / 1024);
-    
+
     const totalDuration = durations.reduce((sum, d) => sum + d, 0);
     const percentile = (p: number) => durations[Math.floor((durations.length - 1) * p)];
 
@@ -189,7 +194,8 @@ export class PerformanceCollector {
       p50Duration: percentile(0.5),
       p95Duration: percentile(0.95),
       p99Duration: percentile(0.99),
-      averageMemoryUsage: memoryUsages.reduce((sum, m) => sum + m, 0) / memoryUsages.length,
+      averageMemoryUsage:
+        memoryUsages.reduce((sum, m) => sum + m, 0) / memoryUsages.length,
       peakMemoryUsage: Math.max(...peakMemories),
     };
   }
@@ -199,7 +205,9 @@ export class PerformanceCollector {
    */
   getAllStats(): PerformanceStats[] {
     const operations = [...new Set(this.metrics.map(m => m.operation))];
-    return operations.map(op => this.getStats(op)).filter((stats): stats is PerformanceStats => stats !== null);
+    return operations
+      .map(op => this.getStats(op))
+      .filter((stats): stats is PerformanceStats => stats !== null);
   }
 
   /**
@@ -207,10 +215,10 @@ export class PerformanceCollector {
    */
   generateReport(): string {
     const stats = this.getAllStats().sort((a, b) => b.totalDuration - a.totalDuration);
-    
+
     let report = 'Performance Report\n';
     report += '==================\n\n';
-    
+
     for (const stat of stats) {
       report += `Operation: ${stat.operation}\n`;
       report += `  Count: ${stat.count.toString()}\n`;
@@ -222,7 +230,7 @@ export class PerformanceCollector {
       report += `  Peak Memory: ${stat.peakMemoryUsage.toFixed(2)}MB\n`;
       report += '\n';
     }
-    
+
     return report;
   }
 
@@ -246,12 +254,16 @@ export class PerformanceCollector {
    * Exports metrics to JSON format.
    */
   exportMetrics(): string {
-    return JSON.stringify({
-      timestamp: new Date().toISOString(),
-      totalMetrics: this.metrics.length,
-      stats: this.getAllStats(),
-      rawMetrics: this.metrics,
-    }, null, 2);
+    return JSON.stringify(
+      {
+        timestamp: new Date().toISOString(),
+        totalMetrics: this.metrics.length,
+        stats: this.getAllStats(),
+        rawMetrics: this.metrics,
+      },
+      null,
+      2
+    );
   }
 }
 
@@ -285,10 +297,12 @@ export class BenchmarkRunner {
       iterations = 10,
       warmupIterations = 2,
       timeout = 60000,
-      metadata = {}
+      metadata = {},
     } = options;
 
-    this.logger.info(`Running benchmark: ${name} (${iterations.toString()} iterations, ${warmupIterations.toString()} warmup)`);
+    this.logger.info(
+      `Running benchmark: ${name} (${iterations.toString()} iterations, ${warmupIterations.toString()} warmup)`
+    );
 
     const results: T[] = [];
     const errors: Error[] = [];
@@ -296,17 +310,24 @@ export class BenchmarkRunner {
     // Warmup runs
     for (let i = 0; i < warmupIterations; i++) {
       try {
-        this.logger.debug(`Warmup ${(i + 1).toString()}/${warmupIterations.toString()}`);
+        this.logger.debug(
+          `Warmup ${(i + 1).toString()}/${warmupIterations.toString()}`
+        );
         await this.runWithTimeout(testFn, timeout);
       } catch (error) {
-        this.logger.warn(`Warmup ${(i + 1).toString()} failed`, error instanceof Error ? error : undefined);
+        this.logger.warn(
+          `Warmup ${(i + 1).toString()} failed`,
+          error instanceof Error ? error : undefined
+        );
       }
     }
 
     // Actual benchmark runs
     for (let i = 0; i < iterations; i++) {
       try {
-        this.logger.debug(`Benchmark iteration ${(i + 1).toString()}/${iterations.toString()}`);
+        this.logger.debug(
+          `Benchmark iteration ${(i + 1).toString()}/${iterations.toString()}`
+        );
         const result = await this.collector.time(
           `benchmark_${name}`,
           () => this.runWithTimeout(testFn, timeout),
