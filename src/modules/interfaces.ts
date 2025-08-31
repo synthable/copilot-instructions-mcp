@@ -209,7 +209,10 @@ export interface IEmbeddingService {
   /**
    * Generates embeddings for multiple text inputs in a batch.
    */
-  embedBatch(texts: string[], progressCallback?: EmbeddingProgressCallback): Promise<number[][]>;
+  embedBatch(
+    texts: string[],
+    progressCallback?: EmbeddingProgressCallback
+  ): Promise<number[][]>;
 
   /**
    * Checks if the service is properly initialized.

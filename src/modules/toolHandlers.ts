@@ -221,10 +221,10 @@ export class ToolHandlers {
     }
     const query = validateSearchQuery(args.query);
     const limit = validateSearchLimit(args.limit);
-    
+
     // Parse semantic search options
     const options: import('./semanticSearch.js').SemanticSearchOptions = {};
-    
+
     // Handle tier filtering
     if (args.tiers) {
       if (Array.isArray(args.tiers)) {
@@ -233,18 +233,21 @@ export class ToolHandlers {
         options.tiers = [args.tiers];
       }
     }
-    
+
     // Handle similarity threshold
-    if (typeof args.similarityThreshold === 'number' && 
-        args.similarityThreshold >= 0 && args.similarityThreshold <= 1) {
+    if (
+      typeof args.similarityThreshold === 'number' &&
+      args.similarityThreshold >= 0 &&
+      args.similarityThreshold <= 1
+    ) {
       options.similarityThreshold = args.similarityThreshold;
     }
-    
+
     // Handle relevance level inclusion (default: true)
     if (args.includeRelevanceLevel === false) {
       options.includeRelevanceLevel = false;
     }
-    
+
     const svc = this.container.getSemanticSearchService();
     const results = await svc.semanticSearch(query, limit, options);
     return {
@@ -274,7 +277,7 @@ export class ToolHandlers {
 
     // Parse semantic search options
     const options: import('./semanticSearch.js').SemanticSearchOptions = {};
-    
+
     // Handle tier filtering
     if (args.tiers) {
       if (Array.isArray(args.tiers)) {
@@ -283,13 +286,16 @@ export class ToolHandlers {
         options.tiers = [args.tiers];
       }
     }
-    
+
     // Handle similarity threshold
-    if (typeof args.similarityThreshold === 'number' && 
-        args.similarityThreshold >= 0 && args.similarityThreshold <= 1) {
+    if (
+      typeof args.similarityThreshold === 'number' &&
+      args.similarityThreshold >= 0 &&
+      args.similarityThreshold <= 1
+    ) {
       options.similarityThreshold = args.similarityThreshold;
     }
-    
+
     // Handle relevance level inclusion (default: true)
     if (args.includeRelevanceLevel === false) {
       options.includeRelevanceLevel = false;

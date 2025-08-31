@@ -5,7 +5,7 @@
  * with support for MessagePack (production) and JSON (development) formats.
  * Includes integrity validation, indexing by ID and tier, and fallback mechanisms.
  *
- * @author MCP Server Team  
+ * @author MCP Server Team
  * @version 1.0.0
  * @since 1.0.0
  */
@@ -15,16 +15,8 @@ import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import { decode as msgpackDecode } from '@msgpack/msgpack';
 
-import type { 
-  IVectorStore,
-  IDependencies,
-  ILogger
-} from './interfaces.js';
-import type {
-  VectorIndex,
-  VectorIndexMetadata, 
-  ModuleVector
-} from './types.js';
+import type { IVectorStore, IDependencies, ILogger } from './interfaces.js';
+import type { VectorIndex, VectorIndexMetadata, ModuleVector } from './types.js';
 
 /**
  * Vector store implementation that handles loading and managing pre-computed vectors.
@@ -35,7 +27,7 @@ export class VectorStore implements IVectorStore {
   private vectorsByTierIndex = new Map<string, ModuleVector[]>();
   private vectorsDir: string;
   private loaded = false;
-  
+
   constructor(
     private dependencies: IDependencies,
     private logger: ILogger,
@@ -58,7 +50,7 @@ export class VectorStore implements IVectorStore {
 
     try {
       this.logger.info('Loading pre-computed vectors from disk', {
-        vectorsDir: this.vectorsDir
+        vectorsDir: this.vectorsDir,
       });
 
       // Try MessagePack first (production)
@@ -67,12 +59,14 @@ export class VectorStore implements IVectorStore {
         this.logger.debug('Loading vectors from MessagePack format');
         const msgpackData = await fs.readFile(msgpackPath);
         const decodedData = msgpackDecode(msgpackData);
-        
+
         if (this.isValidVectorIndex(decodedData)) {
           this.vectorIndex = decodedData;
           this.buildIndices();
           this.loaded = true;
-          this.logger.info(`Loaded ${this.vectorIndex.vectors.length.toString()} vectors from MessagePack`);
+          this.logger.info(
+            `Loaded ${this.vectorIndex.vectors.length.toString()} vectors from MessagePack`
+          );
           return this.vectorIndex;
         }
       }
@@ -83,12 +77,14 @@ export class VectorStore implements IVectorStore {
         this.logger.debug('Loading vectors from JSON format (fallback)');
         const jsonContent = await fs.readFile(jsonPath, 'utf-8');
         const parsedData = JSON.parse(jsonContent) as unknown;
-        
+
         if (this.isValidVectorIndex(parsedData)) {
           this.vectorIndex = parsedData;
           this.buildIndices();
           this.loaded = true;
-          this.logger.info(`Loaded ${this.vectorIndex.vectors.length.toString()} vectors from JSON`);
+          this.logger.info(
+            `Loaded ${this.vectorIndex.vectors.length.toString()} vectors from JSON`
+          );
           return this.vectorIndex;
         }
       }
@@ -97,9 +93,9 @@ export class VectorStore implements IVectorStore {
         msgpackPath,
         jsonPath,
         msgpackExists: this.dependencies.fileSystem.existsSync(msgpackPath),
-        jsonExists: this.dependencies.fileSystem.existsSync(jsonPath)
+        jsonExists: this.dependencies.fileSystem.existsSync(jsonPath),
       });
-      
+
       return null;
     } catch (error) {
       this.logger.error(
@@ -107,7 +103,7 @@ export class VectorStore implements IVectorStore {
         error instanceof Error ? error : undefined,
         {
           vectorsDir: this.vectorsDir,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: error instanceof Error ? error.message : 'Unknown error',
         }
       );
       return null;
@@ -119,10 +115,10 @@ export class VectorStore implements IVectorStore {
    */
   async getVectorsByIds(moduleIds: string[]): Promise<ModuleVector[]> {
     await this.ensureLoaded();
-    
+
     const results: ModuleVector[] = [];
     const notFound: string[] = [];
-    
+
     for (const moduleId of moduleIds) {
       const vector = this.vectorsByIdIndex.get(moduleId);
       if (vector) {
@@ -131,15 +127,15 @@ export class VectorStore implements IVectorStore {
         notFound.push(moduleId);
       }
     }
-    
+
     if (notFound.length > 0) {
       this.logger.debug('Some module vectors not found', {
         requestedCount: moduleIds.length,
         foundCount: results.length,
-        notFound: notFound.slice(0, 5) // Log first 5 missing IDs
+        notFound: notFound.slice(0, 5), // Log first 5 missing IDs
       });
     }
-    
+
     return results;
   }
 
@@ -148,15 +144,15 @@ export class VectorStore implements IVectorStore {
    */
   async getVectorsByTier(tier: string): Promise<ModuleVector[]> {
     await this.ensureLoaded();
-    
+
     const normalizedTier = tier.toLowerCase();
     const vectors = this.vectorsByTierIndex.get(normalizedTier) ?? [];
-    
+
     this.logger.debug('Retrieved vectors by tier', {
       tier: normalizedTier,
-      count: vectors.length
+      count: vectors.length,
     });
-    
+
     return [...vectors]; // Return copy to prevent mutation
   }
 
@@ -166,7 +162,7 @@ export class VectorStore implements IVectorStore {
   async validateIntegrity(): Promise<boolean> {
     try {
       const checksumsPath = join(this.vectorsDir, 'checksums.json');
-      
+
       if (!this.dependencies.fileSystem.existsSync(checksumsPath)) {
         this.logger.warn('Checksums file not found', undefined, { checksumsPath });
         return false;
@@ -178,33 +174,33 @@ export class VectorStore implements IVectorStore {
       // Validate each file
       const filesToCheck = ['vectors.json', 'vectors.msgpack', 'metadata.json'];
       let validFiles = 0;
-      
+
       for (const filename of filesToCheck) {
         const filepath = join(this.vectorsDir, filename);
-        
+
         if (this.dependencies.fileSystem.existsSync(filepath)) {
           const content = await fs.readFile(filepath);
           const actualHash = createHash('md5').update(content).digest('hex');
           const expectedHash = checksums[filename];
-          
+
           if (actualHash === expectedHash) {
             validFiles++;
           } else {
             this.logger.warn('Checksum mismatch detected', undefined, {
               filename,
               expected: expectedHash,
-              actual: actualHash
+              actual: actualHash,
             });
             return false;
           }
         }
       }
-      
+
       this.logger.info('Vector integrity validation passed', {
         validatedFiles: validFiles,
-        totalFiles: filesToCheck.length
+        totalFiles: filesToCheck.length,
       });
-      
+
       return validFiles > 0;
     } catch (error) {
       this.logger.error(
@@ -221,19 +217,19 @@ export class VectorStore implements IVectorStore {
   async getMetadata(): Promise<VectorIndexMetadata | null> {
     try {
       const metadataPath = join(this.vectorsDir, 'metadata.json');
-      
+
       if (!this.dependencies.fileSystem.existsSync(metadataPath)) {
         this.logger.debug('Metadata file not found', { metadataPath });
         return null;
       }
-      
+
       const metadataContent = await fs.readFile(metadataPath, 'utf-8');
       const metadata = JSON.parse(metadataContent) as unknown;
-      
+
       if (this.isValidMetadata(metadata)) {
         return metadata;
       }
-      
+
       this.logger.warn('Invalid metadata file format');
       return null;
     } catch (error) {
@@ -251,10 +247,10 @@ export class VectorStore implements IVectorStore {
   isAvailable(): boolean {
     const msgpackPath = join(this.vectorsDir, 'vectors.msgpack');
     const jsonPath = join(this.vectorsDir, 'vectors.json');
-    
+
     const msgpackExists = this.dependencies.fileSystem.existsSync(msgpackPath);
     const jsonExists = this.dependencies.fileSystem.existsSync(jsonPath);
-    
+
     return msgpackExists || jsonExists;
   }
 
@@ -300,7 +296,7 @@ export class VectorStore implements IVectorStore {
     this.logger.debug('Built vector indices', {
       totalVectors: this.vectorIndex.vectors.length,
       uniqueIds: this.vectorsByIdIndex.size,
-      tiers: Array.from(this.vectorsByTierIndex.keys())
+      tiers: Array.from(this.vectorsByTierIndex.keys()),
     });
   }
 
@@ -309,7 +305,7 @@ export class VectorStore implements IVectorStore {
    */
   private isValidVectorIndex(data: unknown): data is VectorIndex {
     if (!data || typeof data !== 'object') return false;
-    
+
     const obj = data as Record<string, unknown>;
     return (
       'metadata' in obj &&
@@ -325,7 +321,7 @@ export class VectorStore implements IVectorStore {
    */
   private isValidMetadata(data: unknown): data is VectorIndexMetadata {
     if (!data || typeof data !== 'object') return false;
-    
+
     const obj = data as Record<string, unknown>;
     return (
       typeof obj.count === 'number' &&
@@ -342,7 +338,7 @@ export class VectorStore implements IVectorStore {
    */
   private isValidModuleVector(data: unknown): data is ModuleVector {
     if (!data || typeof data !== 'object') return false;
-    
+
     const obj = data as Record<string, unknown>;
     return (
       typeof obj.id === 'string' &&

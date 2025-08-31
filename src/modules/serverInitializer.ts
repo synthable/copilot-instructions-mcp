@@ -49,7 +49,7 @@ export class ServerInitializer {
         error instanceof Error ? error : undefined,
         {
           error: error instanceof Error ? error.message : 'Unknown error',
-          duration: ((Date.now() - startTime) / 1000).toFixed(2)
+          duration: ((Date.now() - startTime) / 1000).toFixed(2),
         }
       );
       throw error;
@@ -66,11 +66,13 @@ export class ServerInitializer {
       // Check if pre-computed vectors are available
       if (this.vectorStore.isAvailable()) {
         this.logger.info('Pre-computed vectors found on disk');
-        
+
         // Validate vector integrity
         const integrityValid = await this.vectorStore.validateIntegrity();
         if (!integrityValid) {
-          this.logger.warn('Vector integrity validation failed, but continuing with available vectors');
+          this.logger.warn(
+            'Vector integrity validation failed, but continuing with available vectors'
+          );
         }
 
         // Load vectors
@@ -80,7 +82,7 @@ export class ServerInitializer {
             vectorCount: vectorIndex.vectors.length,
             model: vectorIndex.metadata.model,
             dimensions: vectorIndex.metadata.dimensions,
-            version: vectorIndex.metadata.version
+            version: vectorIndex.metadata.version,
           });
         } else {
           this.logger.warn('Failed to load vectors despite availability check');
@@ -129,8 +131,9 @@ export class ServerInitializer {
   }> {
     try {
       const vectorStoreAvailable = this.vectorStore.isAvailable();
-      const vectorsLoaded = vectorStoreAvailable && (await this.vectorStore.loadVectors()) !== null;
-      
+      const vectorsLoaded =
+        vectorStoreAvailable && (await this.vectorStore.loadVectors()) !== null;
+
       // Check if semantic search has been initialized by trying to get metadata
       const metadata = await this.vectorStore.getMetadata();
       const semanticSearchReady = metadata !== null;
@@ -138,7 +141,7 @@ export class ServerInitializer {
       return {
         vectorStoreAvailable,
         vectorsLoaded,
-        semanticSearchReady
+        semanticSearchReady,
       };
     } catch (error) {
       this.logger.error(
@@ -148,7 +151,7 @@ export class ServerInitializer {
       return {
         vectorStoreAvailable: false,
         vectorsLoaded: false,
-        semanticSearchReady: false
+        semanticSearchReady: false,
       };
     }
   }
@@ -157,7 +160,9 @@ export class ServerInitializer {
 /**
  * Creates and runs server initialization.
  */
-export async function initializeServer(container: Container): Promise<ServerInitializer> {
+export async function initializeServer(
+  container: Container
+): Promise<ServerInitializer> {
   const initializer = new ServerInitializer(container);
   await initializer.initialize();
   return initializer;
