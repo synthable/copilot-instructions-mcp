@@ -15,6 +15,7 @@ import type {
 } from './interfaces.js';
 import type { InstructionModule, SearchResult } from './types.js';
 import { cosine } from './semantic.js';
+import { MemoryMonitor, LazyContentLoader } from './memoryUtils.js';
 
 export interface EmbeddingDoc {
   id: string; // module id
@@ -30,6 +31,8 @@ export class SemanticSearchService {
   private index: EmbeddingDoc[] = [];
   private building = false;
   private logger: ILogger;
+  private memoryMonitor: MemoryMonitor;
+  private contentLoader: LazyContentLoader<string>;
 
   constructor(
     private dependencies: IDependencies,
@@ -38,6 +41,8 @@ export class SemanticSearchService {
     private config: ISemanticConfig
   ) {
     this.logger = dependencies.logger;
+    this.memoryMonitor = new MemoryMonitor(config.getMaxMemoryUsageMB(), this.logger);
+    this.contentLoader = new LazyContentLoader(50, this.logger); // Cache up to 50 content items
   }
 
   /** Ensure the embedding service is initialized. */
@@ -63,16 +68,19 @@ export class SemanticSearchService {
     this.building = true;
     
     try {
-      this.logger.info('Building semantic search index');
+      this.logger.info('Building semantic search index with memory optimization');
+      this.memoryMonitor.logMemoryUsage('index build start');
       await this.ensureEmbedder();
       
       const modules = await this.parser.parseInstructionModules();
       this.logger.debug(`Processing ${modules.length.toString()} modules for semantic indexing`);
+      this.memoryMonitor.logMemoryUsage('after module parsing');
       
-      const docs = this.prepareDocumentsForEmbedding(modules);
+      const docs = await this.prepareDocumentsForEmbedding(modules);
       const embeddedDocs = await this.embedDocuments(docs);
       
       this.index = embeddedDocs;
+      this.memoryMonitor.logMemoryUsage('index build complete');
       this.logger.info(`Successfully built semantic search index with ${this.index.length.toString()} documents`);
     } catch (error) {
       this.logger.error('Failed to build semantic search index', error instanceof Error ? error : undefined, {
@@ -85,9 +93,9 @@ export class SemanticSearchService {
   }
 
   /**
-   * Prepares documents for embedding by extracting and concatenating relevant text.
+   * Prepares documents for embedding by extracting and concatenating relevant text with memory-aware processing.
    */
-  private prepareDocumentsForEmbedding(modules: InstructionModule[]): { mod: InstructionModule; text: string }[] {
+  private async prepareDocumentsForEmbedding(modules: InstructionModule[]): Promise<{ mod: InstructionModule; text: string }[]> {
     const docs: { mod: InstructionModule; text: string }[] = [];
 
     for (const mod of modules) {
@@ -99,7 +107,7 @@ export class SemanticSearchService {
           bodyText = mod.semantic.trim();
         } else {
           // Fallback: read file content if it's not a YAML module
-          bodyText = this.readModuleContent(mod);
+          bodyText = await this.readModuleContent(mod);
         }
 
         const text = [
@@ -124,9 +132,24 @@ export class SemanticSearchService {
   }
 
   /**
-   * Reads module content from file system with proper error handling.
+   * Reads module content from file system with lazy loading support.
    */
-  private readModuleContent(mod: InstructionModule): string {
+  private async readModuleContent(mod: InstructionModule): Promise<string> {
+    if (!this.config.isLazyLoadingEnabled()) {
+      // Fallback to synchronous reading when lazy loading is disabled
+      return this.readModuleContentSync(mod);
+    }
+
+    return await this.contentLoader.getContent(
+      mod.id,
+      () => Promise.resolve(this.readModuleContentSync(mod))
+    );
+  }
+
+  /**
+   * Synchronously reads module content from file system with proper error handling.
+   */
+  private readModuleContentSync(mod: InstructionModule): string {
     try {
       const baseDir = this.dependencies.pathUtils.join(
         this.dependencies.processUtils.cwd(),
