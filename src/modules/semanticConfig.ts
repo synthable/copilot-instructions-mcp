@@ -12,6 +12,15 @@
 import type { ISemanticConfig } from './interfaces.js';
 
 /**
+ * Relevance level mapping for semantic search results.
+ */
+export interface RelevanceThresholds {
+  high: number;    // Default: 0.8
+  medium: number;  // Default: 0.6
+  low: number;     // Default: 0.4
+}
+
+/**
  * Configuration options for semantic search service.
  */
 export interface SemanticConfigOptions {
@@ -23,6 +32,8 @@ export interface SemanticConfigOptions {
   indexingBatchSize?: number;
   maxMemoryUsageMB?: number;
   enableLazyLoading?: boolean;
+  relevanceThresholds?: Partial<RelevanceThresholds>;
+  similarityThreshold?: number;
 }
 
 /**
@@ -37,6 +48,8 @@ export class SemanticConfig implements ISemanticConfig {
   private readonly indexingBatchSize: number;
   private readonly maxMemoryUsageMB: number;
   private readonly enableLazyLoading: boolean;
+  private readonly relevanceThresholds: RelevanceThresholds;
+  private readonly similarityThreshold: number;
 
   constructor(options: SemanticConfigOptions = {}) {
     this.modelName = this.validateModelName(
@@ -57,6 +70,12 @@ export class SemanticConfig implements ISemanticConfig {
       options.maxMemoryUsageMB ?? 512
     );
     this.enableLazyLoading = options.enableLazyLoading ?? true;
+    this.relevanceThresholds = this.validateRelevanceThresholds(
+      options.relevanceThresholds ?? {}
+    );
+    this.similarityThreshold = this.validateSimilarityThreshold(
+      options.similarityThreshold ?? 0.1
+    );
   }
 
   /**
@@ -113,6 +132,36 @@ export class SemanticConfig implements ISemanticConfig {
    */
   isLazyLoadingEnabled(): boolean {
     return this.enableLazyLoading;
+  }
+
+  /**
+   * Gets the relevance thresholds for semantic search results.
+   */
+  getRelevanceThresholds(): RelevanceThresholds {
+    return this.relevanceThresholds;
+  }
+
+  /**
+   * Gets the similarity threshold for filtering search results.
+   */
+  getSimilarityThreshold(): number {
+    return this.similarityThreshold;
+  }
+
+  /**
+   * Gets relevance level for a given similarity score.
+   */
+  getRelevanceLevel(score: number): 'high' | 'medium' | 'low' | 'none' {
+    if (score >= this.relevanceThresholds.high) {
+      return 'high';
+    }
+    if (score >= this.relevanceThresholds.medium) {
+      return 'medium';
+    }
+    if (score >= this.relevanceThresholds.low) {
+      return 'low';
+    }
+    return 'none';
   }
 
   /**
@@ -223,6 +272,55 @@ export class SemanticConfig implements ISemanticConfig {
     }
 
     return maxMemoryUsageMB;
+  }
+
+  /**
+   * Validates relevance thresholds configuration.
+   */
+  private validateRelevanceThresholds(thresholds: Partial<RelevanceThresholds>): RelevanceThresholds {
+    const defaults: RelevanceThresholds = {
+      high: 0.8,
+      medium: 0.6,
+      low: 0.4
+    };
+
+    const result = { ...defaults, ...thresholds };
+
+    // Validate individual thresholds
+    if (typeof result.high !== 'number' || result.high < 0 || result.high > 1) {
+      throw new Error('High relevance threshold must be between 0 and 1');
+    }
+    if (typeof result.medium !== 'number' || result.medium < 0 || result.medium > 1) {
+      throw new Error('Medium relevance threshold must be between 0 and 1');
+    }
+    if (typeof result.low !== 'number' || result.low < 0 || result.low > 1) {
+      throw new Error('Low relevance threshold must be between 0 and 1');
+    }
+
+    // Validate threshold ordering
+    if (result.high <= result.medium) {
+      throw new Error('High threshold must be greater than medium threshold');
+    }
+    if (result.medium <= result.low) {
+      throw new Error('Medium threshold must be greater than low threshold');
+    }
+
+    return result;
+  }
+
+  /**
+   * Validates similarity threshold configuration.
+   */
+  private validateSimilarityThreshold(threshold: number): number {
+    if (typeof threshold !== 'number' || isNaN(threshold)) {
+      throw new Error('Similarity threshold must be a valid number');
+    }
+
+    if (threshold < 0 || threshold > 1) {
+      throw new Error('Similarity threshold must be between 0 and 1');
+    }
+
+    return threshold;
   }
 }
 

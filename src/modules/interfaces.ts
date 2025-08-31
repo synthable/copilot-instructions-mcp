@@ -143,14 +143,16 @@ export interface ISemanticSearchService {
   /** Pure semantic search using embeddings. */
   semanticSearch(
     query: string,
-    limit?: number
+    limit?: number,
+    options?: import('./semanticSearch.js').SemanticSearchOptions
   ): Promise<import('./types.js').SearchResult[]>;
   /** Hybrid re-rank combining lexical and semantic signals. */
   hybridSearch(
     queryTerms: string[],
     lexicalResults: import('./types.js').SearchResult[],
     alpha?: number,
-    limit?: number
+    limit?: number,
+    options?: import('./semanticSearch.js').SemanticSearchOptions
   ): Promise<import('./types.js').SearchResult[]>;
 }
 
@@ -310,4 +312,19 @@ export interface ISemanticConfig {
    * Gets whether lazy loading is enabled.
    */
   isLazyLoadingEnabled(): boolean;
+
+  /**
+   * Gets the relevance thresholds for semantic search results.
+   */
+  getRelevanceThresholds(): import('./semanticConfig.js').RelevanceThresholds;
+
+  /**
+   * Gets the similarity threshold for filtering search results.
+   */
+  getSimilarityThreshold(): number;
+
+  /**
+   * Gets relevance level for a given similarity score.
+   */
+  getRelevanceLevel(score: number): 'high' | 'medium' | 'low' | 'none';
 }

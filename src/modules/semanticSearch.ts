@@ -24,6 +24,19 @@ export interface EmbeddingDoc {
   filePath: string;
   text: string; // concatenated fields
   vector: number[]; // embedding dimensions
+  tier: string; // module tier for filtering
+}
+
+/**
+ * Search options for semantic search.
+ */
+export interface SemanticSearchOptions {
+  /** Filter results by module tier(s) */
+  tiers?: string[];
+  /** Minimum similarity threshold (0-1) */
+  similarityThreshold?: number;
+  /** Include relevance level in results */
+  includeRelevanceLevel?: boolean;
 }
 
 /**
@@ -156,7 +169,8 @@ export class SemanticSearchService {
             id: vector.id,
             filePath: module.filePath,
             text: module.semantic ?? '', // Use semantic field as the text
-            vector: vector.vector
+            vector: vector.vector,
+            tier: vector.tier || module.category.toLowerCase(), // Use vector tier or fall back to module category
           };
         })
         .filter((doc): doc is EmbeddingDoc => doc !== null);
@@ -311,6 +325,7 @@ export class SemanticSearchService {
               filePath: batch[j].mod.filePath,
               text: batch[j].text,
               vector: vectors[j],
+              tier: batch[j].mod.category.toLowerCase(),
             });
           } else {
             this.logger.warn(`Empty embedding vector for module ${batch[j].mod.id}`);
@@ -379,7 +394,11 @@ export class SemanticSearchService {
   }
 
   /** Pure semantic search over embedding index. */
-  async semanticSearch(query: string, limit = 10): Promise<SearchResult[]> {
+  async semanticSearch(
+    query: string, 
+    limit = 10, 
+    options: SemanticSearchOptions = {}
+  ): Promise<SearchResult[]> {
     return await this.performanceCollector.time(
       'semantic_search',
       async () => {
@@ -400,9 +419,19 @@ export class SemanticSearchService {
           const modules = await this.parser.parseInstructionModules();
           const byId = new Map(modules.map(m => [m.id, m] as const));
 
+          // Apply tier filtering if specified
+          let filteredIndex = this.index;
+          if (options.tiers && options.tiers.length > 0) {
+            const normalizedTiers = options.tiers.map(t => t.toLowerCase());
+            filteredIndex = this.index.filter(doc => 
+              normalizedTiers.includes(doc.tier.toLowerCase())
+            );
+            this.logger.debug(`Filtered index by tiers: ${options.tiers.join(', ')} (${filteredIndex.length.toString()}/${this.index.length.toString()} documents)`);
+          }
+
           // Calculate similarities
           const similarities = new Map<string, number>();
-          for (const doc of this.index) {
+          for (const doc of filteredIndex) {
             try {
               const similarity = cosine(queryVector, doc.vector);
               similarities.set(doc.id, similarity);
@@ -414,13 +443,17 @@ export class SemanticSearchService {
             }
           }
 
-          // Sort by similarity and limit results
-          const scored = this.index
+          // Apply similarity threshold filtering
+          const similarityThreshold = options.similarityThreshold ?? this.config.getSimilarityThreshold();
+          
+          // Sort by similarity and apply filters
+          const scored = filteredIndex
             .map(doc => ({
               doc,
               similarity: similarities.get(doc.id) ?? 0,
             }))
             .filter(item => item.similarity > 0) // Filter out failed calculations
+            .filter(item => item.similarity >= similarityThreshold) // Apply similarity threshold
             .sort((a, b) => b.similarity - a.similarity)
             .slice(0, Math.max(1, limit));
 
@@ -429,12 +462,19 @@ export class SemanticSearchService {
           for (const item of scored) {
             const module = byId.get(item.doc.id);
             if (module) {
-              results.push({
+              const result: SearchResult = {
                 ...module,
                 score: item.similarity,
                 matchedFields: ['semantic'],
                 semanticScore: item.similarity,
-              });
+              };
+
+              // Add relevance level if requested
+              if (options.includeRelevanceLevel !== false) {
+                result.relevanceLevel = this.config.getRelevanceLevel(item.similarity);
+              }
+
+              results.push(result);
             } else {
               this.logger.warn(`Module not found for indexed document ${item.doc.id}`);
             }
@@ -469,17 +509,31 @@ export class SemanticSearchService {
     queryTerms: string[],
     lexicalResults: SearchResult[],
     alpha = 0.6,
-    limit = 10
+    limit = 10,
+    options: SemanticSearchOptions = {}
   ): Promise<SearchResult[]> {
     return await this.performanceCollector.time(
       'hybrid_search',
       async () => {
         await this.buildIndex();
         const q = await this.embedQuery(queryTerms.join(' '));
+        
+        // Apply tier filtering if specified
+        let filteredIndex = this.index;
+        if (options.tiers && options.tiers.length > 0) {
+          const normalizedTiers = options.tiers.map(t => t.toLowerCase());
+          filteredIndex = this.index.filter(doc => 
+            normalizedTiers.includes(doc.tier.toLowerCase())
+          );
+        }
+
         const semByPath = new Map<string, number>();
-        for (const d of this.index) {
+        for (const d of filteredIndex) {
           semByPath.set(d.filePath, cosine(q, d.vector));
         }
+
+        // Apply similarity threshold filtering
+        const similarityThreshold = options.similarityThreshold ?? this.config.getSimilarityThreshold();
 
         // Normalize lexical scores 0..1
         const lex = lexicalResults.map(r => r.score);
@@ -491,8 +545,16 @@ export class SemanticSearchService {
           .map(r => {
             const sem = semByPath.get(r.filePath) ?? 0;
             const final = alpha * norm(r.score) + (1 - alpha) * sem;
-            return { ...r, score: final, semanticScore: sem } as SearchResult;
+            const result: SearchResult = { ...r, score: final, semanticScore: sem };
+
+            // Add relevance level if requested
+            if (options.includeRelevanceLevel !== false && sem > 0) {
+              result.relevanceLevel = this.config.getRelevanceLevel(sem);
+            }
+
+            return result;
           })
+          .filter(r => (r.semanticScore ?? 0) >= similarityThreshold) // Apply similarity threshold
           .sort((a, b) => b.score - a.score)
           .slice(0, Math.max(1, limit));
 
