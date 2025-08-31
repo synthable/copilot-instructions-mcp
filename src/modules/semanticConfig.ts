@@ -39,13 +39,23 @@ export class SemanticConfig implements ISemanticConfig {
   private readonly enableLazyLoading: boolean;
 
   constructor(options: SemanticConfigOptions = {}) {
-    this.modelName = this.validateModelName(options.modelName ?? 'Xenova/all-mpnet-base-v2');
+    this.modelName = this.validateModelName(
+      options.modelName ?? 'Xenova/all-mpnet-base-v2'
+    );
     this.batchSize = this.validateBatchSize(options.batchSize ?? 32);
-    this.maxContentLength = this.validateMaxContentLength(options.maxContentLength ?? 5000);
+    this.maxContentLength = this.validateMaxContentLength(
+      options.maxContentLength ?? 5000
+    );
     this.defaultAlpha = this.validateDefaultAlpha(options.defaultAlpha ?? 0.6);
-    this.embeddingDimensions = this.validateEmbeddingDimensions(options.embeddingDimensions ?? 768);
-    this.indexingBatchSize = this.validateIndexingBatchSize(options.indexingBatchSize ?? 8);
-    this.maxMemoryUsageMB = this.validateMaxMemoryUsage(options.maxMemoryUsageMB ?? 512);
+    this.embeddingDimensions = this.validateEmbeddingDimensions(
+      options.embeddingDimensions ?? 768
+    );
+    this.indexingBatchSize = this.validateIndexingBatchSize(
+      options.indexingBatchSize ?? 8
+    );
+    this.maxMemoryUsageMB = this.validateMaxMemoryUsage(
+      options.maxMemoryUsageMB ?? 512
+    );
     this.enableLazyLoading = options.enableLazyLoading ?? true;
   }
 
@@ -114,10 +124,12 @@ export class SemanticConfig implements ISemanticConfig {
     }
 
     const trimmed = modelName.trim();
-    
+
     // Basic validation for HuggingFace model format
     if (!trimmed.includes('/') && !trimmed.startsWith('Xenova/')) {
-      throw new Error('Model name should follow HuggingFace format (e.g., "Xenova/all-mpnet-base-v2")');
+      throw new Error(
+        'Model name should follow HuggingFace format (e.g., "Xenova/all-mpnet-base-v2")'
+      );
     }
 
     return trimmed;
@@ -217,14 +229,18 @@ export class SemanticConfig implements ISemanticConfig {
 /**
  * Creates a production semantic configuration with validated defaults.
  */
-export function createProductionSemanticConfig(options?: SemanticConfigOptions): SemanticConfig {
+export function createProductionSemanticConfig(
+  options?: SemanticConfigOptions
+): SemanticConfig {
   return new SemanticConfig(options);
 }
 
 /**
  * Creates a test semantic configuration with minimal settings.
  */
-export function createTestSemanticConfig(options?: SemanticConfigOptions): SemanticConfig {
+export function createTestSemanticConfig(
+  options?: SemanticConfigOptions
+): SemanticConfig {
   const testDefaults: SemanticConfigOptions = {
     modelName: 'test/mock-model',
     batchSize: 4,

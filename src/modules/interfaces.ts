@@ -129,7 +129,9 @@ export interface ISearchService {
   /**
    * Performs fuzzy search over instruction modules.
    */
-  searchInstructionModules(searchTerms: string[]): Promise<import('./types.js').SearchResult[]>;
+  searchInstructionModules(
+    searchTerms: string[]
+  ): Promise<import('./types.js').SearchResult[]>;
 }
 
 /**
@@ -160,7 +162,9 @@ export interface IContentService {
   /**
    * Retrieves and combines content from multiple instruction modules.
    */
-  getModulesContent(moduleIds: string[]): Promise<import('./types.js').GetModulesContentResult>;
+  getModulesContent(
+    moduleIds: string[]
+  ): Promise<import('./types.js').GetModulesContentResult>;
 }
 
 /**

@@ -35,18 +35,20 @@ const SECURITY_LIMITS = {
  */
 function validateFileSize(filePath: string, content: string, logger: ILogger): void {
   const sizeBytes = Buffer.byteLength(content, 'utf-8');
-  
+
   if (sizeBytes > SECURITY_LIMITS.MAX_FILE_SIZE_BYTES) {
     const sizeMB = (sizeBytes / (1024 * 1024)).toFixed(2);
     const limitMB = (SECURITY_LIMITS.MAX_FILE_SIZE_BYTES / (1024 * 1024)).toFixed(2);
-    
+
     logger.warn(`YAML file too large: ${filePath}`, undefined, {
       sizeBytes,
       sizeMB: `${sizeMB}MB`,
       limit: `${limitMB}MB`,
     });
-    
-    throw new Error(`YAML file size exceeds security limit: ${sizeMB}MB > ${limitMB}MB`);
+
+    throw new Error(
+      `YAML file size exceeds security limit: ${sizeMB}MB > ${limitMB}MB`
+    );
   }
 }
 
@@ -54,14 +56,18 @@ function validateFileSize(filePath: string, content: string, logger: ILogger): v
  * Safely parses YAML with timeout and security validation.
  */
 async function parseYamlSafely(
-  content: string, 
-  filePath: string, 
+  content: string,
+  filePath: string,
   logger: ILogger
 ): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     // Set timeout to prevent hanging on malicious YAML
     const timeoutId = setTimeout(() => {
-      reject(new Error(`YAML parsing timeout exceeded (${SECURITY_LIMITS.PARSE_TIMEOUT_MS.toString()}ms)`));
+      reject(
+        new Error(
+          `YAML parsing timeout exceeded (${SECURITY_LIMITS.PARSE_TIMEOUT_MS.toString()}ms)`
+        )
+      );
     }, SECURITY_LIMITS.PARSE_TIMEOUT_MS);
 
     try {
@@ -76,9 +82,9 @@ async function parseYamlSafely(
       const parseYaml: (s: string) => unknown = yamlParseFn as unknown as (
         s: string
       ) => unknown;
-      
+
       const parsedUnknown = parseYaml(content);
-      
+
       if (!isRecord(parsedUnknown)) {
         clearTimeout(timeoutId);
         reject(new Error('YAML content must parse to an object'));
@@ -87,19 +93,19 @@ async function parseYamlSafely(
 
       // Validate parsed structure for security
       validateYamlStructure(parsedUnknown, filePath);
-      
+
       clearTimeout(timeoutId);
       resolve(parsedUnknown);
     } catch (error) {
       clearTimeout(timeoutId);
-      
+
       if (error instanceof Error) {
         logger.error(`YAML parsing failed for ${filePath}`, error, {
           errorType: error.constructor.name,
           message: error.message,
         });
       }
-      
+
       reject(error instanceof Error ? error : new Error(String(error)));
     }
   });
@@ -109,12 +115,14 @@ async function parseYamlSafely(
  * Validates YAML structure to prevent malicious content.
  */
 function validateYamlStructure(
-  obj: Record<string, unknown>, 
+  obj: Record<string, unknown>,
   filePath: string,
   depth = 0
 ): void {
   if (depth > SECURITY_LIMITS.MAX_YAML_DEPTH) {
-    throw new Error(`YAML structure too deeply nested (depth > ${SECURITY_LIMITS.MAX_YAML_DEPTH.toString()})`);
+    throw new Error(
+      `YAML structure too deeply nested (depth > ${SECURITY_LIMITS.MAX_YAML_DEPTH.toString()})`
+    );
   }
 
   for (const [key, value] of Object.entries(obj)) {
@@ -126,16 +134,23 @@ function validateYamlStructure(
     // Validate value recursively
     if (typeof value === 'string') {
       if (value.length > SECURITY_LIMITS.MAX_STRING_LENGTH) {
-        throw new Error(`String value too long for key "${key}" (${value.length.toString()} > ${SECURITY_LIMITS.MAX_STRING_LENGTH.toString()})`);
+        throw new Error(
+          `String value too long for key "${key}" (${value.length.toString()} > ${SECURITY_LIMITS.MAX_STRING_LENGTH.toString()})`
+        );
       }
     } else if (Array.isArray(value)) {
       if (value.length > SECURITY_LIMITS.MAX_ARRAY_LENGTH) {
-        throw new Error(`Array too long for key "${key}" (${value.length.toString()} > ${SECURITY_LIMITS.MAX_ARRAY_LENGTH.toString()})`);
+        throw new Error(
+          `Array too long for key "${key}" (${value.length.toString()} > ${SECURITY_LIMITS.MAX_ARRAY_LENGTH.toString()})`
+        );
       }
-      
+
       // Validate array elements
       value.forEach((item, index) => {
-        if (typeof item === 'string' && item.length > SECURITY_LIMITS.MAX_STRING_LENGTH) {
+        if (
+          typeof item === 'string' &&
+          item.length > SECURITY_LIMITS.MAX_STRING_LENGTH
+        ) {
           throw new Error(`Array element too long at ${key}[${index.toString()}]`);
         } else if (isRecord(item)) {
           validateYamlStructure(item, filePath, depth + 1);
@@ -198,7 +213,7 @@ async function parseYamlModule(
 ): Promise<InstructionModule | null> {
   try {
     const raw = dependencies.fileSystem.readFileSync(absPath, 'utf-8');
-    
+
     // Validate file size and parse safely with security controls
     validateFileSize(absPath, raw, dependencies.logger);
     const parsedRec = await parseYamlSafely(raw, absPath, dependencies.logger);
@@ -319,25 +334,33 @@ export class InstructionModuleParser implements IInstructionModuleParser {
           const mod = await parseYamlModule(rel, abs, this.dependencies);
           return mod;
         } catch (moduleError) {
-          this.dependencies.logger.warn(`Failed to parse YAML module: ${rel}`, moduleError instanceof Error ? moduleError : undefined);
+          this.dependencies.logger.warn(
+            `Failed to parse YAML module: ${rel}`,
+            moduleError instanceof Error ? moduleError : undefined
+          );
           return null; // Return null for failed modules
         }
       });
 
       // Wait for all parsing to complete
-      parsingLogger.info(`Parsing ${yamlFiles.length.toString()} YAML modules concurrently`);
+      parsingLogger.info(
+        `Parsing ${yamlFiles.length.toString()} YAML modules concurrently`
+      );
       const parsedResults = await Promise.allSettled(parsePromises);
-      
+
       // Collect successful results
       const modules: InstructionModule[] = [];
       let failedModules = 0;
-      
+
       for (const result of parsedResults) {
         if (result.status === 'fulfilled' && result.value !== null) {
           modules.push(result.value);
         } else if (result.status === 'rejected') {
           failedModules++;
-          parsingLogger.warn('YAML module parsing promise rejected', result.reason instanceof Error ? result.reason : undefined);
+          parsingLogger.warn(
+            'YAML module parsing promise rejected',
+            result.reason instanceof Error ? result.reason : undefined
+          );
         }
       }
 

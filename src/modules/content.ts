@@ -91,7 +91,9 @@ export class ContentService implements IContentService {
           `# ${module.name}\n\n` +
           `**ID:** ` +
           `${module.id}\n` +
-          `**Category:** ${module.category}` + (module.subcategory ? ` > ${module.subcategory}` : '') + '  \n' +
+          `**Category:** ${module.category}` +
+          (module.subcategory ? ` > ${module.subcategory}` : '') +
+          '  \n' +
           `**Description:** ${module.description}\n\n` +
           `---\n\n`;
 
@@ -137,7 +139,7 @@ export class ContentService implements IContentService {
     if (module.tags && module.tags.length > 0) {
       lines.push(`Tags: ${module.tags.join(', ')}`);
     }
-  if (module.semantic && module.semantic.trim().length > 0) {
+    if (module.semantic && module.semantic.trim().length > 0) {
       lines.push('');
       lines.push('### Semantic');
       lines.push(module.semantic.trim());
@@ -155,7 +157,9 @@ export class ContentService implements IContentService {
  * @param moduleIds Array of module IDs to retrieve
  * @returns Result object with success status, combined content, and error details
  */
-export async function getModulesContent(moduleIds: string[]): Promise<GetModulesContentResult> {
+export async function getModulesContent(
+  moduleIds: string[]
+): Promise<GetModulesContentResult> {
   // Dynamic import to avoid circular dependency issues
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { getContainer } = require('./container.js') as typeof import('./container.js');
