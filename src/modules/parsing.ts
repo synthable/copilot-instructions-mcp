@@ -403,8 +403,7 @@ export class InstructionModuleParser implements IInstructionModuleParser {
  */
 export async function parseInstructionModules(): Promise<InstructionModule[]> {
   // Dynamic import to avoid circular dependency issues
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { getContainer } = require('./container.js') as typeof import('./container.js');
+  const { getContainer } = await import('./container.js');
   const container = getContainer();
   const parser = container.getInstructionModuleParser();
   return await parser.parseInstructionModules();
@@ -413,10 +412,9 @@ export async function parseInstructionModules(): Promise<InstructionModule[]> {
 /**
  * Convenience function to clear module cache using the global container.
  */
-export function clearModuleCache(): void {
+export async function clearModuleCache(): Promise<void> {
   // Dynamic import to avoid circular dependency issues
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { getContainer } = require('./container.js') as typeof import('./container.js');
+  const { getContainer } = await import('./container.js');
   const container = getContainer();
   const parser = container.getInstructionModuleParser();
   parser.clearModuleCache();

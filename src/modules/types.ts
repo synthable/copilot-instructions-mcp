@@ -126,6 +126,57 @@ export interface GetModulesContentResult {
 export type ToolArgs = Record<string, unknown>;
 
 /**
+ * Pre-computed vector data for a module.
+ * Contains the embedding vector and metadata for fast loading.
+ */
+export interface ModuleVector {
+  /** Module ID (e.g., "foundation/reasoning/systems-thinking") */
+  id: string;
+  /** Pre-computed embedding vector (768 dimensions for all-mpnet-base-v2) */
+  vector: number[];
+  /** MD5 hash of the semantic content used to generate the vector */
+  contentHash: string;
+  /** Timestamp when the vector was generated */
+  timestamp: number;
+  /** Module tier/category for filtering */
+  tier: string;
+}
+
+/**
+ * Vector index metadata without the actual embeddings.
+ * Used for fast loading and validation.
+ */
+export interface VectorIndexMetadata {
+  /** Total number of vectors in the index */
+  count: number;
+  /** Model name used for embedding generation */
+  model: string;
+  /** Vector dimensions */
+  dimensions: number;
+  /** Timestamp when the index was generated */
+  timestamp: number;
+  /** Version of the vector generation tool */
+  version: string;
+  /** Array of module metadata without vectors */
+  modules: {
+    id: string;
+    tier: string;
+    contentHash: string;
+    timestamp: number;
+  }[];
+}
+
+/**
+ * Complete vector index containing all vectors and metadata.
+ */
+export interface VectorIndex {
+  /** Index metadata */
+  metadata: VectorIndexMetadata;
+  /** Array of all module vectors */
+  vectors: ModuleVector[];
+}
+
+/**
  * Internal state tracking for the instruction module parsing process.
  *
  * Maintains context while parsing the README.md file to extract the hierarchical
