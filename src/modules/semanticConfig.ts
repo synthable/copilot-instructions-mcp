@@ -20,6 +20,7 @@ export interface SemanticConfigOptions {
   maxContentLength?: number;
   defaultAlpha?: number;
   embeddingDimensions?: number;
+  indexingBatchSize?: number;
 }
 
 /**
@@ -31,6 +32,7 @@ export class SemanticConfig implements ISemanticConfig {
   private readonly maxContentLength: number;
   private readonly defaultAlpha: number;
   private readonly embeddingDimensions: number;
+  private readonly indexingBatchSize: number;
 
   constructor(options: SemanticConfigOptions = {}) {
     this.modelName = this.validateModelName(options.modelName ?? 'Xenova/all-mpnet-base-v2');
@@ -38,6 +40,7 @@ export class SemanticConfig implements ISemanticConfig {
     this.maxContentLength = this.validateMaxContentLength(options.maxContentLength ?? 5000);
     this.defaultAlpha = this.validateDefaultAlpha(options.defaultAlpha ?? 0.6);
     this.embeddingDimensions = this.validateEmbeddingDimensions(options.embeddingDimensions ?? 768);
+    this.indexingBatchSize = this.validateIndexingBatchSize(options.indexingBatchSize ?? 8);
   }
 
   /**
@@ -73,6 +76,13 @@ export class SemanticConfig implements ISemanticConfig {
    */
   getEmbeddingDimensions(): number {
     return this.embeddingDimensions;
+  }
+
+  /**
+   * Gets the batch size for indexing operations.
+   */
+  getIndexingBatchSize(): number {
+    return this.indexingBatchSize;
   }
 
   /**
@@ -152,6 +162,21 @@ export class SemanticConfig implements ISemanticConfig {
 
     return embeddingDimensions;
   }
+
+  /**
+   * Validates indexing batch size configuration.
+   */
+  private validateIndexingBatchSize(indexingBatchSize: number): number {
+    if (!Number.isInteger(indexingBatchSize) || indexingBatchSize < 1) {
+      throw new Error('Indexing batch size must be a positive integer');
+    }
+
+    if (indexingBatchSize > 100) {
+      throw new Error('Indexing batch size too large (max 100)');
+    }
+
+    return indexingBatchSize;
+  }
 }
 
 /**
@@ -171,6 +196,7 @@ export function createTestSemanticConfig(options?: SemanticConfigOptions): Seman
     maxContentLength: 1000,
     defaultAlpha: 0.5,
     embeddingDimensions: 384,
+    indexingBatchSize: 4,
     ...options,
   };
 
