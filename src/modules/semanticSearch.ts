@@ -11,6 +11,7 @@ import type {
   IInstructionModuleParser,
   IEmbeddingService,
   ISemanticConfig,
+  IVectorStore,
   ILogger,
 } from './interfaces.js';
 import type { InstructionModule, SearchResult } from './types.js';
@@ -40,7 +41,8 @@ export class SemanticSearchService {
     private dependencies: IDependencies,
     private parser: IInstructionModuleParser,
     private embeddingService: IEmbeddingService,
-    private config: ISemanticConfig
+    private config: ISemanticConfig,
+    private vectorStore?: IVectorStore
   ) {
     this.logger = dependencies.logger;
     this.memoryMonitor = new MemoryMonitor(config.getMaxMemoryUsageMB(), this.logger);
@@ -82,6 +84,15 @@ export class SemanticSearchService {
     try {
       this.logger.info('Building semantic search index with memory optimization');
       this.memoryMonitor.logMemoryUsage('index build start');
+
+      // Try to load pre-computed vectors first
+      if (this.vectorStore && await this.tryLoadPrecomputedVectors()) {
+        this.building = false;
+        return;
+      }
+
+      // Fallback to runtime embedding generation
+      this.logger.info('Pre-computed vectors not available, generating embeddings at runtime');
       await this.ensureEmbedder();
 
       const modules = await this.parser.parseInstructionModules();
@@ -111,6 +122,63 @@ export class SemanticSearchService {
       );
     } finally {
       this.building = false;
+    }
+  }
+
+  /**
+   * Tries to load pre-computed vectors from vector store.
+   */
+  private async tryLoadPrecomputedVectors(): Promise<boolean> {
+    if (!this.vectorStore) {
+      return false;
+    }
+
+    try {
+      const vectorIndex = await this.vectorStore.loadVectors();
+      if (!vectorIndex) {
+        this.logger.debug('No pre-computed vectors available');
+        return false;
+      }
+
+      // Convert ModuleVector to EmbeddingDoc format
+      const modules = await this.parser.parseInstructionModules();
+      const moduleMap = new Map(modules.map(m => [m.id, m]));
+
+      this.index = vectorIndex.vectors
+        .filter(v => moduleMap.has(v.id))
+        .map(vector => {
+          const module = moduleMap.get(vector.id);
+          if (!module) {
+            this.logger.warn(`Module not found for vector: ${vector.id}`);
+            return null;
+          }
+          return {
+            id: vector.id,
+            filePath: module.filePath,
+            text: module.semantic ?? '', // Use semantic field as the text
+            vector: vector.vector
+          };
+        })
+        .filter((doc): doc is EmbeddingDoc => doc !== null);
+
+      this.logger.info(
+        `Loaded ${this.index.length.toString()} pre-computed vectors from disk`,
+        {
+          totalVectorsInFile: vectorIndex.vectors.length,
+          matchedModules: this.index.length,
+          model: vectorIndex.metadata.model,
+          dimensions: vectorIndex.metadata.dimensions
+        }
+      );
+
+      this.memoryMonitor.logMemoryUsage('pre-computed vectors loaded');
+      return true;
+    } catch (error) {
+      this.logger.warn(
+        'Failed to load pre-computed vectors, falling back to runtime generation',
+        error instanceof Error ? error : undefined
+      );
+      return false;
     }
   }
 
