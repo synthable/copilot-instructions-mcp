@@ -18,16 +18,16 @@ import { encode as msgpackEncode } from '@msgpack/msgpack';
 
 import { parseInstructionModules } from '../modules/parsing.js';
 import { getContainer } from '../modules/container.js';
-import type { 
-  InstructionModule, 
-  ModuleVector, 
-  VectorIndex, 
-  VectorIndexMetadata 
+import type {
+  InstructionModule,
+  ModuleVector,
+  VectorIndex,
+  VectorIndexMetadata,
 } from '../modules/types.js';
-import type { 
+import type {
   EmbeddingProgressCallback,
   IEmbeddingService,
-  ISemanticConfig
+  ISemanticConfig,
 } from '../modules/interfaces.js';
 
 /**
@@ -60,7 +60,7 @@ export class VectorGenerator {
   ) {
     this.outputDir = outputDir;
     this.progressCallback = progressCallback;
-    
+
     // Initialize dependencies
     const container = getContainer();
     this.config = container.getSemanticConfig();
@@ -72,12 +72,12 @@ export class VectorGenerator {
    */
   async generateVectors(): Promise<void> {
     const startTime = Date.now();
-    
+
     try {
       this.reportProgress({
         total: 0,
         completed: 0,
-        stage: 'initializing'
+        stage: 'initializing',
       });
 
       // Initialize embedding service
@@ -87,25 +87,27 @@ export class VectorGenerator {
       this.reportProgress({
         total: 0,
         completed: 0,
-        stage: 'parsing'
+        stage: 'parsing',
       });
 
       const modules = await parseInstructionModules();
-      
+
       // Filter modules that have semantic field
       const modulesWithSemantic = modules.filter(module => module.semantic);
-      
+
       if (modulesWithSemantic.length === 0) {
         throw new Error('No modules found with semantic field for vectorization');
       }
 
-      console.log(`Found ${modulesWithSemantic.length.toString()} modules with semantic content`);
+      console.log(
+        `Found ${modulesWithSemantic.length.toString()} modules with semantic content`
+      );
 
       // Generate vectors
       this.reportProgress({
         total: modulesWithSemantic.length,
         completed: 0,
-        stage: 'embedding'
+        stage: 'embedding',
       });
 
       const vectors = await this.generateModuleVectors(modulesWithSemantic);
@@ -117,7 +119,7 @@ export class VectorGenerator {
       this.reportProgress({
         total: modulesWithSemantic.length,
         completed: modulesWithSemantic.length,
-        stage: 'saving'
+        stage: 'saving',
       });
 
       await this.saveVectorIndex(vectorIndex);
@@ -126,7 +128,6 @@ export class VectorGenerator {
       console.log(`Vector generation completed in ${duration.toFixed(2)}s`);
       console.log(`Generated ${vectors.length.toString()} vectors`);
       console.log(`Saved to: ${this.outputDir}`);
-
     } catch (error) {
       console.error('Vector generation failed:', error);
       throw error;
@@ -139,22 +140,24 @@ export class VectorGenerator {
   /**
    * Generates vectors for all modules with semantic content.
    */
-  private async generateModuleVectors(modules: InstructionModule[]): Promise<ModuleVector[]> {
+  private async generateModuleVectors(
+    modules: InstructionModule[]
+  ): Promise<ModuleVector[]> {
     const vectors: ModuleVector[] = [];
     const batchSize = this.config.getIndexingBatchSize();
-    
+
     // Process modules in batches
     for (let i = 0; i < modules.length; i += batchSize) {
       const batch = modules.slice(i, Math.min(i + batchSize, modules.length));
-      
+
       // Extract semantic content from batch
       const semanticTexts = batch.map(module => module.semantic ?? '');
-      
+
       this.reportProgress({
         total: modules.length,
         completed: i,
         stage: 'embedding',
-        current: `Processing batch ${(Math.floor(i / batchSize) + 1).toString()}/${Math.ceil(modules.length / batchSize).toString()}`
+        current: `Processing batch ${(Math.floor(i / batchSize) + 1).toString()}/${Math.ceil(modules.length / batchSize).toString()}`,
       });
 
       // Generate embeddings for batch
@@ -175,7 +178,7 @@ export class VectorGenerator {
           vector: embedding,
           contentHash,
           timestamp: Date.now(),
-          tier
+          tier,
         });
       }
     }
@@ -197,13 +200,13 @@ export class VectorGenerator {
         id: v.id,
         tier: v.tier,
         contentHash: v.contentHash,
-        timestamp: v.timestamp
-      }))
+        timestamp: v.timestamp,
+      })),
     };
 
     return {
       metadata,
-      vectors
+      vectors,
     };
   }
 
@@ -227,7 +230,11 @@ export class VectorGenerator {
 
     // Save metadata-only index (for fast loading)
     const metadataPath = join(this.outputDir, 'metadata.json');
-    await fs.writeFile(metadataPath, JSON.stringify(vectorIndex.metadata, null, 2), 'utf-8');
+    await fs.writeFile(
+      metadataPath,
+      JSON.stringify(vectorIndex.metadata, null, 2),
+      'utf-8'
+    );
     console.log(`Saved metadata index: ${metadataPath}`);
 
     // Generate MD5 checksums for cache invalidation
@@ -301,13 +308,16 @@ async function main(): Promise<void> {
   console.log(`Output directory: ${outputDir}`);
 
   const progressCallback = (progress: VectorGenerationProgress) => {
-    const percentage = progress.total > 0 ? (progress.completed / progress.total * 100).toFixed(1) : '0.0';
+    const percentage =
+      progress.total > 0
+        ? ((progress.completed / progress.total) * 100).toFixed(1)
+        : '0.0';
     const current = progress.current ? ` (${progress.current})` : '';
     console.log(`[${progress.stage.toUpperCase()}] ${percentage}%${current}`);
   };
 
   const generator = new VectorGenerator(outputDir, progressCallback);
-  
+
   try {
     await generator.generateVectors();
     console.log('Vector generation completed successfully!');

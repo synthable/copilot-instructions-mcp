@@ -333,7 +333,7 @@ export function createServer(container: Container): Server {
 export async function createInitializedServer(container: Container): Promise<Server> {
   // Initialize server components including vector store
   await initializeServer(container);
-  
+
   // Create the server with initialized components
   return createServer(container);
 }

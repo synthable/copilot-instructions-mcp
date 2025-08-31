@@ -99,13 +99,15 @@ export class SemanticSearchService {
       this.memoryMonitor.logMemoryUsage('index build start');
 
       // Try to load pre-computed vectors first
-      if (this.vectorStore && await this.tryLoadPrecomputedVectors()) {
+      if (this.vectorStore && (await this.tryLoadPrecomputedVectors())) {
         this.building = false;
         return;
       }
 
       // Fallback to runtime embedding generation
-      this.logger.info('Pre-computed vectors not available, generating embeddings at runtime');
+      this.logger.info(
+        'Pre-computed vectors not available, generating embeddings at runtime'
+      );
       await this.ensureEmbedder();
 
       const modules = await this.parser.parseInstructionModules();
@@ -181,7 +183,7 @@ export class SemanticSearchService {
           totalVectorsInFile: vectorIndex.vectors.length,
           matchedModules: this.index.length,
           model: vectorIndex.metadata.model,
-          dimensions: vectorIndex.metadata.dimensions
+          dimensions: vectorIndex.metadata.dimensions,
         }
       );
 
@@ -395,8 +397,8 @@ export class SemanticSearchService {
 
   /** Pure semantic search over embedding index. */
   async semanticSearch(
-    query: string, 
-    limit = 10, 
+    query: string,
+    limit = 10,
     options: SemanticSearchOptions = {}
   ): Promise<SearchResult[]> {
     return await this.performanceCollector.time(
@@ -423,10 +425,12 @@ export class SemanticSearchService {
           let filteredIndex = this.index;
           if (options.tiers && options.tiers.length > 0) {
             const normalizedTiers = options.tiers.map(t => t.toLowerCase());
-            filteredIndex = this.index.filter(doc => 
+            filteredIndex = this.index.filter(doc =>
               normalizedTiers.includes(doc.tier.toLowerCase())
             );
-            this.logger.debug(`Filtered index by tiers: ${options.tiers.join(', ')} (${filteredIndex.length.toString()}/${this.index.length.toString()} documents)`);
+            this.logger.debug(
+              `Filtered index by tiers: ${options.tiers.join(', ')} (${filteredIndex.length.toString()}/${this.index.length.toString()} documents)`
+            );
           }
 
           // Calculate similarities
@@ -444,8 +448,9 @@ export class SemanticSearchService {
           }
 
           // Apply similarity threshold filtering
-          const similarityThreshold = options.similarityThreshold ?? this.config.getSimilarityThreshold();
-          
+          const similarityThreshold =
+            options.similarityThreshold ?? this.config.getSimilarityThreshold();
+
           // Sort by similarity and apply filters
           const scored = filteredIndex
             .map(doc => ({
@@ -517,12 +522,12 @@ export class SemanticSearchService {
       async () => {
         await this.buildIndex();
         const q = await this.embedQuery(queryTerms.join(' '));
-        
+
         // Apply tier filtering if specified
         let filteredIndex = this.index;
         if (options.tiers && options.tiers.length > 0) {
           const normalizedTiers = options.tiers.map(t => t.toLowerCase());
-          filteredIndex = this.index.filter(doc => 
+          filteredIndex = this.index.filter(doc =>
             normalizedTiers.includes(doc.tier.toLowerCase())
           );
         }
@@ -533,7 +538,8 @@ export class SemanticSearchService {
         }
 
         // Apply similarity threshold filtering
-        const similarityThreshold = options.similarityThreshold ?? this.config.getSimilarityThreshold();
+        const similarityThreshold =
+          options.similarityThreshold ?? this.config.getSimilarityThreshold();
 
         // Normalize lexical scores 0..1
         const lex = lexicalResults.map(r => r.score);

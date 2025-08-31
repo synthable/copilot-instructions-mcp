@@ -15,9 +15,9 @@ import type { ISemanticConfig } from './interfaces.js';
  * Relevance level mapping for semantic search results.
  */
 export interface RelevanceThresholds {
-  high: number;    // Default: 0.8
-  medium: number;  // Default: 0.6
-  low: number;     // Default: 0.4
+  high: number; // Default: 0.8
+  medium: number; // Default: 0.6
+  low: number; // Default: 0.4
 }
 
 /**
@@ -277,11 +277,13 @@ export class SemanticConfig implements ISemanticConfig {
   /**
    * Validates relevance thresholds configuration.
    */
-  private validateRelevanceThresholds(thresholds: Partial<RelevanceThresholds>): RelevanceThresholds {
+  private validateRelevanceThresholds(
+    thresholds: Partial<RelevanceThresholds>
+  ): RelevanceThresholds {
     const defaults: RelevanceThresholds = {
       high: 0.8,
       medium: 0.6,
-      low: 0.4
+      low: 0.4,
     };
 
     const result = { ...defaults, ...thresholds };

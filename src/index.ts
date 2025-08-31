@@ -116,11 +116,14 @@ program
     switch (transport) {
       case 'http': {
         const httpPort = parseInt(port, 10) || 3000;
-        logger.info(`Starting HTTP server on port ${httpPort}`);
+        logger.info(`Starting HTTP server on port ${httpPort.toString()}`);
         createInitializedServer(container)
           .then(server => runHttp(server, httpPort))
-          .catch(error => {
-            logger.error('Failed to start HTTP server', error);
+          .catch((error: unknown) => {
+            logger.error(
+              'Failed to start HTTP server',
+              error instanceof Error ? error : undefined
+            );
             process.exit(1);
           });
         break;
@@ -128,7 +131,7 @@ program
       case 'sse': {
         const ssePort = parseInt(port, 10) || 3000;
         logger.warn('SSE transport is deprecated. Use "http" instead.');
-        logger.info(`Starting SSE server on port ${ssePort}`);
+        logger.info(`Starting SSE server on port ${ssePort.toString()}`);
         runSSE(() => createServer(createProductionContainer()), ssePort);
         break;
       }
@@ -137,8 +140,11 @@ program
         logger.info('Starting stdio server');
         createInitializedServer(container)
           .then(server => runStdio(server))
-          .catch(error => {
-            logger.error('Failed to start stdio server', error);
+          .catch((error: unknown) => {
+            logger.error(
+              'Failed to start stdio server',
+              error instanceof Error ? error : undefined
+            );
             process.exit(1);
           });
         break;

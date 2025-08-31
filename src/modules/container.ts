@@ -181,10 +181,7 @@ export class Container {
    * Gets or creates the vector store.
    */
   getVectorStore(): IVectorStore {
-    this.vectorStore ??= new VectorStore(
-      this.dependencies,
-      this.dependencies.logger
-    );
+    this.vectorStore ??= new VectorStore(this.dependencies, this.dependencies.logger);
     return this.vectorStore;
   }
 

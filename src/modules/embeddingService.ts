@@ -11,12 +11,12 @@
  */
 
 import { createHash } from 'node:crypto';
-import type { 
-  IEmbeddingService, 
-  ISemanticConfig, 
+import type {
+  IEmbeddingService,
+  ISemanticConfig,
   ILogger,
   EmbeddingProgressCallback,
-  EmbeddingCacheEntry
+  EmbeddingCacheEntry,
 } from './interfaces.js';
 
 /**
@@ -81,7 +81,7 @@ export class EmbeddingService implements IEmbeddingService {
       // Dynamic import with proper error handling
       progressCallback?.('loading', 0.2, 'Loading transformers module');
       const transformersModule = await this.loadTransformersModule();
-      
+
       progressCallback?.('loading', 0.5, 'Creating pipeline');
       this.pipeline = await this.createPipeline(transformersModule);
 
@@ -114,14 +114,17 @@ export class EmbeddingService implements IEmbeddingService {
   /**
    * Generates embeddings for a single text input with validation, caching, and progress callbacks.
    */
-  async embed(text: string, progressCallback?: EmbeddingProgressCallback): Promise<number[]> {
+  async embed(
+    text: string,
+    progressCallback?: EmbeddingProgressCallback
+  ): Promise<number[]> {
     this.ensureInitialized();
     this.validateTextInput(text);
 
     // Check cache first
     const hash = this.computeTextHash(text);
     const cached = this.embeddingCache.get(hash);
-    
+
     if (cached) {
       this.cacheStats.hits++;
       progressCallback?.('processing', 1.0, 'Retrieved from cache');
@@ -136,14 +139,14 @@ export class EmbeddingService implements IEmbeddingService {
       progressCallback?.('processing', 0.1, 'Computing embedding');
       const results = await this.embedBatch([text], progressCallback);
       const embedding = results[0];
-      
+
       // Cache the result
       this.embeddingCache.set(hash, {
         hash,
         embedding,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
-      
+
       progressCallback?.('processing', 1.0, 'Embedding computed and cached');
       this.resetDisposeTimer();
       return embedding;
@@ -165,7 +168,10 @@ export class EmbeddingService implements IEmbeddingService {
   /**
    * Generates embeddings for multiple text inputs with proper batching, caching, and validation.
    */
-  async embedBatch(texts: string[], progressCallback?: EmbeddingProgressCallback): Promise<number[][]> {
+  async embedBatch(
+    texts: string[],
+    progressCallback?: EmbeddingProgressCallback
+  ): Promise<number[][]> {
     this.ensureInitialized();
     this.validateBatchInput(texts);
 
@@ -183,7 +189,7 @@ export class EmbeddingService implements IEmbeddingService {
     texts.forEach((text, index) => {
       const hash = this.computeTextHash(text);
       const cached = this.embeddingCache.get(hash);
-      
+
       if (cached) {
         results[index] = cached.embedding;
         this.cacheStats.hits++;
@@ -203,7 +209,11 @@ export class EmbeddingService implements IEmbeddingService {
     // Process uncached texts
     if (uncachedTexts.length > 0) {
       try {
-        progressCallback?.('processing', 0.3, `Computing ${uncachedTexts.length.toString()} new embeddings`);
+        progressCallback?.(
+          'processing',
+          0.3,
+          `Computing ${uncachedTexts.length.toString()} new embeddings`
+        );
 
         this.logger.debug('Generating batch embeddings', {
           batchSize: uncachedTexts.length.toString(),
@@ -216,21 +226,24 @@ export class EmbeddingService implements IEmbeddingService {
         });
 
         progressCallback?.('processing', 0.8, 'Extracting embeddings');
-        const embeddings = this.validateAndExtractEmbeddings(result, uncachedTexts.length);
+        const embeddings = this.validateAndExtractEmbeddings(
+          result,
+          uncachedTexts.length
+        );
 
         // Cache new embeddings and fill results
         embeddings.forEach((embedding, embeddingIndex) => {
           const originalIndex = uncachedIndices[embeddingIndex];
           const text = uncachedTexts[embeddingIndex];
           const hash = this.computeTextHash(text);
-          
+
           // Cache the result
           this.embeddingCache.set(hash, {
             hash,
             embedding,
-            timestamp: Date.now()
+            timestamp: Date.now(),
           });
-          
+
           results[originalIndex] = embedding;
         });
 
@@ -533,7 +546,7 @@ export class EmbeddingService implements IEmbeddingService {
     return {
       hits: this.cacheStats.hits,
       misses: this.cacheStats.misses,
-      size: this.embeddingCache.size
+      size: this.embeddingCache.size,
     };
   }
 
@@ -549,7 +562,7 @@ export class EmbeddingService implements IEmbeddingService {
     this.pipeline = null;
     this.initialized = false;
     this.clearCache();
-    
+
     this.logger.info('Embedding service disposed');
   }
 
@@ -569,9 +582,12 @@ export class EmbeddingService implements IEmbeddingService {
     }
 
     // Dispose after 5 minutes of inactivity
-    this.disposeTimer = setTimeout(() => {
-      this.logger.debug('Disposing embedding service due to inactivity');
-      this.dispose();
-    }, 5 * 60 * 1000);
+    this.disposeTimer = setTimeout(
+      () => {
+        this.logger.debug('Disposing embedding service due to inactivity');
+        this.dispose();
+      },
+      5 * 60 * 1000
+    );
   }
 }
