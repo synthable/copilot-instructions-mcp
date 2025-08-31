@@ -16,6 +16,7 @@ import { InstructionModuleParser } from './parsing.js';
 import { SearchService } from './search.js';
 import { ContentService } from './content.js';
 import { EmbeddingService } from './embeddingService.js';
+import { VectorStore } from './vectorStore.js';
 import { createProductionSemanticConfig } from './semanticConfig.js';
 import { createLogger } from './logger.js';
 import type {
@@ -29,6 +30,7 @@ import type {
   ISemanticSearchService,
   IEmbeddingService,
   ISemanticConfig,
+  IVectorStore,
 } from './interfaces.js';
 import { SemanticSearchService } from './semanticSearch.js';
 
@@ -94,6 +96,7 @@ export class Container {
   private semanticSearchService?: ISemanticSearchService;
   private embeddingService?: IEmbeddingService;
   private semanticConfig?: ISemanticConfig;
+  private vectorStore?: IVectorStore;
 
   constructor(dependencies?: Partial<IDependencies>) {
     this.dependencies = {
@@ -149,7 +152,8 @@ export class Container {
       this.dependencies,
       this.getInstructionModuleParser(),
       this.getEmbeddingService(),
-      this.getSemanticConfig()
+      this.getSemanticConfig(),
+      this.getVectorStore()
     );
     return this.semanticSearchService;
   }
@@ -171,6 +175,17 @@ export class Container {
   getSemanticConfig(): ISemanticConfig {
     this.semanticConfig ??= createProductionSemanticConfig();
     return this.semanticConfig;
+  }
+
+  /**
+   * Gets or creates the vector store.
+   */
+  getVectorStore(): IVectorStore {
+    this.vectorStore ??= new VectorStore(
+      this.dependencies,
+      this.dependencies.logger
+    );
+    return this.vectorStore;
   }
 
   /**

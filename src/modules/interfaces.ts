@@ -231,6 +231,42 @@ export interface IEmbeddingService {
 }
 
 /**
+ * Interface for vector storage operations.
+ * Handles loading and managing pre-computed vectors from disk.
+ */
+export interface IVectorStore {
+  /**
+   * Loads vectors from disk (MessagePack preferred, JSON fallback).
+   */
+  loadVectors(): Promise<import('./types.js').VectorIndex | null>;
+
+  /**
+   * Gets vectors by module IDs.
+   */
+  getVectorsByIds(moduleIds: string[]): Promise<import('./types.js').ModuleVector[]>;
+
+  /**
+   * Gets vectors by tier/category filter.
+   */
+  getVectorsByTier(tier: string): Promise<import('./types.js').ModuleVector[]>;
+
+  /**
+   * Validates vector integrity using checksums.
+   */
+  validateIntegrity(): Promise<boolean>;
+
+  /**
+   * Gets vector store metadata.
+   */
+  getMetadata(): Promise<import('./types.js').VectorIndexMetadata | null>;
+
+  /**
+   * Checks if vectors are available on disk.
+   */
+  isAvailable(): boolean;
+}
+
+/**
  * Interface for semantic search configuration.
  * Enables dependency injection for semantic search parameters.
  */
