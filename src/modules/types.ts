@@ -77,6 +77,8 @@ export interface SearchResult extends InstructionModule {
   contentMatches?: string[];
   /** Optional semantic similarity score (0..1) when semantic search/rerank is used */
   semanticScore?: number;
+  /** Optional relevance level based on similarity score */
+  relevanceLevel?: 'high' | 'medium' | 'low' | 'none';
 }
 
 /**

@@ -221,13 +221,38 @@ export class ToolHandlers {
     }
     const query = validateSearchQuery(args.query);
     const limit = validateSearchLimit(args.limit);
+    
+    // Parse semantic search options
+    const options: import('./semanticSearch.js').SemanticSearchOptions = {};
+    
+    // Handle tier filtering
+    if (args.tiers) {
+      if (Array.isArray(args.tiers)) {
+        options.tiers = args.tiers.filter((t): t is string => typeof t === 'string');
+      } else if (typeof args.tiers === 'string') {
+        options.tiers = [args.tiers];
+      }
+    }
+    
+    // Handle similarity threshold
+    if (typeof args.similarityThreshold === 'number' && 
+        args.similarityThreshold >= 0 && args.similarityThreshold <= 1) {
+      options.similarityThreshold = args.similarityThreshold;
+    }
+    
+    // Handle relevance level inclusion (default: true)
+    if (args.includeRelevanceLevel === false) {
+      options.includeRelevanceLevel = false;
+    }
+    
     const svc = this.container.getSemanticSearchService();
-    const results = await svc.semanticSearch(query, limit);
+    const results = await svc.semanticSearch(query, limit, options);
     return {
       query,
       totalResults: results.length,
       returnedResults: results.length,
       results,
+      filters: options.tiers ? { tiers: options.tiers } : undefined,
     };
   }
 
@@ -247,19 +272,43 @@ export class ToolHandlers {
         ? args.alpha
         : 0.6;
 
+    // Parse semantic search options
+    const options: import('./semanticSearch.js').SemanticSearchOptions = {};
+    
+    // Handle tier filtering
+    if (args.tiers) {
+      if (Array.isArray(args.tiers)) {
+        options.tiers = args.tiers.filter((t): t is string => typeof t === 'string');
+      } else if (typeof args.tiers === 'string') {
+        options.tiers = [args.tiers];
+      }
+    }
+    
+    // Handle similarity threshold
+    if (typeof args.similarityThreshold === 'number' && 
+        args.similarityThreshold >= 0 && args.similarityThreshold <= 1) {
+      options.similarityThreshold = args.similarityThreshold;
+    }
+    
+    // Handle relevance level inclusion (default: true)
+    if (args.includeRelevanceLevel === false) {
+      options.includeRelevanceLevel = false;
+    }
+
     const terms = splitSearchQuery(query);
     const lexical = await this.container
       .getSearchService()
       .searchInstructionModules(terms);
     const semantic = await this.container
       .getSemanticSearchService()
-      .hybridSearch(terms, lexical, alpha, limit);
+      .hybridSearch(terms, lexical, alpha, limit, options);
     return {
       query,
       alpha,
       totalResults: semantic.length,
       returnedResults: Math.min(limit, semantic.length),
       results: semantic.slice(0, limit),
+      filters: options.tiers ? { tiers: options.tiers } : undefined,
     };
   }
 
