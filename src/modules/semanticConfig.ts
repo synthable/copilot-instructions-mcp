@@ -21,6 +21,8 @@ export interface SemanticConfigOptions {
   defaultAlpha?: number;
   embeddingDimensions?: number;
   indexingBatchSize?: number;
+  maxMemoryUsageMB?: number;
+  enableLazyLoading?: boolean;
 }
 
 /**
@@ -33,6 +35,8 @@ export class SemanticConfig implements ISemanticConfig {
   private readonly defaultAlpha: number;
   private readonly embeddingDimensions: number;
   private readonly indexingBatchSize: number;
+  private readonly maxMemoryUsageMB: number;
+  private readonly enableLazyLoading: boolean;
 
   constructor(options: SemanticConfigOptions = {}) {
     this.modelName = this.validateModelName(options.modelName ?? 'Xenova/all-mpnet-base-v2');
@@ -41,6 +45,8 @@ export class SemanticConfig implements ISemanticConfig {
     this.defaultAlpha = this.validateDefaultAlpha(options.defaultAlpha ?? 0.6);
     this.embeddingDimensions = this.validateEmbeddingDimensions(options.embeddingDimensions ?? 768);
     this.indexingBatchSize = this.validateIndexingBatchSize(options.indexingBatchSize ?? 8);
+    this.maxMemoryUsageMB = this.validateMaxMemoryUsage(options.maxMemoryUsageMB ?? 512);
+    this.enableLazyLoading = options.enableLazyLoading ?? true;
   }
 
   /**
@@ -83,6 +89,20 @@ export class SemanticConfig implements ISemanticConfig {
    */
   getIndexingBatchSize(): number {
     return this.indexingBatchSize;
+  }
+
+  /**
+   * Gets the maximum memory usage limit in MB.
+   */
+  getMaxMemoryUsageMB(): number {
+    return this.maxMemoryUsageMB;
+  }
+
+  /**
+   * Gets whether lazy loading is enabled.
+   */
+  isLazyLoadingEnabled(): boolean {
+    return this.enableLazyLoading;
   }
 
   /**
@@ -177,6 +197,21 @@ export class SemanticConfig implements ISemanticConfig {
 
     return indexingBatchSize;
   }
+
+  /**
+   * Validates maximum memory usage configuration.
+   */
+  private validateMaxMemoryUsage(maxMemoryUsageMB: number): number {
+    if (!Number.isInteger(maxMemoryUsageMB) || maxMemoryUsageMB < 64) {
+      throw new Error('Max memory usage must be at least 64 MB');
+    }
+
+    if (maxMemoryUsageMB > 8192) {
+      throw new Error('Max memory usage too large (max 8192 MB)');
+    }
+
+    return maxMemoryUsageMB;
+  }
 }
 
 /**
@@ -197,6 +232,8 @@ export function createTestSemanticConfig(options?: SemanticConfigOptions): Seman
     defaultAlpha: 0.5,
     embeddingDimensions: 384,
     indexingBatchSize: 4,
+    maxMemoryUsageMB: 128,
+    enableLazyLoading: false, // Disable for testing
     ...options,
   };
 

@@ -292,32 +292,57 @@ export class InstructionModuleParser implements IInstructionModuleParser {
         this.dependencies.processUtils.cwd(),
         'instructions-modules'
       );
-      const modules: InstructionModule[] = [];
-      const walk = async (dir: string) => {
+      // First pass: collect all YAML file paths
+      const yamlFiles: { rel: string; abs: string }[] = [];
+      const walkForPaths = (dir: string) => {
         const entries = this.dependencies.fileSystem.readdirSync(dir);
         for (const name of entries) {
           const abs = this.dependencies.pathUtils.join(dir, name);
           const st = this.dependencies.fileSystem.statSync(abs);
           if (st.isDirectory()) {
-            await walk(abs);
+            walkForPaths(abs);
           } else if (name.endsWith('.module.yml')) {
             const rel = this.dependencies.pathUtils
               .relative(baseDir, abs)
               .replace(/\\/g, '/');
-            try {
-              const mod = await parseYamlModule(rel, abs, this.dependencies);
-              if (mod) modules.push(mod);
-            } catch (moduleError) {
-              this.dependencies.logger.warn(`Failed to parse YAML module: ${rel}`, moduleError instanceof Error ? moduleError : undefined);
-              // Continue processing other modules
-            }
+            yamlFiles.push({ rel, abs });
           }
         }
       };
-      await walk(baseDir);
+      walkForPaths(baseDir);
+
+      parsingLogger.info(`Found ${yamlFiles.length.toString()} YAML modules to parse`);
+
+      // Second pass: parse all YAML files concurrently
+      const parsePromises = yamlFiles.map(async ({ rel, abs }) => {
+        try {
+          const mod = await parseYamlModule(rel, abs, this.dependencies);
+          return mod;
+        } catch (moduleError) {
+          this.dependencies.logger.warn(`Failed to parse YAML module: ${rel}`, moduleError instanceof Error ? moduleError : undefined);
+          return null; // Return null for failed modules
+        }
+      });
+
+      // Wait for all parsing to complete
+      parsingLogger.info(`Parsing ${yamlFiles.length.toString()} YAML modules concurrently`);
+      const parsedResults = await Promise.allSettled(parsePromises);
+      
+      // Collect successful results
+      const modules: InstructionModule[] = [];
+      let failedModules = 0;
+      
+      for (const result of parsedResults) {
+        if (result.status === 'fulfilled' && result.value !== null) {
+          modules.push(result.value);
+        } else if (result.status === 'rejected') {
+          failedModules++;
+          parsingLogger.warn('YAML module parsing promise rejected', result.reason instanceof Error ? result.reason : undefined);
+        }
+      }
 
       parsingLogger.info(
-        `Successfully parsed ${modules.length.toString()} instruction modules`
+        `Concurrent parsing completed: ${modules.length.toString()} successful modules, ${failedModules.toString()} failed modules`
       );
       this.cachedInstructionModules = modules; // Cache the modules
       return modules;
