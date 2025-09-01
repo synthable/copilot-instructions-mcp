@@ -5,7 +5,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "build": "tsc && npm run build:vectors",
+    "build": "tsc",
     "build:vectors": "node dist/tools/vectorGenerator.js",
     "build:code": "tsc",
     "start": "node dist/index.js",
@@ -13,7 +13,6 @@
     "start:http": "node dist/index.js http",
     "start:sse": "node dist/index.js sse",
     "dev": "tsc --watch",
-    "validate:module": "npm run build && node dist/utils/validateModule.js",
     "test": "vitest",
     "test:search": "npm run build && node test_search.js",
     "test:semantic": "npm run build && node test_semantic_search.js",
