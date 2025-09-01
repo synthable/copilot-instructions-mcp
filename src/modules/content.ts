@@ -12,12 +12,13 @@
 
 import { validateFilePath } from './validation.js';
 import { contentLogger } from './logger.js';
-import type { GetModulesContentResult } from './types.js';
+import type { GetModulesContentResult, UMSv11Module, CompositeListDirective } from './types.js';
 import type {
   IDependencies,
   IContentService,
   IInstructionModuleParser,
 } from './interfaces.js';
+import { parse as yamlParseFn } from 'yaml';
 
 /**
  * Injectable content service implementation.
@@ -83,7 +84,7 @@ export class ContentService implements IContentService {
 
         const isYaml = module.filePath.endsWith('.module.yml');
         const fileContent = isYaml
-          ? this.renderYamlModuleContent(module)
+          ? this.renderYamlModuleContent(module, contentPath)
           : this.dependencies.fileSystem.readFileSync(contentPath, 'utf-8');
 
         // Format as markdown section with module info header
@@ -120,8 +121,8 @@ export class ContentService implements IContentService {
   }
 
   /**
-   * Renders a simple markdown view for a YAML module (UMS) using metadata only.
-   * In v1.0, Markdown is a rendered artifact; we expose meta fields here.
+   * Renders a comprehensive markdown view for a UMS v1.0/v1.1 YAML module.
+   * Implements full UMS v1.1 rendering specification including new directives.
    */
   private renderYamlModuleContent(module: {
     id: string;
@@ -131,24 +132,274 @@ export class ContentService implements IContentService {
     subcategory?: string;
     semantic?: string;
     tags?: string[];
+    layer?: number;
+  }, contentPath: string): string {
+    try {
+      // Parse the full YAML module
+      const raw = this.dependencies.fileSystem.readFileSync(contentPath, 'utf-8');
+      const parseYaml: (s: string) => unknown = yamlParseFn as unknown as (s: string) => unknown;
+      const parsedUnknown = parseYaml(raw);
+      
+      if (!this.isRecord(parsedUnknown)) {
+        return this.renderSimpleYamlContent(module);
+      }
+      
+      const parsedModule = parsedUnknown as unknown as UMSv11Module;
+      const body = parsedModule.body;
+      const shape = parsedModule.shape;
+      
+      // Body might not exist in some modules
+      if (!body || typeof body !== 'object') {
+        return this.renderSimpleYamlContent(module);
+      }
+      
+      const lines: string[] = [];
+      
+      // Render purpose with shape-specific headings (UMS v1.1 spec)
+      if (body.purpose) {
+        const purposeHeading = this.getPurposeHeading(shape);
+        lines.push(`## ${purposeHeading}`);
+        lines.push(body.purpose);
+        lines.push('');
+      }
+      
+      // Render process
+      if (body.process) {
+        lines.push('## Process');
+        this.renderCompositeDirective(body.process, lines, true); // ordered list
+        lines.push('');
+      }
+      
+      // Render constraints
+      if (body.constraints) {
+        lines.push('## Constraints');
+        this.renderCompositeDirective(body.constraints, lines, false); // bullet list
+        lines.push('');
+      }
+      
+      // Render principles
+      if (body.principles) {
+        lines.push('## Principles');
+        this.renderCompositeDirective(body.principles, lines, false); // bullet list
+        lines.push('');
+      }
+      
+      // Render new v1.1 directives
+      if (body.recommended) {
+        lines.push('## Best Practices');
+        this.renderCompositeDirective(body.recommended, lines, false); // bullet list
+        lines.push('');
+      }
+      
+      if (body.discouraged) {
+        lines.push('## Anti-Patterns');
+        this.renderCompositeDirective(body.discouraged, lines, false); // bullet list
+        lines.push('');
+      }
+      
+      if (body.advantages) {
+        lines.push('## Advantages / Use Cases');
+        this.renderCompositeDirective(body.advantages, lines, false); // bullet list
+        lines.push('');
+      }
+      
+      if (body.disadvantages) {
+        lines.push('## Disadvantages / Trade-Offs');
+        this.renderCompositeDirective(body.disadvantages, lines, false); // bullet list
+        lines.push('');
+      }
+      
+      // Render criteria
+      if (body.criteria) {
+        lines.push('## Criteria');
+        this.renderCompositeDirective(body.criteria, lines, false, true); // task list
+        lines.push('');
+      }
+      
+      // Render data
+      if (body.data) {
+        lines.push('## Data');
+        if (body.purpose && shape === 'data') {
+          // For data shape, purpose is rendered under Data heading
+        }
+        const language = body.data.language ?? this.inferLanguageFromMediaType(body.data.mediaType);
+        lines.push(`\`\`\`${language}`);
+        lines.push(body.data.value);
+        lines.push('```');
+        lines.push('');
+      }
+      
+      // Render examples
+      if (body.examples && body.examples.length > 0) {
+        lines.push('## Examples');
+        for (const example of body.examples) {
+          lines.push(`### ${example.title}`);
+          lines.push(example.rationale);
+          lines.push('');
+          const language = example.language ?? 'text';
+          lines.push(`\`\`\`${language}`);
+          lines.push(example.snippet);
+          lines.push('```');
+          lines.push('');
+        }
+      }
+      
+      // Render resources (UMS v1.1)
+      if (body.resources && body.resources.length > 0) {
+        lines.push('## Resources');
+        for (const resource of body.resources) {
+          lines.push(`### ${resource.name}`);
+          const language = resource.language ?? this.inferLanguageFromMediaType(resource.mediaType);
+          lines.push(`\`\`\`${language}`);
+          lines.push(resource.value);
+          lines.push('```');
+          lines.push('');
+        }
+      }
+      
+      // Add metadata footer
+      if (module.layer !== undefined) {
+        lines.push(`_Foundation Layer: ${module.layer.toString()}_`);
+        lines.push('');
+      }
+      
+      if (module.tags && module.tags.length > 0) {
+        lines.push(`_Tags: ${module.tags.join(', ')}_`);
+        lines.push('');
+      }
+      
+      return lines.join('\n');
+      
+    } catch (error) {
+      contentLogger.warn(`Failed to render full YAML module content for ${module.id}`, error);
+      return this.renderSimpleYamlContent(module);
+    }
+  }
+  
+  /**
+   * Fallback simple rendering for YAML modules when full parsing fails
+   */
+  private renderSimpleYamlContent(module: {
+    id: string;
+    name: string;
+    description: string;
+    category: string;
+    subcategory?: string;
+    semantic?: string;
+    tags?: string[];
+    layer?: number;
   }): string {
     const lines: string[] = [];
     lines.push(`## Summary`);
     lines.push(module.description);
     lines.push('');
-    if (module.tags && module.tags.length > 0) {
-      lines.push(`Tags: ${module.tags.join(', ')}`);
-    }
-    if (module.semantic && module.semantic.trim().length > 0) {
+    
+    if (module.layer !== undefined) {
+      lines.push(`**Foundation Layer:** ${module.layer.toString()}`);
       lines.push('');
+    }
+    
+    if (module.tags && module.tags.length > 0) {
+      lines.push(`**Tags:** ${module.tags.join(', ')}`);
+      lines.push('');
+    }
+    
+    if (module.semantic && module.semantic.trim().length > 0) {
       lines.push('### Semantic');
       lines.push(module.semantic.trim());
+      lines.push('');
     }
-    lines.push('');
+    
     lines.push(
-      '_Note: This module is defined as YAML (.module.yml). Body directives are not rendered here._'
+      '_Note: This module is defined as YAML (.module.yml). Full body directives could not be rendered._'
     );
     return lines.join('\n');
+  }
+  
+  /**
+   * Helper method to check if value is a record
+   */
+  private isRecord(v: unknown): v is Record<string, unknown> {
+    return typeof v === 'object' && v !== null;
+  }
+  
+  /**
+   * Get shape-specific heading for purpose directive (UMS v1.1 spec)
+   */
+  private getPurposeHeading(shape: string): string {
+    switch (shape) {
+      case 'specification': return 'Core Definition';
+      case 'pattern': return 'Abstract';
+      case 'procedure':
+      case 'playbook': 
+      case 'procedural-specification': return 'Primary Objective';
+      case 'checklist': return 'Verification Criteria';
+      case 'data': return 'Data'; // purpose rendered under Data heading for data shape
+      default: return 'Purpose';
+    }
+  }
+  
+  /**
+   * Render composite list directive (UMS v1.1)
+   */
+  private renderCompositeDirective(
+    directive: CompositeListDirective, 
+    lines: string[], 
+    ordered = false,
+    taskList = false
+  ): void {
+    if (Array.isArray(directive)) {
+      // Simple array format
+      this.renderList(directive, lines, ordered, taskList);
+    } else {
+      // Composite format with description
+      if (directive.desc) {
+        lines.push(directive.desc);
+        lines.push('');
+      }
+      this.renderList(directive.list, lines, ordered, taskList);
+    }
+  }
+  
+  /**
+   * Render list items with appropriate formatting
+   */
+  private renderList(items: string[], lines: string[], ordered: boolean, taskList: boolean): void {
+    items.forEach((item, index) => {
+      if (taskList) {
+        // Preserve existing "- [ ]" or add it if missing
+        const checkboxItem = item.startsWith('- [ ]') ? item : `- [ ] ${item}`;
+        lines.push(checkboxItem);
+      } else if (ordered) {
+        lines.push(`${(index + 1).toString()}. ${item}`);
+      } else {
+        lines.push(`- ${item}`);
+      }
+    });
+  }
+  
+  /**
+   * Infer language from media type for syntax highlighting
+   */
+  private inferLanguageFromMediaType(mediaType: string): string {
+    const typeMap: Record<string, string> = {
+      'text/javascript': 'javascript',
+      'application/javascript': 'javascript',
+      'text/typescript': 'typescript',
+      'application/typescript': 'typescript',
+      'text/python': 'python',
+      'application/json': 'json',
+      'text/yaml': 'yaml',
+      'application/yaml': 'yaml',
+      'text/markdown': 'markdown',
+      'text/html': 'html',
+      'text/css': 'css',
+      'text/regex': 'regex',
+      'application/sql': 'sql',
+      'text/plain': 'text',
+    };
+    
+    return typeMap[mediaType] || 'text';
   }
 }
 

@@ -13,7 +13,7 @@
 /**
  * Represents an instruction module.
  *
- * Supports both legacy Markdown-listed modules (from README.md) and UMS v1.0 YAML modules (*.module.yml).
+ * Supports both legacy Markdown-listed modules (from README.md) and UMS v1.0/v1.1 YAML modules (*.module.yml).
  *
  * @interface InstructionModule
  * @property {string} id - Unique identifier (dot-separated for legacy, slash-separated for UMS, e.g., "foundation.logic.deductive-reasoning" or "foundation/reasoning/systems-thinking")
@@ -24,6 +24,7 @@
  * @property {string} filePath - Relative path to the module file from instructions-modules/ (Markdown or .module.yml)
  * @property {string} [semantic] - Optional semantic-rich paragraph used for embeddings (UMS meta.semantic)
  * @property {string[]} [tags] - Optional tags for filtering/boosting (UMS meta.tags)
+ * @property {number} [layer] - Optional layer field for foundation modules (0-4, UMS v1.1+)
  *
  * @example
  * ```typescript
@@ -34,7 +35,8 @@
  *   category: "Foundation",
  *   filePath: "foundation/reasoning/systems-thinking.module.yml",
  *   semantic: "Dense, keyword-rich semantic description used for embeddings.",
- *   tags: ["reasoning", "systems"]
+ *   tags: ["reasoning", "systems"],
+ *   layer: 1
  * };
  * ```
  */
@@ -49,6 +51,8 @@ export interface InstructionModule {
   semantic?: string;
   /** Optional tags from UMS meta for filtering/boosting */
   tags?: string[];
+  /** Optional layer field for foundation modules (UMS v1.1+) */
+  layer?: number;
 }
 
 /**
@@ -211,4 +215,76 @@ export interface ParsingState {
   categoryCount: number;
   subcategoryCount: number;
   moduleCount: number;
+}
+
+/**
+ * UMS v1.1 type definitions for full YAML module parsing and rendering
+ */
+
+/**
+ * Composite list directive format (UMS v1.1)
+ * Can be either a simple array or an object with description and list
+ */
+export type CompositeListDirective = string[] | {
+  desc?: string;
+  list: string[];
+};
+
+/**
+ * UMS v1.1 body directive definitions
+ */
+export interface UMSv11Body {
+  purpose?: string;  // renamed from 'goal' in v1.0
+  process?: CompositeListDirective;
+  constraints?: CompositeListDirective;
+  principles?: CompositeListDirective;
+  recommended?: CompositeListDirective;  // new in v1.1
+  discouraged?: CompositeListDirective;  // new in v1.1
+  advantages?: CompositeListDirective;   // new in v1.1
+  disadvantages?: CompositeListDirective; // new in v1.1
+  criteria?: CompositeListDirective;
+  data?: {
+    mediaType: string;
+    value: string;
+    language?: string;
+  };
+  examples?: {
+    title: string;
+    rationale: string;
+    snippet: string;
+    language?: string;
+  }[];
+  resources?: {
+    name: string;
+    mediaType: string;
+    value: string;
+    language?: string;
+  }[];
+}
+
+/**
+ * UMS v1.1 module metadata
+ */
+export interface UMSv11Meta {
+  name: string;
+  description: string;
+  semantic?: string;
+  tags?: string[];
+  layer?: 0 | 1 | 2 | 3 | 4;  // foundation modules only
+}
+
+/**
+ * Complete UMS v1.1 module structure
+ */
+export interface UMSv11Module {
+  id: string;
+  version: string;
+  schemaVersion: "1.0" | "1.1";
+  shape: string;
+  declaredDirectives: {
+    required: string[];
+    optional: string[];
+  };
+  meta: UMSv11Meta;
+  body: UMSv11Body;
 }
