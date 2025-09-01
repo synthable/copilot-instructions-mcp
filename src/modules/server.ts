@@ -212,6 +212,18 @@ export function setupServerHandlers(
   serverInstance.setRequestHandler(ListPromptsRequestSchema, () => ({
     prompts: [
       {
+        name: 'bootloader-v2-prompt',
+        description:
+          'A Module Integration Specialist that dynamically discovers, selects, and applies specialized instruction modules from an MCP library through a four-phase process (deconstruct, discover & select, synthesize & execute, constraints & communication) to solve user requests using foundation, principle, technology, and execution tier modules while treating user context as absolute source of truth.',
+        arguments: [],
+      },
+      {
+        name: 'bootloader-v1.2-prompt',
+        description:
+          'A Module Integration Specialist that dynamically discovers, selects, and applies specialized instruction modules from an MCP library through a four-phase process (deconstruct, discover & select, synthesize & execute, constraints & communication) to solve user requests using foundation, principle, technology, and execution tier modules while treating user context as absolute source of truth.',
+        arguments: [],
+      },
+      {
         name: 'bootloader-v1.1-prompt',
         description:
           'A Module Integration Specialist that dynamically discovers, selects, and applies specialized instruction modules from an MCP library through a four-phase process (deconstruct, discover & select, synthesize & execute, constraints & communication) to solve user requests using foundation, principle, technology, and execution tier modules while treating user context as absolute source of truth.',
@@ -251,6 +263,18 @@ export function setupServerHandlers(
       let description: string;
 
       switch (name) {
+        case 'bootloader-v2-prompt':
+          promptPath = join(process.cwd(), 'prompts/v2', 'bootloader-v2-prompt.md');
+          description =
+            'A Module Integration Specialist that dynamically discovers, selects, and applies specialized instruction modules from an MCP library through a four-phase process (deconstruct, discover & select, synthesize & execute, constraints & communication) to solve user requests using foundation, principle, technology, and execution tier modules while treating user context as absolute source of truth.';
+          break;
+
+        case 'bootloader-v1.2-prompt':
+          promptPath = join(process.cwd(), 'prompts', 'bootloader-v1.2.md');
+          description =
+            'A Module Integration Specialist that dynamically discovers, selects, and applies specialized instruction modules from an MCP library through a four-phase process (deconstruct, discover & select, synthesize & execute, constraints & communication) to solve user requests using foundation, principle, technology, and execution tier modules while treating user context as absolute source of truth.';
+          break;
+
         case 'bootloader-v1.1-prompt':
           promptPath = join(process.cwd(), 'prompts', 'bootloader-v1.1.md');
           description =
