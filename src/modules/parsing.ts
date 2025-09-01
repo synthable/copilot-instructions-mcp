@@ -187,6 +187,11 @@ function getStringArray(
   return out.length > 0 ? out : undefined;
 }
 
+function getNumber(obj: Record<string, unknown>, key: string): number | undefined {
+  const val = obj[key];
+  return typeof val === 'number' ? val : undefined;
+}
+
 function getProp(obj: Record<string, unknown>, key: string): unknown {
   return Object.prototype.hasOwnProperty.call(obj, key) ? obj[key] : undefined;
 }
@@ -226,6 +231,9 @@ async function parseYamlModule(
     const semanticRaw = getString(meta, 'semantic');
     const semantic = semanticRaw ? semanticRaw.trim() : undefined;
     const tags = getStringArray(meta, 'tags');
+    
+    // UMS v1.1: Extract layer field for foundation modules
+    const layer = getNumber(meta, 'layer');
 
     const idUnknown = getProp(parsedRec, 'id');
     const idSource =
@@ -241,6 +249,19 @@ async function parseYamlModule(
     const category = deriveCategoryFromTier(tier);
     const subjectPath = parts.slice(1, Math.max(1, parts.length - 1)).join('/');
     const subcategory = subjectPath ? subjectPath.replace(/\//g, ' / ') : undefined;
+
+    // UMS v1.1: Validate layer field for foundation modules
+    if (category === 'Foundation') {
+      if (layer !== undefined) {
+        if (!Number.isInteger(layer) || layer < 0 || layer > 4) {
+          parsingLogger.warn(`Invalid layer value for foundation module ${id}: ${layer.toString()}. Must be 0-4.`);
+        }
+      }
+    } else {
+      if (layer !== undefined) {
+        parsingLogger.warn(`Layer field present in non-foundation module ${id}. Ignoring.`);
+      }
+    }
 
     const fileStem =
       relPath
@@ -260,6 +281,14 @@ async function parseYamlModule(
       filePath: relPath,
       ...(semantic ? { semantic } : {}),
       ...(tags ? { tags } : {}),
+      // Only include layer for foundation modules with valid values
+      ...(category === 'Foundation' && 
+          layer !== undefined && 
+          Number.isInteger(layer) && 
+          layer >= 0 && 
+          layer <= 4 
+        ? { layer } 
+        : {}),
     };
     return mod;
   } catch (err) {
