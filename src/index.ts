@@ -43,15 +43,13 @@ program
   .version('1.0.0');
 
 // Debug flag
-program
-  .option('-d, --debug', 'enable debug logging')
-  .hook('preAction', (thisCommand) => {
-    const opts = thisCommand.opts();
-    if (opts.debug) {
-      setDebugLogging(true);
-      logger.debug('Debug logging enabled');
-    }
-  });
+program.option('-d, --debug', 'enable debug logging').hook('preAction', thisCommand => {
+  const opts = thisCommand.opts();
+  if (opts.debug) {
+    setDebugLogging(true);
+    logger.debug('Debug logging enabled');
+  }
+});
 
 // Transport commands
 program
@@ -65,8 +63,11 @@ program
 
     createInitializedServer(container)
       .then(server => runStdio(server))
-      .catch(error => {
-        logger.error('Failed to start stdio server', error);
+      .catch((error: unknown) => {
+        logger.error(
+          'Failed to start stdio server',
+          error instanceof Error ? error : undefined
+        );
         process.exit(1);
       });
   });
@@ -75,7 +76,7 @@ program
   .command('http')
   .description('Run server with HTTP transport')
   .option('-p, --port <port>', 'port number', '3000')
-  .action((options) => {
+  .action((options: { port: string }) => {
     const httpPort = parseInt(options.port, 10) || 3000;
     logger.info(`Starting HTTP server on port ${httpPort}`);
     // Always use dependency injection now
@@ -84,8 +85,11 @@ program
 
     createInitializedServer(container)
       .then(server => runHttp(server, httpPort))
-      .catch(error => {
-        logger.error('Failed to start HTTP server', error);
+      .catch((error: unknown) => {
+        logger.error(
+          'Failed to start HTTP server',
+          error instanceof Error ? error : undefined
+        );
         process.exit(1);
       });
   });
@@ -94,62 +98,30 @@ program
   .command('sse')
   .description('Run server with SSE transport (deprecated)')
   .option('-p, --port <port>', 'port number', '3000')
-  .action((options) => {
+  .action((options: { port: string }) => {
     const ssePort = parseInt(options.port, 10) || 3000;
     logger.warn('SSE transport is deprecated. Use "http" instead.');
     logger.info(`Starting SSE server on port ${ssePort}`);
     runSSE(() => createServer(createProductionContainer()), ssePort);
   });
 
-// Default action when no command is specified
-program
-  .action((options) => {
-    const transport = 'stdio';
-    const port = '3000';
-    
-    logger.debug(`Transport: ${transport}, Port: ${port}`);
-    
-    // Always use dependency injection now
-    const container = createProductionContainer();
-    logger.debug('Using dependency injection');
+// Default action when no command is specified - defaults to stdio
+program.action(() => {
+  logger.info('No command specified, defaulting to stdio transport');
 
-    switch (transport) {
-      case 'http': {
-        const httpPort = parseInt(port, 10) || 3000;
-        logger.info(`Starting HTTP server on port ${httpPort.toString()}`);
-        createInitializedServer(container)
-          .then(server => runHttp(server, httpPort))
-          .catch((error: unknown) => {
-            logger.error(
-              'Failed to start HTTP server',
-              error instanceof Error ? error : undefined
-            );
-            process.exit(1);
-          });
-        break;
-      }
-      case 'sse': {
-        const ssePort = parseInt(port, 10) || 3000;
-        logger.warn('SSE transport is deprecated. Use "http" instead.');
-        logger.info(`Starting SSE server on port ${ssePort.toString()}`);
-        runSSE(() => createServer(createProductionContainer()), ssePort);
-        break;
-      }
-      case 'stdio':
-      default: {
-        logger.info('Starting stdio server');
-        createInitializedServer(container)
-          .then(server => runStdio(server))
-          .catch((error: unknown) => {
-            logger.error(
-              'Failed to start stdio server',
-              error instanceof Error ? error : undefined
-            );
-            process.exit(1);
-          });
-        break;
-      }
-    }
-  });
+  // Always use dependency injection now
+  const container = createProductionContainer();
+  logger.debug('Using dependency injection');
+
+  createInitializedServer(container)
+    .then(server => runStdio(server))
+    .catch((error: unknown) => {
+      logger.error(
+        'Failed to start stdio server',
+        error instanceof Error ? error : undefined
+      );
+      process.exit(1);
+    });
+});
 
 program.parse();

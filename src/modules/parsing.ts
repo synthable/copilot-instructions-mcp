@@ -231,7 +231,7 @@ async function parseYamlModule(
     const semanticRaw = getString(meta, 'semantic');
     const semantic = semanticRaw ? semanticRaw.trim() : undefined;
     const tags = getStringArray(meta, 'tags');
-    
+
     // UMS v1.1: Extract layer field for foundation modules
     const layer = getNumber(meta, 'layer');
 
@@ -254,12 +254,16 @@ async function parseYamlModule(
     if (category === 'Foundation') {
       if (layer !== undefined) {
         if (!Number.isInteger(layer) || layer < 0 || layer > 4) {
-          parsingLogger.warn(`Invalid layer value for foundation module ${id}: ${layer.toString()}. Must be 0-4.`);
+          parsingLogger.warn(
+            `Invalid layer value for foundation module ${id}: ${layer.toString()}. Must be 0-4.`
+          );
         }
       }
     } else {
       if (layer !== undefined) {
-        parsingLogger.warn(`Layer field present in non-foundation module ${id}. Ignoring.`);
+        parsingLogger.warn(
+          `Layer field present in non-foundation module ${id}. Ignoring.`
+        );
       }
     }
 
@@ -282,12 +286,12 @@ async function parseYamlModule(
       ...(semantic ? { semantic } : {}),
       ...(tags ? { tags } : {}),
       // Only include layer for foundation modules with valid values
-      ...(category === 'Foundation' && 
-          layer !== undefined && 
-          Number.isInteger(layer) && 
-          layer >= 0 && 
-          layer <= 4 
-        ? { layer } 
+      ...(category === 'Foundation' &&
+      layer !== undefined &&
+      Number.isInteger(layer) &&
+      layer >= 0 &&
+      layer <= 4
+        ? { layer }
         : {}),
     };
     return mod;
