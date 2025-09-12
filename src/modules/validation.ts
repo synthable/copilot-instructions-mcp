@@ -271,15 +271,18 @@ export function validateModuleIds(moduleIds: unknown): string[] {
 
 /**
  * Validates UMS v1.1 layer field for foundation modules.
- * 
+ *
  * @param layer - The layer value to validate
  * @param tier - The module tier to check if layer is required
  * @returns The validated layer number or undefined
  * @throws {Error} If the layer is invalid for foundation modules
- * 
+ *
  * @since 1.1.0
  */
-export function validateFoundationLayer(layer: unknown, tier: string): number | undefined {
+export function validateFoundationLayer(
+  layer: unknown,
+  tier: string
+): number | undefined {
   if (tier.toLowerCase() !== 'foundation') {
     // Non-foundation modules should not have layer
     if (layer !== undefined) {

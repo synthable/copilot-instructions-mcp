@@ -225,22 +225,24 @@ export interface ParsingState {
  * Composite list directive format (UMS v1.1)
  * Can be either a simple array or an object with description and list
  */
-export type CompositeListDirective = string[] | {
-  desc?: string;
-  list: string[];
-};
+export type CompositeListDirective =
+  | string[]
+  | {
+      desc?: string;
+      list: string[];
+    };
 
 /**
  * UMS v1.1 body directive definitions
  */
 export interface UMSv11Body {
-  purpose?: string;  // renamed from 'goal' in v1.0
+  purpose?: string; // renamed from 'goal' in v1.0
   process?: CompositeListDirective;
   constraints?: CompositeListDirective;
   principles?: CompositeListDirective;
-  recommended?: CompositeListDirective;  // new in v1.1
-  discouraged?: CompositeListDirective;  // new in v1.1
-  advantages?: CompositeListDirective;   // new in v1.1
+  recommended?: CompositeListDirective; // new in v1.1
+  discouraged?: CompositeListDirective; // new in v1.1
+  advantages?: CompositeListDirective; // new in v1.1
   disadvantages?: CompositeListDirective; // new in v1.1
   criteria?: CompositeListDirective;
   data?: {
@@ -270,7 +272,7 @@ export interface UMSv11Meta {
   description: string;
   semantic?: string;
   tags?: string[];
-  layer?: 0 | 1 | 2 | 3 | 4;  // foundation modules only
+  layer?: 0 | 1 | 2 | 3 | 4; // foundation modules only
 }
 
 /**
@@ -279,7 +281,7 @@ export interface UMSv11Meta {
 export interface UMSv11Module {
   id: string;
   version: string;
-  schemaVersion: "1.0" | "1.1";
+  schemaVersion: '1.0' | '1.1';
   shape: string;
   declaredDirectives: {
     required: string[];
