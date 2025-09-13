@@ -235,8 +235,4 @@ test_search.js         # Comprehensive test suite
 
 ## License
 
-<<<<<<< HEAD
 ISC
-=======
-ISC
->>>>>>> 667dbd6 (feat: enhance TSDoc comments and tool descriptions with comprehensive examples)
