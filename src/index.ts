@@ -37,6 +37,29 @@ const program = new Command();
  */
 const logger = createLogger('cli');
 
+/**
+ * Starts the stdio server with proper error handling and logging.
+ *
+ * @param message - Optional custom message to log on startup
+ * @since 1.0.0
+ */
+function startStdioServer(message = 'Starting stdio server'): void {
+  logger.info(message);
+  // Always use dependency injection now
+  const container = createProductionContainer();
+  logger.debug('Using dependency injection');
+
+  createInitializedServer(container)
+    .then(server => runStdio(server))
+    .catch((error: unknown) => {
+      logger.error(
+        'Failed to start stdio server',
+        error instanceof Error ? error : undefined
+      );
+      process.exit(1);
+    });
+}
+
 program
   .name('simple-mcp-server')
   .description('MCP server with instruction modules for AI capability enhancement')
@@ -56,20 +79,7 @@ program
   .command('stdio')
   .description('Run server with stdio transport (default)')
   .action(() => {
-    logger.info('Starting stdio server');
-    // Always use dependency injection now
-    const container = createProductionContainer();
-    logger.debug('Using dependency injection');
-
-    createInitializedServer(container)
-      .then(server => runStdio(server))
-      .catch((error: unknown) => {
-        logger.error(
-          'Failed to start stdio server',
-          error instanceof Error ? error : undefined
-        );
-        process.exit(1);
-      });
+    startStdioServer();
   });
 
 program
@@ -78,7 +88,7 @@ program
   .option('-p, --port <port>', 'port number', '3000')
   .action((options: { port: string }) => {
     const httpPort = parseInt(options.port, 10) || 3000;
-    logger.info(`Starting HTTP server on port ${httpPort}`);
+    logger.info(`Starting HTTP server on port ${httpPort.toString()}`);
     // Always use dependency injection now
     const container = createProductionContainer();
     logger.debug('Using dependency injection');
@@ -101,27 +111,14 @@ program
   .action((options: { port: string }) => {
     const ssePort = parseInt(options.port, 10) || 3000;
     logger.warn('SSE transport is deprecated. Use "http" instead.');
-    logger.info(`Starting SSE server on port ${ssePort}`);
+    logger.info(`Starting SSE server on port ${ssePort.toString()}`);
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
     runSSE(() => createServer(createProductionContainer()), ssePort);
   });
 
 // Default action when no command is specified - defaults to stdio
 program.action(() => {
-  logger.info('No command specified, defaulting to stdio transport');
-
-  // Always use dependency injection now
-  const container = createProductionContainer();
-  logger.debug('Using dependency injection');
-
-  createInitializedServer(container)
-    .then(server => runStdio(server))
-    .catch((error: unknown) => {
-      logger.error(
-        'Failed to start stdio server',
-        error instanceof Error ? error : undefined
-      );
-      process.exit(1);
-    });
+  startStdioServer('No command specified, defaulting to stdio transport');
 });
 
 program.parse();
