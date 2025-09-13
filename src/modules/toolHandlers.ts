@@ -37,8 +37,7 @@ function splitSearchQuery(query: string): string[] {
  */
 export async function handleListInstructionModules(args: ToolArgs | undefined) {
   // Dynamic import to avoid circular dependency issues
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { getContainer } = require('./container.js') as typeof import('./container.js');
+  const { getContainer } = await import('./container.js');
   const container = getContainer();
   const toolHandlers = new ToolHandlers(container);
   return await toolHandlers.handleListInstructionModules(args);
@@ -49,8 +48,7 @@ export async function handleListInstructionModules(args: ToolArgs | undefined) {
  */
 export async function handleSearchInstructionModules(args: ToolArgs | undefined) {
   // Dynamic import to avoid circular dependency issues
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { getContainer } = require('./container.js') as typeof import('./container.js');
+  const { getContainer } = await import('./container.js');
   const container = getContainer();
   const toolHandlers = new ToolHandlers(container);
   return await toolHandlers.handleSearchInstructionModules(args);
@@ -61,27 +59,23 @@ export async function handleSearchInstructionModules(args: ToolArgs | undefined)
  */
 export async function handleGetModulesContent(args: ToolArgs | undefined) {
   // Dynamic import to avoid circular dependency issues
-  const { getContainer } =
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    require('./container.js') as typeof import('./container.js');
+  const { getContainer } = await import('./container.js');
   const container = getContainer();
   const toolHandlers = new ToolHandlers(container);
   return await toolHandlers.handleGetModulesContent(args);
 }
 
 /** Convenience function to handle semantic_search using the global container. */
-export function handleSemanticSearch(args: ToolArgs | undefined) {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { getContainer } = require('./container.js') as typeof import('./container.js');
+export async function handleSemanticSearch(args: ToolArgs | undefined) {
+  const { getContainer } = await import('./container.js');
   const container = getContainer();
   const toolHandlers = new ToolHandlers(container);
   return toolHandlers.handleSemanticSearch(args);
 }
 
 /** Convenience function to handle hybrid_search using the global container. */
-export function handleHybridSearch(args: ToolArgs | undefined) {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { getContainer } = require('./container.js') as typeof import('./container.js');
+export async function handleHybridSearch(args: ToolArgs | undefined) {
+  const { getContainer } = await import('./container.js');
   const container = getContainer();
   const toolHandlers = new ToolHandlers(container);
   return toolHandlers.handleHybridSearch(args);

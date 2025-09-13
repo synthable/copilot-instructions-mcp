@@ -433,8 +433,7 @@ export async function getModulesContent(
   moduleIds: string[]
 ): Promise<GetModulesContentResult> {
   // Dynamic import to avoid circular dependency issues
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { getContainer } = require('./container.js') as typeof import('./container.js');
+  const { getContainer } = await import('./container.js');
   const container = getContainer();
   const contentService = container.getContentService();
   return await contentService.getModulesContent(moduleIds);
