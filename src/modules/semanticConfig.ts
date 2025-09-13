@@ -57,7 +57,7 @@ export class SemanticConfig implements ISemanticConfig {
     );
     this.batchSize = this.validateBatchSize(options.batchSize ?? 32);
     this.maxContentLength = this.validateMaxContentLength(
-      options.maxContentLength ?? 5000
+      options.maxContentLength ?? 1536  // all-mpnet-base-v2 model limit
     );
     this.defaultAlpha = this.validateDefaultAlpha(options.defaultAlpha ?? 0.6);
     this.embeddingDimensions = this.validateEmbeddingDimensions(
@@ -344,9 +344,9 @@ export function createTestSemanticConfig(
   const testDefaults: SemanticConfigOptions = {
     modelName: 'test/mock-model',
     batchSize: 4,
-    maxContentLength: 1000,
+    maxContentLength: 1536,
     defaultAlpha: 0.5,
-    embeddingDimensions: 384,
+    embeddingDimensions: 768,
     indexingBatchSize: 4,
     maxMemoryUsageMB: 128,
     enableLazyLoading: false, // Disable for testing
