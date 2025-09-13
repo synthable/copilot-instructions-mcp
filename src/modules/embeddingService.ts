@@ -83,7 +83,7 @@ export class EmbeddingService implements IEmbeddingService {
       const transformersModule = await this.loadTransformersModule();
 
       progressCallback?.('loading', 0.5, 'Creating pipeline');
-      this.pipeline = await this.createPipeline(transformersModule);
+      this.pipeline = await this.createPipeline(transformersModule, progressCallback);
 
       // Validate pipeline with test embedding
       progressCallback?.('loading', 0.8, 'Validating pipeline');
@@ -119,16 +119,16 @@ export class EmbeddingService implements IEmbeddingService {
     progressCallback?: EmbeddingProgressCallback
   ): Promise<number[]> {
     this.ensureInitialized();
-    this.validateTextInput(text);
+    const truncatedText = this.validateAndTruncateText(text);
 
     // Check cache first
-    const hash = this.computeTextHash(text);
+    const hash = this.computeTextHash(truncatedText);
     const cached = this.embeddingCache.get(hash);
 
     if (cached) {
       this.cacheStats.hits++;
       progressCallback?.('processing', 1.0, 'Retrieved from cache');
-      this.logger.debug('Cache hit for embedding', { hash, textLength: text.length });
+      this.logger.debug('Cache hit for embedding', { hash, textLength: truncatedText.length });
       this.resetDisposeTimer();
       return cached.embedding;
     }
@@ -137,7 +137,7 @@ export class EmbeddingService implements IEmbeddingService {
 
     try {
       progressCallback?.('processing', 0.1, 'Computing embedding');
-      const results = await this.embedBatch([text], progressCallback);
+      const results = await this.embedBatch([truncatedText], progressCallback);
       const embedding = results[0];
 
       // Cache the result
@@ -155,7 +155,8 @@ export class EmbeddingService implements IEmbeddingService {
         'Failed to generate single embedding',
         error instanceof Error ? error : undefined,
         {
-          textLength: text.length.toString(),
+          originalLength: text.length.toString(),
+          truncatedLength: truncatedText.length.toString(),
           hash,
         }
       );
@@ -173,7 +174,7 @@ export class EmbeddingService implements IEmbeddingService {
     progressCallback?: EmbeddingProgressCallback
   ): Promise<number[][]> {
     this.ensureInitialized();
-    this.validateBatchInput(texts);
+    const truncatedTexts = this.validateAndTruncateBatch(texts);
 
     if (!this.pipeline) {
       throw new Error('Pipeline not initialized');
@@ -186,7 +187,7 @@ export class EmbeddingService implements IEmbeddingService {
 
     progressCallback?.('processing', 0.1, 'Checking cache for batch');
 
-    texts.forEach((text, index) => {
+    truncatedTexts.forEach((text, index) => {
       const hash = this.computeTextHash(text);
       const cached = this.embeddingCache.get(hash);
 
@@ -201,8 +202,8 @@ export class EmbeddingService implements IEmbeddingService {
     });
 
     this.logger.debug('Batch cache analysis', {
-      totalTexts: texts.length,
-      cachedCount: texts.length - uncachedTexts.length,
+      totalTexts: truncatedTexts.length,
+      cachedCount: truncatedTexts.length - uncachedTexts.length,
       uncachedCount: uncachedTexts.length,
     });
 
@@ -304,16 +305,25 @@ export class EmbeddingService implements IEmbeddingService {
   }
 
   /**
-   * Creates a validated transformer pipeline.
+   * Creates a validated transformer pipeline with download progress feedback.
    */
   private async createPipeline(
-    transformersModule: TransformersModule
+    transformersModule: TransformersModule,
+    progressCallback?: EmbeddingProgressCallback
   ): Promise<TransformerPipeline> {
     try {
+      // Emit download start progress
+      progressCallback?.('download', 0.0, 'Starting model download');
+      
+      // Create pipeline - @xenova/transformers will automatically download the model if not cached
+      // Note: The transformers library doesn't expose download progress directly
       const pipeline = await transformersModule.pipeline(
         'feature-extraction',
         this.config.getModelName()
       );
+
+      // Emit download completion
+      progressCallback?.('download', 1.0, 'Model download complete');
 
       if (typeof pipeline !== 'function') {
         throw new Error('Pipeline creation returned invalid function');
@@ -372,12 +382,14 @@ export class EmbeddingService implements IEmbeddingService {
     }
   }
 
-  /**
-   * Validates text input for embedding.
+    /**
+   * Validates and truncates individual text input for embedding.
    */
-  private validateTextInput(text: string): void {
+  private validateAndTruncateText(text: string): string {
     if (typeof text !== 'string') {
-      throw new Error('Text input must be a string');
+      throw new Error(
+        `Text input must be a string, got ${typeof text === 'object' ? JSON.stringify(text) : String(text)}`
+      );
     }
 
     if (text.length === 0) {
@@ -386,10 +398,16 @@ export class EmbeddingService implements IEmbeddingService {
 
     const maxLength = this.config.getMaxContentLength();
     if (text.length > maxLength) {
-      throw new Error(
-        `Text input too long: ${text.length.toString()} > ${maxLength.toString()} characters`
-      );
+      this.logger.warn('Text input truncated due to model length limit', undefined, {
+        originalLength: text.length,
+        maxLength,
+        truncated: text.length - maxLength,
+        modelLimit: 'all-mpnet-base-v2 supports max 1536 characters'
+      });
+      return text.substring(0, maxLength);
     }
+
+    return text;
   }
 
   /**
@@ -410,10 +428,17 @@ export class EmbeddingService implements IEmbeddingService {
         `Batch size too large: ${texts.length.toString()} > ${maxBatchSize.toString()}`
       );
     }
+  }
 
-    texts.forEach((text, index) => {
+  /**
+   * Validates and truncates batch input for embedding.
+   */
+  private validateAndTruncateBatch(texts: string[]): string[] {
+    this.validateBatchInput(texts);
+    
+    return texts.map((text, index) => {
       try {
-        this.validateTextInput(text);
+        return this.validateAndTruncateText(text);
       } catch (error) {
         throw new Error(
           `Invalid text at index ${index.toString()}: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -608,12 +633,13 @@ export class EmbeddingService implements IEmbeddingService {
     }
 
     // Dispose after 5 minutes of inactivity
+    // Use unref() so the timer doesn't prevent the process from exiting
     this.disposeTimer = setTimeout(
       () => {
         this.logger.debug('Disposing embedding service due to inactivity');
         this.dispose();
       },
       5 * 60 * 1000
-    );
+    ).unref();
   }
 }
