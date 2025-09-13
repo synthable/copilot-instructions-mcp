@@ -337,8 +337,7 @@ export async function searchInstructionModules(
   searchTerms: string[]
 ): Promise<SearchResult[]> {
   // Dynamic import to avoid circular dependency issues
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { getContainer } = require('./container.js') as typeof import('./container.js');
+  const { getContainer } = await import('./container.js');
   const container = getContainer();
   const searchService = container.getSearchService();
   return await searchService.searchInstructionModules(searchTerms);
