@@ -19,9 +19,9 @@ describe('ContentService - UMS v1.1 Rendering', () => {
         existsSync: vi.fn(() => true)
       },
       pathUtils: {
-        join: vi.fn((...args) => args.join('/')),
-        relative: vi.fn((base, target) => target.replace(base + '/', '')),
-        resolve: vi.fn((base, target) => `${base}/${target}`)
+        join: vi.fn((...args: string[]) => args.join('/')),
+        relative: vi.fn((base: string, target: string) => target.replace(base + '/', '')),
+        resolve: vi.fn((base: string, target: string) => `${base}/${target}`)
       },
       processUtils: {
         cwd: vi.fn(() => '/test/cwd')
