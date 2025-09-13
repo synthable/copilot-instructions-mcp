@@ -35,6 +35,22 @@ export default tseslint.config(
   {
     files: ['**/*.{test,spec}.{js,ts,tsx}'],
     ...vitest.configs.recommended,
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-non-null-assertion': 'off',
+      'max-lines-per-function': 'off',
+    },
+    settings: {
+      vitest: {
+        typecheck: true,
+      },
+    },
+    languageOptions: {
+      globals: {
+        ...vitest.environments.env.globals,
+        NodeJS: 'readonly',
+      },
+    },
   },
   prettierConfig,
 );
