@@ -66,8 +66,7 @@ body:
         .mockReturnValueOnce(['test.module.yml']); // Second call: foundation directory
 
       vi.mocked(mockDependencies.fileSystem.statSync).mockImplementation((path) => {
-        const pathStr = String(path);
-        if (pathStr.endsWith('foundation') || pathStr.includes('instructions-modules/foundation')) {
+        if (path.endsWith('foundation') || path.includes('instructions-modules/foundation')) {
           return { isDirectory: () => true, isFile: () => false } as any;
         }
         return { isDirectory: () => false, isFile: () => true } as any;

@@ -258,6 +258,7 @@ export function validateCategoryFilter(category: unknown): string | null {
   }
 
   // Check for dangerous characters
+  // eslint-disable-next-line no-control-regex
   if (/[\0\n\r\t\x00-\x1f]/.test(trimmed)) {
     throw new Error('Category contains invalid control characters');
   }
@@ -330,7 +331,7 @@ export function validateModuleIds(moduleIds: unknown): string[] {
     // Stricter pattern validation to prevent path traversal in module IDs
     // Allow: letters, numbers, dots, forward slashes, hyphens, underscores
     // Disallow: backslashes, double dots, null bytes, control characters
-    if (!/^[a-zA-Z0-9._/\-]+$/.test(trimmed)) {
+    if (!/^[a-zA-Z0-9._/-]+$/.test(trimmed)) {
       throw new Error(
         `Invalid module ID format (contains disallowed characters): ${trimmed}`
       );
