@@ -241,7 +241,7 @@ async function parseYamlModule(
         ? idUnknown
         : undefined;
     const id = (
-      idSource ?? relPath.replace(/\.module\.yml$/, '').replace(/\//g, '/')
+      idSource ?? relPath.replace(/\.module\.yml$/, '')
     ).trim();
 
     const parts = relPath.split('/');
