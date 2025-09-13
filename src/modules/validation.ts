@@ -26,6 +26,13 @@ export const CONFIG = {
   MIN_SEARCH_LIMIT: 1,
   DEFAULT_SEARCH_LIMIT: 10,
   MAX_MODULE_IDS: 20,
+  // Field-specific string length limits for better security
+  FIELD_LIMITS: {
+    SEARCH_QUERY_MAX: 500,
+    MODULE_ID_MAX: 200,
+    CATEGORY_NAME_MAX: 50,
+    FILE_PATH_MAX: 500,
+  },
   SCORING: {
     NAME_WEIGHT: 2.0,
     DESCRIPTION_WEIGHT: 1.5,
@@ -41,10 +48,12 @@ export const CONFIG = {
  * Validates and sanitizes file paths to prevent path traversal attacks.
  *
  * This function ensures that the requested file path is within the allowed
- * base directory and prevents malicious path traversal attempts.
+ * base directory and prevents malicious path traversal attempts with
+ * comprehensive security checks.
  *
  * @param filePath - The file path to validate (relative to baseDir)
  * @param baseDir - The base directory that contains allowed files
+ * @param pathUtils - Optional path utilities for dependency injection
  * @returns The resolved absolute path if valid
  * @throws {Error} If the path is invalid or attempts path traversal
  *
@@ -53,8 +62,10 @@ export const CONFIG = {
  * const safePath = validateFilePath('modules/example.md', '/safe/directory');
  * // Returns: '/safe/directory/modules/example.md'
  *
- * // This would throw an error:
+ * // These would throw errors:
  * validateFilePath('../../../etc/passwd', '/safe/directory');
+ * validateFilePath('/absolute/path', '/safe/directory');
+ * validateFilePath('file\\..\\..\\other', '/safe/directory');
  * ```
  *
  * @since 1.0.0
@@ -68,6 +79,33 @@ export function validateFilePath(
     throw new Error('File path must be a non-empty string');
   }
 
+  // Enhanced length validation
+  if (filePath.length > CONFIG.FIELD_LIMITS.FILE_PATH_MAX) {
+    throw new Error(
+      `File path too long (max ${CONFIG.FIELD_LIMITS.FILE_PATH_MAX.toString()} characters)`
+    );
+  }
+
+  // Check for null bytes and other dangerous characters
+  if (filePath.includes('\0')) {
+    throw new Error('File path contains null byte');
+  }
+
+  // Check for absolute path attempts
+  if (filePath.startsWith('/') || /^[a-zA-Z]:\\/.test(filePath)) {
+    throw new Error('File path cannot be absolute');
+  }
+
+  // Check for explicit traversal patterns
+  if (
+    filePath.includes('../') ||
+    filePath.includes('..\\') ||
+    filePath.includes('/..') ||
+    filePath.includes('\\..')
+  ) {
+    throw new Error('File path contains traversal sequences');
+  }
+
   // Use injected path utils or fall back to Node.js path module
   // eslint-disable-next-line @typescript-eslint/unbound-method
   const resolveFunc = pathUtils ? pathUtils.resolve : resolve;
@@ -78,12 +116,20 @@ export function validateFilePath(
   const fullPath = resolveFunc(baseDir, filePath);
   const relativePath = relativeFunc(baseDir, fullPath);
 
-  // Check for path traversal attempts
+  // Enhanced path traversal checks
   if (
     relativePath.startsWith('..') ||
+    relativePath === '..' ||
+    relativePath.includes('/../') ||
     resolveFunc(baseDir, relativePath) !== fullPath
   ) {
     throw new Error('Invalid file path: path traversal detected');
+  }
+
+  // Ensure the resolved path is still under baseDir (double-check)
+  const normalizedBase = resolveFunc(baseDir);
+  if (!fullPath.startsWith(normalizedBase + '/') && fullPath !== normalizedBase) {
+    throw new Error('File path resolves outside base directory');
   }
 
   return fullPath;
@@ -121,8 +167,10 @@ export function validateSearchQuery(query: unknown): string {
     throw new Error('Search query cannot be empty');
   }
 
-  if (trimmed.length > 500) {
-    throw new Error('Search query too long (max 500 characters)');
+  if (trimmed.length > CONFIG.FIELD_LIMITS.SEARCH_QUERY_MAX) {
+    throw new Error(
+      `Search query too long (max ${CONFIG.FIELD_LIMITS.SEARCH_QUERY_MAX.toString()} characters)`
+    );
   }
 
   return trimmed;
@@ -202,6 +250,18 @@ export function validateCategoryFilter(category: unknown): string | null {
     return null;
   }
 
+  // Enhanced length validation
+  if (trimmed.length > CONFIG.FIELD_LIMITS.CATEGORY_NAME_MAX) {
+    throw new Error(
+      `Category name too long (max ${CONFIG.FIELD_LIMITS.CATEGORY_NAME_MAX.toString()} characters)`
+    );
+  }
+
+  // Check for dangerous characters
+  if (/[\0\n\r\t\x00-\x1f]/.test(trimmed)) {
+    throw new Error('Category contains invalid control characters');
+  }
+
   const validCategories = ['Foundation', 'Principle', 'Technology', 'Execution'];
   const normalizedCategory =
     trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
@@ -217,8 +277,9 @@ export function validateCategoryFilter(category: unknown): string | null {
  * Validates an array of instruction module IDs.
  *
  * Ensures all module IDs are valid strings with proper formatting and
- * within acceptable quantity limits. Module IDs can be dot- or slash-separated
- * (legacy vs. UMS identifiers).
+ * within acceptable quantity limits. Module IDs support both formats:
+ * - UMS format: dot-separated (e.g., 'foundation.logic.deductive-reasoning')
+ * - Legacy format: slash-separated (e.g., 'foundation/logic/deductive-reasoning')
  *
  * @param moduleIds - The array of module IDs to validate (unknown type from user input)
  * @returns Array of validated and trimmed module ID strings
@@ -228,9 +289,9 @@ export function validateCategoryFilter(category: unknown): string | null {
  * ```typescript
  * const validIds = validateModuleIds([
  *   'foundation.logic.deductive-reasoning',
- *   'technology.language.typescript.generics'
+ *   'technology/language/typescript/generics'
  * ]);
- * // Returns: ['foundation.logic.deductive-reasoning', 'technology.language.typescript.generics']
+ * // Returns: ['foundation.logic.deductive-reasoning', 'technology/language/typescript/generics']
  * ```
  *
  * @since 1.0.0
@@ -259,8 +320,40 @@ export function validateModuleIds(moduleIds: unknown): string[] {
       throw new Error('Module IDs cannot be empty');
     }
 
+    // Enhanced length validation
+    if (trimmed.length > CONFIG.FIELD_LIMITS.MODULE_ID_MAX) {
+      throw new Error(
+        `Module ID too long (max ${CONFIG.FIELD_LIMITS.MODULE_ID_MAX.toString()} characters): ${trimmed}`
+      );
+    }
+
+    // Stricter pattern validation to prevent path traversal in module IDs
+    // Allow: letters, numbers, dots, forward slashes, hyphens, underscores
+    // Disallow: backslashes, double dots, null bytes, control characters
     if (!/^[a-zA-Z0-9._/\-]+$/.test(trimmed)) {
-      throw new Error(`Invalid module ID format: ${trimmed}`);
+      throw new Error(
+        `Invalid module ID format (contains disallowed characters): ${trimmed}`
+      );
+    }
+
+    // Prevent path traversal patterns in module IDs
+    if (
+      trimmed.includes('..') ||
+      trimmed.includes('//') ||
+      trimmed.startsWith('/') ||
+      trimmed.endsWith('/') ||
+      trimmed.includes('\0')
+    ) {
+      throw new Error(
+        `Invalid module ID format (potential security issue): ${trimmed}`
+      );
+    }
+
+    // Ensure reasonable structure (must contain at least one separator)
+    if (!trimmed.includes('.') && !trimmed.includes('/')) {
+      throw new Error(
+        `Module ID must contain category separators (. or /): ${trimmed}`
+      );
     }
 
     validatedIds.push(trimmed);
