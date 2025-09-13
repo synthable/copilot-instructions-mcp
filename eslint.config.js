@@ -36,9 +36,21 @@ export default tseslint.config(
     files: ['**/*.{test,spec}.{js,ts,tsx}'],
     ...vitest.configs.recommended,
     rules: {
+      // Essential for mocking patterns
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/unbound-method': 'off',
+      
+      // Allow long test functions
       'max-lines-per-function': 'off',
+      
+      // Keep type safety for string operations
+      '@typescript-eslint/restrict-plus-operands': 'error',
+      '@typescript-eslint/restrict-template-expressions': 'error',
     },
     settings: {
       vitest: {
