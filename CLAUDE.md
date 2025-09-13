@@ -1,116 +1,261 @@
-# CLAUDE.md
+# Vitest Implementation and Testing Strategy
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## Overview
 
-## Core Architecture
+This project uses Vitest as the primary testing framework with v8 coverage reporting. The testing strategy emphasizes comprehensive coverage, proper mocking, and maintainable test patterns for a CLI tool built with TypeScript and Node.js ESM.
 
-This is an **MCP (Model Context Protocol) server** that provides AI assistants with access to instruction modules for dynamic capability enhancement. The server parses a large collection of instruction modules from `instructions-modules/README.md` and provides three main tools plus bootstrap prompts.
+## Configuration
 
-### Key Components
+### Vitest Configuration (`vitest.config.ts`)
+```typescript
+import { defineConfig } from 'vitest/config';
 
-- **`src/index.ts`**: Single-file MCP server implementation with three transport modes (stdio, HTTP, SSE)
-- **`instructions-modules/`**: Large collection of AI instruction modules organized in four-tier hierarchy:
-  - **Foundation**: Core reasoning, logic, problem-solving capabilities (layers 0-3)
-  - **Principle**: Best practices, methodologies, design patterns
-  - **Technology**: Language/framework-specific guidance 
-  - **Execution**: Step-by-step playbooks for common tasks
-- **`docs/`**: Bootstrap prompts for AI system prompt generation
-- **`test_search.js`**: Comprehensive test suite with 11 test cases
+export default defineConfig({
+  test: {
+    environment: 'node',
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      thresholds: {
+        branches: 80,
+        functions: 80,
+        lines: 80,
+        statements: 80
+      }
+    }
+  }
+});
+```
 
-### MCP Tools Provided
+### Package.json Scripts
+```json
+{
+  "scripts": {
+    "test": "vitest run --run",
+    "dev": "vitest", 
+    "coverage": "vitest run --coverage",
+    "pretest": "npm run typecheck"
+  }
+}
+```
 
-1. **`list_instruction_modules`**: Lists all modules with metadata and optional category filtering
-2. **`search_instruction_modules`**: Fuzzy search across module names, descriptions, categories, and file content using Levenshtein distance
-3. **`get_modules_content`**: Combines multiple modules into formatted markdown with headers and metadata
+## Testing Patterns
 
-### MCP Prompts Provided
+### 1. CLI Command Testing Pattern
 
-1. **`bootstrap-prompt`**: Comprehensive system prompt generation with dynamic module discovery
-2. **`system-prompt-generator`**: Production AI assistant enhancement 
-3. **`concise-integration`**: Minimal MCP integration for existing prompts
-4. **`persona-builder`**: Specialized persona development following four-tier philosophy
+**Structure**: Each command has a corresponding `.test.ts` file alongside the implementation.
 
-## Development Commands
+**Example**: `src/commands/validate.test.ts`
+```typescript
+import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
+import { promises as fs } from 'fs';
+import { glob } from 'glob';
 
-### Building and Running
+// Mock external dependencies
+vi.mock('fs', () => ({ promises: { stat: vi.fn() } }));
+vi.mock('glob', () => ({ glob: vi.fn() }));
+vi.mock('../core/ums-module-loader', () => ({ loadModule: vi.fn() }));
+vi.mock('../core/ums-persona-loader', () => ({ loadPersona: vi.fn() }));
+
+describe('validate command', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterAll(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('should handle different path types correctly', async () => {
+    // Test implementation
+  });
+});
+```
+
+### 2. Mock Strategy
+
+**File System Mocking**: 
+- Mock `fs.promises.stat` for path type detection
+- Mock `glob` for file discovery patterns
+- Use typed mocks: `vi.mocked(glob).mockImplementation((pattern: string | string[]) => ...)`
+
+**Module Loading Mocking**:
+- Mock UMS loaders (`loadModule`, `loadPersona`) to return controlled test data
+- Mock external utilities like `chalk` and console methods for output testing
+
+**Pattern for Glob Mocking**:
+```typescript
+vi.mocked(glob).mockImplementation((pattern: string | string[]) => {
+  const patternStr = Array.isArray(pattern) ? pattern[0] : pattern;
+  if (patternStr.includes('module.yml')) {
+    return Promise.resolve(['module1.module.yml']);
+  }
+  // Handle other patterns
+  return Promise.resolve([]);
+});
+```
+
+### 3. Error Handling Testing
+
+**Success Cases**: Test normal operation with valid inputs
+**Error Cases**: Test file not found, invalid formats, validation failures
+**Edge Cases**: Test empty directories, mixed file types, permission issues
+
+Example pattern:
+```typescript
+it('should handle file not found errors', async () => {
+  vi.mocked(fs.stat).mockRejectedValue(new Error('ENOENT'));
+  const result = await validatePath('nonexistent.yml');
+  expect(result.success).toBe(false);
+  expect(result.error).toContain('File not found');
+});
+```
+
+### 4. Console Output Testing
+
+Mock console methods and verify output formatting:
+```typescript
+const mockConsoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
+const mockConsoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+// Test execution
+await command();
+
+// Verify output
+expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Expected output'));
+```
+
+## UMS v1.0 Testing Specifics
+
+### Module Validation Testing
+
+**File Patterns**: Test discovery of `instructions-modules/**/*.module.yml`
+**Schema Validation**: Test YAML parsing and schema compliance
+**Error Reporting**: Test detailed validation messages with key paths
+
+### Persona Validation Testing  
+
+**File Patterns**: Test discovery of `personas/**/*.persona.yml`
+**Configuration Validation**: Test required fields and structure
+**Module Reference Validation**: Test that referenced modules exist
+
+### Path Handling Testing
+
+**No Path**: Should discover standard locations (`instructions-modules/`, `personas/`)
+**File Path**: Should validate single file
+**Directory Path**: Should recursively find and validate files within directory
+
+## Coverage Strategy
+
+### Target Metrics
+- **80% minimum** for branches, functions, lines, and statements
+- **Focus areas**: Core business logic, error handling, edge cases
+- **Exclusions**: Type definitions, configuration files
+
+### High-Value Test Cases
+1. **Command argument parsing and validation**
+2. **File discovery and pattern matching** 
+3. **YAML parsing and type safety**
+4. **Error aggregation and reporting**
+5. **Exit code behavior**
+
+## TypeScript Integration
+
+### Type-Safe Mocking
+```typescript
+// Proper typing for mocked functions
+vi.mocked(loadModule).mockResolvedValue({} as UMSModule);
+vi.mocked(fs.stat).mockResolvedValue({ 
+  isFile: () => true, 
+  isDirectory: () => false 
+} as any);
+```
+
+### ESLint Disable Patterns
+Use targeted disables for unavoidable mock-related type issues:
+```typescript
+/* eslint-disable @typescript-eslint/no-unsafe-return, @typescript-eslint/no-empty-function, @typescript-eslint/no-unsafe-argument */
+```
+
+## Test Execution Patterns
+
+### Development Workflow
 ```bash
-# Build TypeScript to dist/
-npm run build
-
-# Run with stdio transport (default for MCP clients)
-npm start
-# or
-npm run start:stdio
-
-# Run with HTTP transport (for web clients)
-npm run start:http
-
-# Run with SSE transport (deprecated)
-npm run start:sse
-
-# Development mode with auto-rebuild
+# Watch mode during development
 npm run dev
+
+# Run specific test file  
+npx vitest run src/commands/validate.test.ts
+
+# Run with coverage
+npm run coverage
+
+# Full quality check
+npm run quality-check  # includes typecheck + test + lint
 ```
 
-### Testing
+### CI/CD Integration
 ```bash
-# Run comprehensive test suite (builds first)
-npm run test:search
+# Pre-commit: Type checking before tests
+npm run pretest  # runs typecheck first
 
-# Run unit tests
-npm test
+# Main test suite
+npm test  # runs all tests with proper exit codes
 ```
 
-## Core Implementation Details
+## Common Patterns and Solutions
 
-### Module Parsing
-The `parseInstructionModules()` function parses `instructions-modules/README.md` using regex patterns to extract:
-- Categories (`## Title`)
-- Subcategories (`- **Title**`) 
-- Module entries (`- [Name](path) - Description`)
+### Async Command Testing
+```typescript
+it('should handle async operations', async () => {
+  // Setup mocks
+  vi.mocked(someAsyncFunction).mockResolvedValue(expectedResult);
+  
+  // Execute
+  const result = await commandFunction();
+  
+  // Verify
+  expect(result).toEqual(expectedResult);
+});
+```
 
-Module IDs are generated from file paths: `path/file.md` → `path.file`
+### Error Boundary Testing
+```typescript
+it('should catch and format errors properly', async () => {
+  vi.mocked(riskyFunction).mockRejectedValue(new Error('Test error'));
+  
+  const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  
+  await expect(commandFunction()).resolves.not.toThrow();
+  expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Test error'));
+});
+```
 
-### Fuzzy Search Algorithm
-Uses weighted Levenshtein distance scoring:
-- **Name matches**: 2x weight (highest priority)
-- **Description matches**: 1.5x weight
-- **Category/subcategory matches**: 1x weight
-- **Content matches**: 0.8x weight (with context extraction)
+### File System Abstraction Testing
+Mock file system operations consistently across all tests to ensure reliable, fast test execution without actual file I/O.
 
-Results include `score`, `matchedFields`, and optional `contentMatches` for transparency.
+## Key Learnings
 
-### Transport Architecture
-The server uses a modular transport system:
-- **stdio**: Default for MCP Inspector and CLI clients
-- **HTTP**: Streamable HTTP for web applications
-- **SSE**: Server-Sent Events (deprecated, use HTTP instead)
+1. **Mock Typing**: Always properly type mocks to catch TypeScript errors early
+2. **Pattern Matching**: Use flexible pattern matching in glob mocks to handle string/array inputs
+3. **Error Isolation**: Test error conditions in isolation with proper mock setup
+4. **Console Mocking**: Mock console methods to verify CLI output formatting
+5. **Async Patterns**: Use proper async/await patterns in tests for reliable execution
+6. **Coverage Focus**: Prioritize testing business logic over infrastructure code
 
-All transports share the same `setupServerHandlers()` function for consistent tool/prompt behavior.
+## Transfer Checklist
 
-### Dynamic Prompt Loading
-Bootstrap prompts are loaded from `docs/` files with automatic tool name mapping:
-- `list_modules` → `list_instruction_modules`
-- `module_discovery` → `search_instruction_modules` 
-- `module_compile` → `get_modules_content`
+When implementing similar testing in a new context:
 
-## Testing Strategy
+- [ ] Configure Vitest with v8 coverage and 80% thresholds
+- [ ] Set up proper TypeScript integration with ESM
+- [ ] Implement consistent mocking patterns for file system operations
+- [ ] Create test files alongside implementation files
+- [ ] Mock external dependencies (fs, glob, etc.) with proper typing
+- [ ] Test both success and error paths for each command
+- [ ] Verify console output and error reporting
+- [ ] Include pre-commit hooks that run typecheck before tests
+- [ ] Set up watch mode for development workflow
+- [ ] Document common testing patterns for team consistency
 
-The test suite validates:
-- Tool listing and descriptions
-- Search functionality with scoring validation
-- Module content retrieval with error handling
-- Prompt listing and content loading
-- Edge cases (empty queries, invalid IDs, missing files)
-
-Each test includes detailed expectations for response structure, required fields, and content validation.
-
-## Four-Tier Module Philosophy
-
-When working with instruction modules, always respect the hierarchical order:
-1. **Foundation** modules must be ordered by layer (0→3) 
-2. **Principle** modules provide domain methodology
-3. **Technology** modules offer concrete implementations
-4. **Execution** modules give step-by-step procedures
-
-This hierarchy ensures AI assistants build capabilities systematically from core reasoning to specific execution patterns.
+This testing strategy provides comprehensive coverage while maintaining fast, reliable test execution suitable for both development and CI/CD environments.
