@@ -144,10 +144,7 @@ export class ContentService implements IContentService {
     try {
       // Parse the full YAML module
       const raw = this.dependencies.fileSystem.readFileSync(contentPath, 'utf-8');
-      const parseYaml: (s: string) => unknown = yamlParseFn as unknown as (
-        s: string
-      ) => unknown;
-      const parsedUnknown = parseYaml(raw);
+      const parsedUnknown: unknown = yamlParseFn(raw);
 
       if (!this.isRecord(parsedUnknown)) {
         return this.renderSimpleYamlContent(module);
