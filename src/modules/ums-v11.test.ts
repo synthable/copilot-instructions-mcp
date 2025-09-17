@@ -12,19 +12,19 @@ describe('UMS v1.1 Implementation', () => {
         shape: 'specification',
         declaredDirectives: {
           required: ['purpose'],
-          optional: ['recommended', 'discouraged']
+          optional: ['recommended', 'discouraged'],
         },
         meta: {
           name: 'Test Module',
           description: 'Test v1.1 module',
           layer: 1,
-          tags: ['test']
+          tags: ['test'],
         },
         body: {
           purpose: 'Test purpose',
           recommended: ['Best practice 1', 'Best practice 2'],
-          discouraged: ['Anti-pattern 1']
-        }
+          discouraged: ['Anti-pattern 1'],
+        },
       };
 
       expect(v11Module.schemaVersion).toBe('1.1');
@@ -35,11 +35,7 @@ describe('UMS v1.1 Implementation', () => {
 
     it('should support composite list directives', () => {
       // Simple array format
-      const simpleList: CompositeListDirective = [
-        'Item 1',
-        'Item 2',
-        'Item 3'
-      ];
+      const simpleList: CompositeListDirective = ['Item 1', 'Item 2', 'Item 3'];
 
       expect(Array.isArray(simpleList)).toBe(true);
       expect(simpleList).toHaveLength(3);
@@ -47,7 +43,7 @@ describe('UMS v1.1 Implementation', () => {
       // Composite format with description
       const compositeList: CompositeListDirective = {
         desc: 'This is a description',
-        list: ['Item 1', 'Item 2']
+        list: ['Item 1', 'Item 2'],
       };
 
       expect(Array.isArray(compositeList)).toBe(false);
@@ -65,7 +61,7 @@ describe('UMS v1.1 Implementation', () => {
         process: ['Step 1', 'Step 2'],
         constraints: ['Constraint 1'],
         principles: ['Principle 1'],
-        criteria: ['- [ ] Check 1', '- [ ] Check 2']
+        criteria: ['- [ ] Check 1', '- [ ] Check 2'],
       };
 
       // Check all new v1.1 directives are present
@@ -87,15 +83,18 @@ describe('UMS v1.1 Implementation', () => {
       expect(validateFoundationLayer(4, 'foundation')).toBe(4);
 
       // Invalid values should throw
-      expect(() => validateFoundationLayer(5, 'foundation'))
-        .toThrow('Layer must be between 0 and 4 (inclusive)');
-      
-      expect(() => validateFoundationLayer(-1, 'foundation'))
-        .toThrow('Layer must be between 0 and 4 (inclusive)');
+      expect(() => validateFoundationLayer(5, 'foundation')).toThrow(
+        'Layer must be between 0 and 4 (inclusive)'
+      );
+
+      expect(() => validateFoundationLayer(-1, 'foundation')).toThrow(
+        'Layer must be between 0 and 4 (inclusive)'
+      );
 
       // Non-foundation tiers should not have layer
-      expect(() => validateFoundationLayer(1, 'principle'))
-        .toThrow('Layer field is only allowed for foundation tier modules');
+      expect(() => validateFoundationLayer(1, 'principle')).toThrow(
+        'Layer field is only allowed for foundation tier modules'
+      );
     });
   });
 
@@ -105,15 +104,15 @@ describe('UMS v1.1 Implementation', () => {
         schemaVersion: '1.0',
         body: {
           // v1.0 uses 'goal' instead of 'purpose'
-        }
+        },
       };
 
       const v11Module: Partial<UMSv11Module> = {
         schemaVersion: '1.1',
         body: {
           purpose: 'v1.1 uses purpose',
-          recommended: ['New v1.1 directive']
-        }
+          recommended: ['New v1.1 directive'],
+        },
       };
 
       expect(v10Module.schemaVersion).toBe('1.0');
@@ -124,14 +123,21 @@ describe('UMS v1.1 Implementation', () => {
 
   describe('Shape-specific Features', () => {
     it('should support different module shapes', () => {
-      const shapes = ['specification', 'pattern', 'procedure', 'playbook', 'checklist', 'data'];
-      
+      const shapes = [
+        'specification',
+        'pattern',
+        'procedure',
+        'playbook',
+        'checklist',
+        'data',
+      ];
+
       shapes.forEach(shape => {
         const module: Partial<UMSv11Module> = {
           shape,
           body: {
-            purpose: `Purpose for ${shape} shape`
-          }
+            purpose: `Purpose for ${shape} shape`,
+          },
         };
 
         expect(module.shape).toBe(shape);
@@ -146,24 +152,24 @@ describe('UMS v1.1 Implementation', () => {
         data: {
           mediaType: 'application/json',
           value: '{"test": "data"}',
-          language: 'json'
+          language: 'json',
         },
         examples: [
           {
             title: 'JSON Example',
             rationale: 'Shows JSON usage',
             snippet: '{"key": "value"}',
-            language: 'json'
-          }
+            language: 'json',
+          },
         ],
         resources: [
           {
             name: 'Reference Data',
             mediaType: 'text/yaml',
             value: 'key: value',
-            language: 'yaml'
-          }
-        ]
+            language: 'yaml',
+          },
+        ],
       };
 
       expect(moduleWithData.data?.mediaType).toBe('application/json');

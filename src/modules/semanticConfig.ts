@@ -57,7 +57,7 @@ export class SemanticConfig implements ISemanticConfig {
     );
     this.batchSize = this.validateBatchSize(options.batchSize ?? 32);
     this.maxContentLength = this.validateMaxContentLength(
-      options.maxContentLength ?? 1536  // all-mpnet-base-v2 model limit
+      options.maxContentLength ?? 1536 // all-mpnet-base-v2 model limit
     );
     this.defaultAlpha = this.validateDefaultAlpha(options.defaultAlpha ?? 0.6);
     this.embeddingDimensions = this.validateEmbeddingDimensions(

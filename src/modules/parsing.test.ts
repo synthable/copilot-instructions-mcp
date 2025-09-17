@@ -11,28 +11,30 @@ describe('InstructionModuleParser - UMS v1.1 Support', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     mockDependencies = {
       fileSystem: {
         readFileSync: vi.fn(),
         readdirSync: vi.fn(),
         statSync: vi.fn(),
-        existsSync: vi.fn()
+        existsSync: vi.fn(),
       },
       pathUtils: {
         join: vi.fn((...args: string[]) => args.join('/')),
-        relative: vi.fn((base: string, target: string) => target.replace(base + '/', '')),
-        resolve: vi.fn((base: string, target: string) => `${base}/${target}`)
+        relative: vi.fn((base: string, target: string) =>
+          target.replace(base + '/', '')
+        ),
+        resolve: vi.fn((base: string, target: string) => `${base}/${target}`),
       },
       processUtils: {
-        cwd: vi.fn(() => '/test/cwd')
+        cwd: vi.fn(() => '/test/cwd'),
       },
       logger: {
         debug: vi.fn(),
         info: vi.fn(),
         warn: vi.fn(),
-        error: vi.fn()
-      }
+        error: vi.fn(),
+      },
     };
 
     parser = new InstructionModuleParser(mockDependencies);
@@ -46,7 +48,7 @@ describe('InstructionModuleParser - UMS v1.1 Support', () => {
     it('should extract layer field from foundation modules', async () => {
       // Clear the cache first
       parser.clearModuleCache();
-      
+
       const v11FoundationYaml = `
 id: "foundation/ethics/do-no-harm"
 version: "1.0.0"
@@ -62,26 +64,31 @@ body:
 
       // Mock complete directory structure
       vi.mocked(mockDependencies.fileSystem.readdirSync)
-        .mockReturnValueOnce(['foundation'])  // First call: base directory
+        .mockReturnValueOnce(['foundation']) // First call: base directory
         .mockReturnValueOnce(['test.module.yml']); // Second call: foundation directory
 
-      vi.mocked(mockDependencies.fileSystem.statSync).mockImplementation((path) => {
-        if (path.endsWith('foundation') || path.includes('instructions-modules/foundation')) {
+      vi.mocked(mockDependencies.fileSystem.statSync).mockImplementation(path => {
+        if (
+          path.endsWith('foundation') ||
+          path.includes('instructions-modules/foundation')
+        ) {
           return { isDirectory: () => true, isFile: () => false } as any;
         }
         return { isDirectory: () => false, isFile: () => true } as any;
       });
 
-      vi.mocked(mockDependencies.fileSystem.readFileSync).mockReturnValue(v11FoundationYaml);
+      vi.mocked(mockDependencies.fileSystem.readFileSync).mockReturnValue(
+        v11FoundationYaml
+      );
 
       const modules = await parser.parseInstructionModules();
-      
+
       expect(modules).toHaveLength(1);
       expect(modules[0]).toMatchObject({
         name: 'Do No Harm',
         description: 'Test foundation module with layer',
         category: 'Foundation',
-        layer: 2
+        layer: 2,
       });
     });
 
@@ -98,7 +105,7 @@ body:
   goal: "Test goal"
 `;
 
-      vi.mocked(mockDependencies.fileSystem.readdirSync).mockImplementation((dir) => {
+      vi.mocked(mockDependencies.fileSystem.readdirSync).mockImplementation(dir => {
         if (dir.includes('instructions-modules') && !dir.includes('foundation')) {
           return ['foundation'];
         }
@@ -108,21 +115,23 @@ body:
         return [];
       });
 
-      vi.mocked(mockDependencies.fileSystem.statSync).mockImplementation((path) => {
+      vi.mocked(mockDependencies.fileSystem.statSync).mockImplementation(path => {
         if (path.includes('foundation') && !path.includes('.yml')) {
           return { isDirectory: () => true, isFile: () => false } as any;
         }
         return { isDirectory: () => false, isFile: () => true } as any;
       });
 
-      vi.mocked(mockDependencies.fileSystem.readFileSync).mockReturnValue(v10FoundationYaml);
+      vi.mocked(mockDependencies.fileSystem.readFileSync).mockReturnValue(
+        v10FoundationYaml
+      );
 
       const modules = await parser.parseInstructionModules();
-      
+
       expect(modules).toHaveLength(1);
       expect(modules[0]).toMatchObject({
         id: 'foundation/test/module',
-        category: 'Foundation'
+        category: 'Foundation',
       });
       expect(modules[0].layer).toBeUndefined();
     });
@@ -141,7 +150,7 @@ body:
   purpose: "Test purpose"
 `;
 
-      vi.mocked(mockDependencies.fileSystem.readdirSync).mockImplementation((dir) => {
+      vi.mocked(mockDependencies.fileSystem.readdirSync).mockImplementation(dir => {
         if (dir.includes('instructions-modules') && !dir.includes('foundation')) {
           return ['foundation'];
         }
@@ -151,17 +160,19 @@ body:
         return [];
       });
 
-      vi.mocked(mockDependencies.fileSystem.statSync).mockImplementation((path) => {
+      vi.mocked(mockDependencies.fileSystem.statSync).mockImplementation(path => {
         if (path.includes('foundation') && !path.includes('.yml')) {
           return { isDirectory: () => true, isFile: () => false } as any;
         }
         return { isDirectory: () => false, isFile: () => true } as any;
       });
 
-      vi.mocked(mockDependencies.fileSystem.readFileSync).mockReturnValue(invalidLayerYaml);
+      vi.mocked(mockDependencies.fileSystem.readFileSync).mockReturnValue(
+        invalidLayerYaml
+      );
 
       const modules = await parser.parseInstructionModules();
-      
+
       expect(modules).toHaveLength(1);
       expect(modules[0].layer).toBeUndefined(); // Invalid layer should be excluded
       expect(mockDependencies.logger.warn).toHaveBeenCalledWith(
@@ -183,7 +194,7 @@ body:
   purpose: "Test purpose"
 `;
 
-      vi.mocked(mockDependencies.fileSystem.readdirSync).mockImplementation((dir) => {
+      vi.mocked(mockDependencies.fileSystem.readdirSync).mockImplementation(dir => {
         if (dir.includes('instructions-modules') && !dir.includes('principle')) {
           return ['principle'];
         }
@@ -193,20 +204,22 @@ body:
         return [];
       });
 
-      vi.mocked(mockDependencies.fileSystem.statSync).mockImplementation((path) => {
+      vi.mocked(mockDependencies.fileSystem.statSync).mockImplementation(path => {
         if (path.includes('principle') && !path.includes('.yml')) {
           return { isDirectory: () => true, isFile: () => false } as any;
         }
         return { isDirectory: () => false, isFile: () => true } as any;
       });
 
-      vi.mocked(mockDependencies.fileSystem.readFileSync).mockReturnValue(nonFoundationWithLayerYaml);
+      vi.mocked(mockDependencies.fileSystem.readFileSync).mockReturnValue(
+        nonFoundationWithLayerYaml
+      );
 
       const modules = await parser.parseInstructionModules();
-      
+
       expect(modules).toHaveLength(1);
       expect(modules[0]).toMatchObject({
-        category: 'Principle'
+        category: 'Principle',
       });
       expect(modules[0].layer).toBeUndefined();
       expect(mockDependencies.logger.warn).toHaveBeenCalledWith(
@@ -231,7 +244,7 @@ body:
     - "Test constraint"
 `;
 
-      vi.mocked(mockDependencies.fileSystem.readdirSync).mockImplementation((dir) => {
+      vi.mocked(mockDependencies.fileSystem.readdirSync).mockImplementation(dir => {
         if (dir.includes('instructions-modules') && !dir.includes('foundation')) {
           return ['foundation'];
         }
@@ -241,7 +254,7 @@ body:
         return [];
       });
 
-      vi.mocked(mockDependencies.fileSystem.statSync).mockImplementation((path) => {
+      vi.mocked(mockDependencies.fileSystem.statSync).mockImplementation(path => {
         if (path.includes('foundation') && !path.includes('.yml')) {
           return { isDirectory: () => true, isFile: () => false } as any;
         }
@@ -251,13 +264,13 @@ body:
       vi.mocked(mockDependencies.fileSystem.readFileSync).mockReturnValue(v10Yaml);
 
       const modules = await parser.parseInstructionModules();
-      
+
       expect(modules).toHaveLength(1);
       expect(modules[0]).toMatchObject({
         id: 'foundation/test/v10',
         name: 'V1.0 Module',
         description: 'Legacy v1.0 module',
-        category: 'Foundation'
+        category: 'Foundation',
       });
       expect(modules[0].layer).toBeUndefined();
     });
@@ -267,7 +280,7 @@ body:
     it('should handle parsing errors gracefully', async () => {
       const invalidYaml = 'invalid: yaml: content: [unclosed';
 
-      vi.mocked(mockDependencies.fileSystem.readdirSync).mockImplementation((dir) => {
+      vi.mocked(mockDependencies.fileSystem.readdirSync).mockImplementation(dir => {
         if (dir.includes('instructions-modules') && !dir.includes('foundation')) {
           return ['foundation'];
         }
@@ -277,7 +290,7 @@ body:
         return [];
       });
 
-      vi.mocked(mockDependencies.fileSystem.statSync).mockImplementation((path) => {
+      vi.mocked(mockDependencies.fileSystem.statSync).mockImplementation(path => {
         if (path.includes('foundation') && !path.includes('.yml')) {
           return { isDirectory: () => true, isFile: () => false } as any;
         }
@@ -287,7 +300,7 @@ body:
       vi.mocked(mockDependencies.fileSystem.readFileSync).mockReturnValue(invalidYaml);
 
       const modules = await parser.parseInstructionModules();
-      
+
       expect(modules).toHaveLength(0);
       expect(mockDependencies.logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('Failed to parse YAML module')

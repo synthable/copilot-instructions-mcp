@@ -14,27 +14,27 @@ describe('UMS v1.1 Content Rendering', () => {
         readFileSync: vi.fn(),
         existsSync: vi.fn(() => true),
         readdirSync: vi.fn(),
-        statSync: vi.fn()
+        statSync: vi.fn(),
       },
       pathUtils: {
         join: vi.fn((...args) => args.join('/')),
         relative: vi.fn(),
-        resolve: vi.fn()
+        resolve: vi.fn(),
       },
       processUtils: {
-        cwd: vi.fn(() => '/test')
+        cwd: vi.fn(() => '/test'),
       },
       logger: {
         debug: vi.fn(),
         info: vi.fn(),
         warn: vi.fn(),
-        error: vi.fn()
-      }
+        error: vi.fn(),
+      },
     };
 
     mockParser = {
       parseInstructionModules: vi.fn(),
-      clearModuleCache: vi.fn()
+      clearModuleCache: vi.fn(),
     };
 
     contentService = new ContentService(mockDependencies, mockParser);
@@ -48,7 +48,7 @@ describe('UMS v1.1 Content Rendering', () => {
         description: 'Testing v1.1 features',
         category: 'Foundation',
         filePath: 'foundation/test/v11.module.yml',
-        layer: 1
+        layer: 1,
       };
 
       const v11Yaml = `
@@ -88,7 +88,7 @@ body:
         name: 'Composite Test',
         description: 'Testing composite lists',
         category: 'Foundation',
-        filePath: 'test/composite.module.yml'
+        filePath: 'test/composite.module.yml',
       };
 
       const yamlWithComposite = `
@@ -106,7 +106,9 @@ body:
 `;
 
       vi.mocked(mockParser.parseInstructionModules).mockResolvedValue([module]);
-      vi.mocked(mockDependencies.fileSystem.readFileSync).mockReturnValue(yamlWithComposite);
+      vi.mocked(mockDependencies.fileSystem.readFileSync).mockReturnValue(
+        yamlWithComposite
+      );
 
       const result = await contentService.getModulesContent(['test/composite']);
 
@@ -123,7 +125,7 @@ body:
         { shape: 'procedure', heading: 'Primary Objective' },
         { shape: 'playbook', heading: 'Primary Objective' },
         { shape: 'checklist', heading: 'Verification Criteria' },
-        { shape: 'unknown', heading: 'Purpose' }
+        { shape: 'unknown', heading: 'Purpose' },
       ];
 
       shapeMappings.forEach(({ shape, heading }) => {
@@ -140,7 +142,7 @@ body:
         { mediaType: 'text/typescript', language: 'typescript' },
         { mediaType: 'text/python', language: 'python' },
         { mediaType: 'application/yaml', language: 'yaml' },
-        { mediaType: 'text/unknown', language: 'text' }
+        { mediaType: 'text/unknown', language: 'text' },
       ];
 
       mediaTypeMappings.forEach(({ mediaType, language }) => {
@@ -158,12 +160,14 @@ body:
         category: 'Foundation',
         filePath: 'test/bad-yaml.module.yml',
         layer: 0,
-        tags: ['test']
+        tags: ['test'],
       };
 
       const badYaml = 'invalid: yaml: [unclosed';
 
-      vi.mocked(mockParser.parseInstructionModules).mockResolvedValue([moduleWithBadYaml]);
+      vi.mocked(mockParser.parseInstructionModules).mockResolvedValue([
+        moduleWithBadYaml,
+      ]);
       vi.mocked(mockDependencies.fileSystem.readFileSync).mockReturnValue(badYaml);
 
       const result = await contentService.getModulesContent(['test/bad-yaml']);
@@ -184,7 +188,7 @@ body:
         name: 'V1.0 Module',
         description: 'Legacy v1.0 module',
         category: 'Foundation',
-        filePath: 'test/v10.module.yml'
+        filePath: 'test/v10.module.yml',
       };
 
       const v10Yaml = `
