@@ -1,5 +1,5 @@
 /**
- * @fileoverview Semantic search vector math utilities.
+ * @fileoverview Vector similarity calculations for semantic search.
  *
  * @author MCP Server Team
  * @version 1.0.0
