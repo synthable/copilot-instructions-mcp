@@ -331,3 +331,33 @@ export function setDebugLogging(enabled: boolean): void {
 export function createLogger(moduleName: string) {
   return globalLogger.createModuleLogger(moduleName);
 }
+
+/**
+ * Pre-configured logger for transport layer operations (stdio, HTTP, SSE).
+ * @since 1.0.0
+ */
+export const transportLogger = createLogger('transport');
+
+/**
+ * Pre-configured logger for instruction module parsing operations.
+ * @since 1.0.0
+ */
+export const parsingLogger = createLogger('parsing');
+
+/**
+ * Pre-configured logger for fuzzy search operations and scoring.
+ * @since 1.0.0
+ */
+export const searchLogger = createLogger('search');
+
+/**
+ * Pre-configured logger for module content retrieval and formatting.
+ * @since 1.0.0
+ */
+export const contentLogger = createLogger('content');
+
+/**
+ * Pre-configured logger for MCP tool request handling.
+ * @since 1.0.0
+ */
+export const toolHandlersLogger = createLogger('toolHandlers');
