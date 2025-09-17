@@ -44,7 +44,7 @@ export function createToolErrorResponse(
   toolName: string,
   error: Error,
   fallbackData: Record<string, unknown>,
-  logger?: { error: (msg: string, err?: Error) => void }
+  logger?: ILogger
 ) {
   const errorMessage = error.message;
   logger?.error(`Failed to handle ${toolName}`, error);
