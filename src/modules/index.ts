@@ -30,19 +30,9 @@ export { ContentService } from './content.js';
 export { SemanticSearchService } from './semanticSearch.js';
 export { ToolHandlers } from './toolHandlers.js';
 
-// Export convenience functions (thin wrappers around DI container)
-export { parseInstructionModules, clearModuleCache } from './parsing.js';
-export { searchInstructionModules } from './search.js';
-export { getModulesContent } from './content.js';
-export {
-  handleListInstructionModules,
-  handleSearchInstructionModules,
-  handleGetModulesContent,
-  handleSemanticSearch,
-  handleHybridSearch,
-  createToolErrorResponse,
-  getToolFallbackData,
-} from './toolHandlers.js';
+// Note: Convenience functions removed to eliminate Service Locator anti-pattern
+// Use the service classes directly with proper dependency injection instead
+export { createToolErrorResponse, getToolFallbackData } from './toolHandlers.js';
 
 // Export server and transport functions
 export { createServer, setupServerHandlers } from './server.js';

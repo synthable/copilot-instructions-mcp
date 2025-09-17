@@ -19,11 +19,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  createToolErrorResponse,
-  getToolFallbackData,
-  ToolHandlers,
-} from './toolHandlers.js';
+import { createToolErrorResponse, getToolFallbackData } from './toolHandlers.js';
 // Note: Avoid convenience wrappers that use require() (not available in ESM)
 import { Container } from './container.js';
 import { initializeServer } from './serverInitializer.js';
@@ -168,9 +164,10 @@ export function setupServerHandlers(
 
   serverInstance.setRequestHandler(CallToolRequestSchema, async request => {
     const { name, arguments: args } = request.params;
+    const logger = container.getLogger();
 
     try {
-      const toolHandlers = new ToolHandlers(container);
+      const toolHandlers = container.createToolHandlers();
       switch (name) {
         case 'list_instruction_modules': {
           const result = await toolHandlers.handleListInstructionModules(args);
@@ -203,7 +200,7 @@ export function setupServerHandlers(
     } catch (err) {
       const error = err instanceof Error ? err : new Error(getErrorMessage(err));
       const fallbackData = getToolFallbackData(name);
-      const errorResponse = createToolErrorResponse(name, error, fallbackData);
+      const errorResponse = createToolErrorResponse(name, error, fallbackData, logger);
       return createJsonResponse(errorResponse);
     }
   });

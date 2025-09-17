@@ -15,7 +15,7 @@
 import { Command } from 'commander';
 import { createServer, createInitializedServer } from './modules/server.js';
 import { runStdio, runHttp, runSSE } from './modules/transport.js';
-import { setDebugLogging, createLogger } from './modules/logger.js';
+import { setDebugLogging } from './modules/logger.js';
 import { createProductionContainer } from './modules/container.js';
 
 /**
@@ -31,26 +31,21 @@ import { createProductionContainer } from './modules/container.js';
 const program = new Command();
 
 /**
- * Logger instance for CLI operations and startup messages.
- *
- * @since 1.0.0
- */
-const logger = createLogger('cli');
-
-/**
  * Starts the stdio server with proper error handling and logging.
  *
  * @param message - Optional custom message to log on startup
  * @since 1.0.0
  */
 function startStdioServer(message = 'Starting stdio server'): void {
-  logger.info(message);
   // Always use dependency injection now
   const container = createProductionContainer();
+  const logger = container.getLogger();
+
+  logger.info(message);
   logger.debug('Using dependency injection');
 
   createInitializedServer(container)
-    .then(server => runStdio(server))
+    .then(server => runStdio(server, logger))
     .catch((error: unknown) => {
       logger.error(
         'Failed to start stdio server',
@@ -70,7 +65,7 @@ program.option('-d, --debug', 'enable debug logging').hook('preAction', thisComm
   const opts = thisCommand.opts();
   if (opts.debug) {
     setDebugLogging(true);
-    logger.debug('Debug logging enabled');
+    // Debug logging message will be shown by each command
   }
 });
 
@@ -88,13 +83,15 @@ program
   .option('-p, --port <port>', 'port number', '3000')
   .action((options: { port: string }) => {
     const httpPort = parseInt(options.port, 10) || 3000;
-    logger.info(`Starting HTTP server on port ${httpPort.toString()}`);
     // Always use dependency injection now
     const container = createProductionContainer();
+    const logger = container.getLogger();
+
+    logger.info(`Starting HTTP server on port ${httpPort.toString()}`);
     logger.debug('Using dependency injection');
 
     createInitializedServer(container)
-      .then(server => runHttp(server, httpPort))
+      .then(server => runHttp(server, logger, httpPort))
       .catch((error: unknown) => {
         logger.error(
           'Failed to start HTTP server',
@@ -110,10 +107,13 @@ program
   .option('-p, --port <port>', 'port number', '3000')
   .action((options: { port: string }) => {
     const ssePort = parseInt(options.port, 10) || 3000;
+    const container = createProductionContainer();
+    const logger = container.getLogger();
+
     logger.warn('SSE transport is deprecated. Use "http" instead.');
     logger.info(`Starting SSE server on port ${ssePort.toString()}`);
     // eslint-disable-next-line @typescript-eslint/no-deprecated
-    runSSE(() => createServer(createProductionContainer()), ssePort);
+    runSSE(() => createServer(createProductionContainer()), logger, ssePort);
   });
 
 // Default action when no command is specified - defaults to stdio

@@ -16,7 +16,6 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { encode as msgpackEncode } from '@msgpack/msgpack';
 
-import { parseInstructionModules } from '../modules/parsing.js';
 import { getContainer } from '../modules/container.js';
 import type {
   InstructionModule,
@@ -90,7 +89,9 @@ export class VectorGenerator {
         stage: 'parsing',
       });
 
-      const modules = await parseInstructionModules();
+      const container = getContainer();
+      const parser = container.getInstructionModuleParser();
+      const modules = await parser.parseInstructionModules();
 
       // Filter modules that have semantic field
       const modulesWithSemantic = modules.filter(module => module.semantic);

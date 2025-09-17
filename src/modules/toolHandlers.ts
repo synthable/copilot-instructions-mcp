@@ -21,9 +21,14 @@ import {
   validateSearchLimit,
   validateModuleIds,
 } from './validation.js';
-import { toolHandlersLogger } from './logger.js';
 import type { ToolArgs } from './types.js';
-import type { Container } from './container.js';
+import type {
+  IInstructionModuleParser,
+  ISearchService,
+  IContentService,
+  ISemanticSearchService,
+  ILogger,
+} from './interfaces.js';
 
 /**
  * Helper function to split search query into terms
@@ -33,64 +38,16 @@ function splitSearchQuery(query: string): string[] {
 }
 
 /**
- * Convenience function to handle list_instruction_modules using the global container.
- */
-export async function handleListInstructionModules(args: ToolArgs | undefined) {
-  // Dynamic import to avoid circular dependency issues
-  const { getContainer } = await import('./container.js');
-  const container = getContainer();
-  const toolHandlers = new ToolHandlers(container);
-  return await toolHandlers.handleListInstructionModules(args);
-}
-
-/**
- * Convenience function to handle search_instruction_modules using the global container.
- */
-export async function handleSearchInstructionModules(args: ToolArgs | undefined) {
-  // Dynamic import to avoid circular dependency issues
-  const { getContainer } = await import('./container.js');
-  const container = getContainer();
-  const toolHandlers = new ToolHandlers(container);
-  return await toolHandlers.handleSearchInstructionModules(args);
-}
-
-/**
- * Convenience function to handle get_modules_content using the global container.
- */
-export async function handleGetModulesContent(args: ToolArgs | undefined) {
-  // Dynamic import to avoid circular dependency issues
-  const { getContainer } = await import('./container.js');
-  const container = getContainer();
-  const toolHandlers = new ToolHandlers(container);
-  return await toolHandlers.handleGetModulesContent(args);
-}
-
-/** Convenience function to handle semantic_search using the global container. */
-export async function handleSemanticSearch(args: ToolArgs | undefined) {
-  const { getContainer } = await import('./container.js');
-  const container = getContainer();
-  const toolHandlers = new ToolHandlers(container);
-  return toolHandlers.handleSemanticSearch(args);
-}
-
-/** Convenience function to handle hybrid_search using the global container. */
-export async function handleHybridSearch(args: ToolArgs | undefined) {
-  const { getContainer } = await import('./container.js');
-  const container = getContainer();
-  const toolHandlers = new ToolHandlers(container);
-  return toolHandlers.handleHybridSearch(args);
-}
-
-/**
  * Creates a standardized error response for tool handlers
  */
 export function createToolErrorResponse(
   toolName: string,
   error: Error,
-  fallbackData: Record<string, unknown>
+  fallbackData: Record<string, unknown>,
+  logger?: { error: (msg: string, err?: Error) => void }
 ) {
   const errorMessage = error.message;
-  toolHandlersLogger.error(`Failed to handle ${toolName}`, error);
+  logger?.error(`Failed to handle ${toolName}`, error);
   return {
     error: `Failed to ${toolName.replace(/_/g, ' ')}: ${errorMessage}`,
     ...fallbackData,
@@ -122,17 +79,22 @@ export function getToolFallbackData(toolName: string): Record<string, unknown> {
  * Handles tool requests with dependency injection for better testability.
  */
 export class ToolHandlers {
-  constructor(private container: Container) {}
+  constructor(
+    private parser: IInstructionModuleParser,
+    private searchService: ISearchService,
+    private contentService: IContentService,
+    private semanticSearchService: ISemanticSearchService,
+    private logger: ILogger
+  ) {}
 
   /**
    * Handles the list_instruction_modules tool request
    */
   async handleListInstructionModules(args: ToolArgs | undefined) {
     const categoryFilter = validateCategoryFilter(args?.category);
-    const parser = this.container.getInstructionModuleParser();
-    const modules = await parser.parseInstructionModules();
+    const modules = await this.parser.parseInstructionModules();
 
-    toolHandlersLogger.debug(`Parsed ${modules.length.toString()} modules`);
+    this.logger.debug(`Parsed ${modules.length.toString()} modules`);
 
     // Filter by category if specified
     const filteredModules = categoryFilter
@@ -162,11 +124,11 @@ export class ToolHandlers {
     // Split query into search terms
     const searchTerms = splitSearchQuery(query);
 
-    toolHandlersLogger.debug(`Searching for terms: ${searchTerms.join(', ')}`);
+    this.logger.debug(`Searching for terms: ${searchTerms.join(', ')}`);
 
     // Perform fuzzy search
-    const searchService = this.container.getSearchService();
-    const searchResults = await searchService.searchInstructionModules(searchTerms);
+    const searchResults =
+      await this.searchService.searchInstructionModules(searchTerms);
 
     // Limit results
     const limitedResults = searchResults.slice(0, limit);
@@ -191,11 +153,10 @@ export class ToolHandlers {
 
     const moduleIds = validateModuleIds(args.moduleIds);
 
-    toolHandlersLogger.debug(`Getting content for modules: ${moduleIds.join(', ')}`);
+    this.logger.debug(`Getting content for modules: ${moduleIds.join(', ')}`);
 
     // Get the combined content
-    const contentService = this.container.getContentService();
-    const result = await contentService.getModulesContent(moduleIds);
+    const result = await this.contentService.getModulesContent(moduleIds);
 
     return {
       ...result,
@@ -242,8 +203,11 @@ export class ToolHandlers {
       options.includeRelevanceLevel = false;
     }
 
-    const svc = this.container.getSemanticSearchService();
-    const results = await svc.semanticSearch(query, limit, options);
+    const results = await this.semanticSearchService.semanticSearch(
+      query,
+      limit,
+      options
+    );
     return {
       query,
       totalResults: results.length,
@@ -296,12 +260,14 @@ export class ToolHandlers {
     }
 
     const terms = splitSearchQuery(query);
-    const lexical = await this.container
-      .getSearchService()
-      .searchInstructionModules(terms);
-    const semantic = await this.container
-      .getSemanticSearchService()
-      .hybridSearch(terms, lexical, alpha, limit, options);
+    const lexical = await this.searchService.searchInstructionModules(terms);
+    const semantic = await this.semanticSearchService.hybridSearch(
+      terms,
+      lexical,
+      alpha,
+      limit,
+      options
+    );
     return {
       query,
       alpha,
@@ -321,7 +287,7 @@ export class ToolHandlers {
     fallbackData: Record<string, unknown>
   ) {
     const errorMessage = error.message;
-    toolHandlersLogger.error(`Failed to handle ${toolName}`, error);
+    this.logger.error(`Failed to handle ${toolName}`, error);
     return {
       error: `Failed to ${toolName.replace(/_/g, ' ')}: ${errorMessage}`,
       ...fallbackData,
