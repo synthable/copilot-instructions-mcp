@@ -15,7 +15,7 @@ import type { ILogger, IVectorStore, ISemanticSearchService } from './interfaces
 /**
  * Server initialization service that handles startup tasks.
  */
-export class ServerInitializer {
+class ServerInitializer {
   constructor(
     private logger: ILogger,
     private vectorStore: IVectorStore,

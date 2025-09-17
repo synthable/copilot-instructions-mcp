@@ -128,7 +128,10 @@ export class EmbeddingService implements IEmbeddingService {
     if (cached) {
       this.cacheStats.hits++;
       progressCallback?.('processing', 1.0, 'Retrieved from cache');
-      this.logger.debug('Cache hit for embedding', { hash, textLength: truncatedText.length });
+      this.logger.debug('Cache hit for embedding', {
+        hash,
+        textLength: truncatedText.length,
+      });
       this.resetDisposeTimer();
       return cached.embedding;
     }
@@ -314,7 +317,7 @@ export class EmbeddingService implements IEmbeddingService {
     try {
       // Emit download start progress
       progressCallback?.('download', 0.0, 'Starting model download');
-      
+
       // Create pipeline - @xenova/transformers will automatically download the model if not cached
       // Note: The transformers library doesn't expose download progress directly
       const pipeline = await transformersModule.pipeline(
@@ -382,7 +385,7 @@ export class EmbeddingService implements IEmbeddingService {
     }
   }
 
-    /**
+  /**
    * Validates and truncates individual text input for embedding.
    */
   private validateAndTruncateText(text: string): string {
@@ -402,7 +405,7 @@ export class EmbeddingService implements IEmbeddingService {
         originalLength: text.length,
         maxLength,
         truncated: text.length - maxLength,
-        modelLimit: 'all-mpnet-base-v2 supports max 1536 characters'
+        modelLimit: 'all-mpnet-base-v2 supports max 1536 characters',
       });
       return text.substring(0, maxLength);
     }
@@ -435,7 +438,7 @@ export class EmbeddingService implements IEmbeddingService {
    */
   private validateAndTruncateBatch(texts: string[]): string[] {
     this.validateBatchInput(texts);
-    
+
     return texts.map((text, index) => {
       try {
         return this.validateAndTruncateText(text);

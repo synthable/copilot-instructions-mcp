@@ -10,33 +10,35 @@ describe('ContentService - UMS v1.1 Rendering', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     mockDependencies = {
       fileSystem: {
         readFileSync: vi.fn(),
         readdirSync: vi.fn(),
         statSync: vi.fn(),
-        existsSync: vi.fn(() => true)
+        existsSync: vi.fn(() => true),
       },
       pathUtils: {
         join: vi.fn((...args: string[]) => args.join('/')),
-        relative: vi.fn((base: string, target: string) => target.replace(base + '/', '')),
-        resolve: vi.fn((base: string, target: string) => `${base}/${target}`)
+        relative: vi.fn((base: string, target: string) =>
+          target.replace(base + '/', '')
+        ),
+        resolve: vi.fn((base: string, target: string) => `${base}/${target}`),
       },
       processUtils: {
-        cwd: vi.fn(() => '/test/cwd')
+        cwd: vi.fn(() => '/test/cwd'),
       },
       logger: {
         debug: vi.fn(),
         info: vi.fn(),
         warn: vi.fn(),
-        error: vi.fn()
-      }
+        error: vi.fn(),
+      },
     };
 
     mockParser = {
       parseInstructionModules: vi.fn(),
-      clearModuleCache: vi.fn()
+      clearModuleCache: vi.fn(),
     };
 
     contentService = new ContentService(mockDependencies, mockParser);
@@ -55,7 +57,7 @@ describe('ContentService - UMS v1.1 Rendering', () => {
         category: 'Foundation',
         filePath: 'foundation/test/v11-module.module.yml',
         layer: 1,
-        tags: ['test', 'v11']
+        tags: ['test', 'v11'],
       };
 
       const v11YamlContent = `
@@ -101,51 +103,55 @@ body:
 `;
 
       vi.mocked(mockParser.parseInstructionModules).mockResolvedValue([v11Module]);
-      vi.mocked(mockDependencies.fileSystem.readFileSync).mockReturnValue(v11YamlContent);
+      vi.mocked(mockDependencies.fileSystem.readFileSync).mockReturnValue(
+        v11YamlContent
+      );
 
-      const result = await contentService.getModulesContent(['foundation/test/v11-module']);
+      const result = await contentService.getModulesContent([
+        'foundation/test/v11-module',
+      ]);
 
       expect(result.success).toBe(true);
       expect(result.content).toBeTruthy();
-      
+
       const content = result.content!;
-      
+
       // Check header
       expect(content).toContain('# Test V1.1 Module');
       expect(content).toContain('**ID:** foundation/test/v11-module');
       expect(content).toContain('**Category:** Foundation');
-      
+
       // Check v1.1 specific features
       expect(content).toContain('## Core Definition'); // purpose -> Core Definition for specification shape
       expect(content).toContain('Test the v1.1 rendering capabilities');
-      
+
       expect(content).toContain('## Process');
       expect(content).toContain('1. Step 1: Initialize');
       expect(content).toContain('2. Step 2: Execute');
       expect(content).toContain('3. Step 3: Validate');
-      
+
       expect(content).toContain('## Constraints');
       expect(content).toContain('- Must follow v1.1 specification');
-      
+
       expect(content).toContain('## Principles');
       expect(content).toContain('- Clear and concise');
-      
+
       // Check new v1.1 directives
       expect(content).toContain('## Best Practices');
       expect(content).toContain('- Use semantic versioning');
-      
+
       expect(content).toContain('## Anti-Patterns');
       expect(content).toContain('- Breaking changes without notice');
-      
+
       expect(content).toContain('## Advantages / Use Cases');
       expect(content).toContain('- Improved clarity');
-      
+
       expect(content).toContain('## Disadvantages / Trade-Offs');
       expect(content).toContain('- Migration effort required');
-      
+
       expect(content).toContain('## Criteria');
       expect(content).toContain('- [ ] All tests pass');
-      
+
       // Check metadata footer
       expect(content).toContain('_Foundation Layer: 1_');
       expect(content).toContain('_Tags: test, v11_');
@@ -158,7 +164,7 @@ body:
         description: 'Testing composite list directives',
         category: 'Foundation',
         filePath: 'foundation/test/composite.module.yml',
-        layer: 0
+        layer: 0,
       };
 
       const compositeListYaml = `
@@ -182,19 +188,25 @@ body:
     - "No description needed"
 `;
 
-      vi.mocked(mockParser.parseInstructionModules).mockResolvedValue([moduleWithCompositeList]);
-      vi.mocked(mockDependencies.fileSystem.readFileSync).mockReturnValue(compositeListYaml);
+      vi.mocked(mockParser.parseInstructionModules).mockResolvedValue([
+        moduleWithCompositeList,
+      ]);
+      vi.mocked(mockDependencies.fileSystem.readFileSync).mockReturnValue(
+        compositeListYaml
+      );
 
-      const result = await contentService.getModulesContent(['foundation/test/composite']);
+      const result = await contentService.getModulesContent([
+        'foundation/test/composite',
+      ]);
 
       expect(result.success).toBe(true);
       const content = result.content!;
-      
+
       // Check composite format with description
       expect(content).toContain('## Best Practices');
       expect(content).toContain('These are the recommended practices for this module:');
       expect(content).toContain('- Practice 1: Follow standards');
-      
+
       // Check simple array format
       expect(content).toContain('## Anti-Patterns');
       expect(content).toContain('- Simple array format');
@@ -208,7 +220,7 @@ body:
         { shape: 'playbook', heading: 'Primary Objective' },
         { shape: 'procedural-specification', heading: 'Primary Objective' },
         { shape: 'checklist', heading: 'Verification Criteria' },
-        { shape: 'custom', heading: 'Purpose' }
+        { shape: 'custom', heading: 'Purpose' },
       ];
 
       for (const { shape, heading } of shapes) {
@@ -218,7 +230,7 @@ body:
           description: `Testing ${shape} shape`,
           category: 'Foundation',
           filePath: `test/${shape}.module.yml`,
-          layer: 0
+          layer: 0,
         };
 
         const yamlContent = `
@@ -234,7 +246,9 @@ body:
 `;
 
         vi.mocked(mockParser.parseInstructionModules).mockResolvedValue([testModule]);
-        vi.mocked(mockDependencies.fileSystem.readFileSync).mockReturnValue(yamlContent);
+        vi.mocked(mockDependencies.fileSystem.readFileSync).mockReturnValue(
+          yamlContent
+        );
 
         const result = await contentService.getModulesContent([`test/${shape}`]);
 
@@ -250,7 +264,7 @@ body:
         name: 'Data Module Test',
         description: 'Testing data directive',
         category: 'Foundation',
-        filePath: 'test/data-module.module.yml'
+        filePath: 'test/data-module.module.yml',
       };
 
       const dataYaml = `
@@ -274,7 +288,7 @@ body:
 
       expect(result.success).toBe(true);
       const content = result.content!;
-      
+
       expect(content).toContain('## Data');
       expect(content).toContain('```json');
       expect(content).toContain('{"test": "data", "number": 42}');
@@ -287,7 +301,7 @@ body:
         name: 'Example Module Test',
         description: 'Testing examples directive',
         category: 'Technology',
-        filePath: 'test/example-module.module.yml'
+        filePath: 'test/example-module.module.yml',
       };
 
       const exampleYaml = `
@@ -316,13 +330,13 @@ body:
 
       expect(result.success).toBe(true);
       const content = result.content!;
-      
+
       expect(content).toContain('## Examples');
       expect(content).toContain('### TypeScript Example');
       expect(content).toContain('Shows proper TypeScript usage');
       expect(content).toContain('```typescript');
       expect(content).toContain("const greeting: string = 'Hello, World!';");
-      
+
       expect(content).toContain('### Generic Example');
       expect(content).toContain('```text');
       expect(content).toContain("print('Hello, World!')");
@@ -336,7 +350,7 @@ body:
         name: 'Test V1.0 Module',
         description: 'Legacy v1.0 module',
         category: 'Foundation',
-        filePath: 'foundation/test/v10-module.module.yml'
+        filePath: 'foundation/test/v10-module.module.yml',
       };
 
       const v10YamlContent = `
@@ -354,17 +368,21 @@ body:
 `;
 
       vi.mocked(mockParser.parseInstructionModules).mockResolvedValue([v10Module]);
-      vi.mocked(mockDependencies.fileSystem.readFileSync).mockReturnValue(v10YamlContent);
+      vi.mocked(mockDependencies.fileSystem.readFileSync).mockReturnValue(
+        v10YamlContent
+      );
 
-      const result = await contentService.getModulesContent(['foundation/test/v10-module']);
+      const result = await contentService.getModulesContent([
+        'foundation/test/v10-module',
+      ]);
 
       expect(result.success).toBe(true);
       expect(result.content).toBeTruthy();
-      
+
       // Should not contain v1.1 features
       expect(result.content).not.toContain('## Best Practices');
       expect(result.content).not.toContain('Foundation Layer:');
-      
+
       // Should render basic module info
       expect(result.content).toContain('# Test V1.0 Module');
       expect(result.content).toContain('**Category:** Foundation');
@@ -380,19 +398,21 @@ body:
         category: 'Foundation',
         filePath: 'test/invalid-yaml.module.yml',
         layer: 2,
-        tags: ['test', 'error']
+        tags: ['test', 'error'],
       };
 
       const invalidYaml = 'invalid: yaml: content: [unclosed';
 
-      vi.mocked(mockParser.parseInstructionModules).mockResolvedValue([moduleWithInvalidYaml]);
+      vi.mocked(mockParser.parseInstructionModules).mockResolvedValue([
+        moduleWithInvalidYaml,
+      ]);
       vi.mocked(mockDependencies.fileSystem.readFileSync).mockReturnValue(invalidYaml);
 
       const result = await contentService.getModulesContent(['test/invalid-yaml']);
 
       expect(result.success).toBe(true);
       const content = result.content!;
-      
+
       // Should fall back to simple rendering
       expect(content).toContain('## Summary');
       expect(content).toContain('Module with invalid YAML');
@@ -407,7 +427,7 @@ body:
         name: 'No Body Module',
         description: 'Module without body section',
         category: 'Foundation',
-        filePath: 'test/no-body.module.yml'
+        filePath: 'test/no-body.module.yml',
       };
 
       const yamlWithoutBody = `
@@ -419,14 +439,18 @@ meta:
   description: "Module without body section"
 `;
 
-      vi.mocked(mockParser.parseInstructionModules).mockResolvedValue([moduleWithoutBody]);
-      vi.mocked(mockDependencies.fileSystem.readFileSync).mockReturnValue(yamlWithoutBody);
+      vi.mocked(mockParser.parseInstructionModules).mockResolvedValue([
+        moduleWithoutBody,
+      ]);
+      vi.mocked(mockDependencies.fileSystem.readFileSync).mockReturnValue(
+        yamlWithoutBody
+      );
 
       const result = await contentService.getModulesContent(['test/no-body']);
 
       expect(result.success).toBe(true);
       const content = result.content!;
-      
+
       // Should fall back to simple rendering
       expect(content).toContain('## Summary');
       expect(content).toContain('Module without body section');
