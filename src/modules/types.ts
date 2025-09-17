@@ -237,6 +237,7 @@ export type CompositeListDirective =
  */
 export interface UMSv11Body {
   purpose?: string; // renamed from 'goal' in v1.0
+  goal?: string; // legacy v1.0 support, treated as purpose
   process?: CompositeListDirective;
   constraints?: CompositeListDirective;
   principles?: CompositeListDirective;
@@ -289,4 +290,36 @@ export interface UMSv11Module {
   };
   meta: UMSv11Meta;
   body: UMSv11Body;
+}
+
+/**
+ * Section renderer type identifiers
+ */
+export type SectionRendererType =
+  | 'purpose'
+  | 'list'
+  | 'data'
+  | 'examples'
+  | 'resources'
+  | 'metadata';
+
+/**
+ * List type formatting options
+ */
+export type ListType = 'ordered' | 'unordered' | 'task';
+
+/**
+ * Configuration for rendering UMS sections
+ */
+export interface SectionConfig {
+  /** Key in the UMSv11Body object */
+  key: keyof UMSv11Body;
+  /** Function to get the heading based on shape */
+  getHeading: (shape?: string) => string;
+  /** Type of renderer to use */
+  renderer: SectionRendererType;
+  /** List type for list-based sections */
+  listType?: ListType;
+  /** Priority for section ordering (lower = earlier) */
+  priority: number;
 }

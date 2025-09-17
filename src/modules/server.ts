@@ -21,7 +21,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { createToolErrorResponse, getToolFallbackData } from './toolHandlers.js';
 // Note: Avoid convenience wrappers that use require() (not available in ESM)
-import { Container } from './container.js';
+import type { Container } from './container.js';
 import { initializeServer } from './serverInitializer.js';
 
 /**
