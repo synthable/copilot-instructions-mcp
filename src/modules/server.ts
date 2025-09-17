@@ -62,6 +62,10 @@ export function setupServerHandlers(
   serverInstance: Server,
   container: Container
 ): void {
+  // Extract dependencies once at setup time, not per request
+  const logger = container.getLogger();
+  const toolHandlers = container.createToolHandlers();
+
   // Tool implementations
   serverInstance.setRequestHandler(ListToolsRequestSchema, () => ({
     tools: [
@@ -164,10 +168,8 @@ export function setupServerHandlers(
 
   serverInstance.setRequestHandler(CallToolRequestSchema, async request => {
     const { name, arguments: args } = request.params;
-    const logger = container.getLogger();
 
     try {
-      const toolHandlers = container.createToolHandlers();
       switch (name) {
         case 'list_instruction_modules': {
           const result = await toolHandlers.handleListInstructionModules(args);
@@ -365,7 +367,11 @@ export function createServer(container: Container): Server {
  */
 export async function createInitializedServer(container: Container): Promise<Server> {
   // Initialize server components including vector store
-  await initializeServer(container);
+  await initializeServer(
+    container.getDependencies().logger,
+    container.getVectorStore(),
+    container.getSemanticSearchService()
+  );
 
   // Create the server with initialized components
   return createServer(container);

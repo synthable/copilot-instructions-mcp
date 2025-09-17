@@ -10,22 +10,17 @@
  * @since 1.0.0
  */
 
-import type { Container } from './container.js';
 import type { ILogger, IVectorStore, ISemanticSearchService } from './interfaces.js';
 
 /**
  * Server initialization service that handles startup tasks.
  */
 export class ServerInitializer {
-  private logger: ILogger;
-  private vectorStore: IVectorStore;
-  private semanticSearchService: ISemanticSearchService;
-
-  constructor(container: Container) {
-    this.logger = container.getDependencies().logger;
-    this.vectorStore = container.getVectorStore();
-    this.semanticSearchService = container.getSemanticSearchService();
-  }
+  constructor(
+    private logger: ILogger,
+    private vectorStore: IVectorStore,
+    private semanticSearchService: ISemanticSearchService
+  ) {}
 
   /**
    * Performs all server initialization tasks.
@@ -161,9 +156,11 @@ export class ServerInitializer {
  * Creates and runs server initialization.
  */
 export async function initializeServer(
-  container: Container
+  logger: ILogger,
+  vectorStore: IVectorStore,
+  semanticSearchService: ISemanticSearchService
 ): Promise<ServerInitializer> {
-  const initializer = new ServerInitializer(container);
+  const initializer = new ServerInitializer(logger, vectorStore, semanticSearchService);
   await initializer.initialize();
   return initializer;
 }
