@@ -33,6 +33,7 @@ import type {
   IVectorStore,
 } from './interfaces.js';
 import { SemanticSearchService } from './semanticSearch.js';
+import { ToolHandlers } from './toolHandlers.js';
 
 /**
  * Production implementation of file system operations.
@@ -183,6 +184,26 @@ export class Container {
   getVectorStore(): IVectorStore {
     this.vectorStore ??= new VectorStore(this.dependencies, this.dependencies.logger);
     return this.vectorStore;
+  }
+
+  /**
+   * Creates a new ToolHandlers instance with proper dependency injection.
+   */
+  createToolHandlers() {
+    return new ToolHandlers(
+      this.getInstructionModuleParser(),
+      this.getSearchService(),
+      this.getContentService(),
+      this.getSemanticSearchService(),
+      this.dependencies.logger
+    );
+  }
+
+  /**
+   * Gets the logger instance for direct use (primarily for CLI and composition root).
+   */
+  getLogger() {
+    return this.dependencies.logger;
   }
 
   /**

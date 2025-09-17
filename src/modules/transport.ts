@@ -20,7 +20,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { randomUUID } from 'node:crypto';
 import express from 'express';
-import { transportLogger } from './logger.js';
+import type { ILogger } from './interfaces.js';
 
 /**
  * Runs the MCP server using stdio transport.
@@ -36,14 +36,14 @@ import { transportLogger } from './logger.js';
  * @param {Server} server - The configured MCP server instance
  * @returns {Promise<void>} Promise that resolves when server is connected and listening
  */
-export async function runStdio(server: Server): Promise<void> {
+export async function runStdio(server: Server, logger: ILogger): Promise<void> {
   try {
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    transportLogger.info('MCP Server connected via stdio transport');
+    logger.info('MCP Server connected via stdio transport');
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
-    transportLogger.error('Failed to start stdio transport', error);
+    logger.error('Failed to start stdio transport', error);
     throw error;
   }
 }
@@ -61,14 +61,18 @@ export async function runStdio(server: Server): Promise<void> {
  * @param {number} [port=3000] - Port to listen on for HTTP connections
  * @returns {Promise<void>} Promise that resolves when server is listening
  */
-export async function runHttp(server: Server, port = 3000): Promise<void> {
+export async function runHttp(
+  server: Server,
+  logger: ILogger,
+  port = 3000
+): Promise<void> {
   try {
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
     });
 
     await server.connect(transport);
-    transportLogger.info('MCP Server connected to HTTP transport');
+    logger.info('MCP Server connected to HTTP transport');
 
     const app = express();
 
@@ -81,7 +85,7 @@ export async function runHttp(server: Server, port = 3000): Promise<void> {
         await transport.handleRequest(req, res, req.body);
       } catch (err) {
         const error = err instanceof Error ? err : new Error(String(err));
-        transportLogger.error('Error handling MCP HTTP request', error, {
+        logger.error('Error handling MCP HTTP request', error, {
           method: req.method,
           url: req.url,
         });
@@ -92,11 +96,11 @@ export async function runHttp(server: Server, port = 3000): Promise<void> {
     });
 
     app.listen(port, () => {
-      transportLogger.info(`HTTP server listening on port ${port.toString()}`);
+      logger.info(`HTTP server listening on port ${port.toString()}`);
     });
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
-    transportLogger.error('Failed to start HTTP transport', error);
+    logger.error('Failed to start HTTP transport', error);
     throw error;
   }
 }
@@ -114,7 +118,11 @@ export async function runHttp(server: Server, port = 3000): Promise<void> {
  * @param {number} [port=3000] - Port to listen on for SSE connections
  * @returns {void}
  */
-export function runSSE(serverFactory: () => Server, port = 3000): void {
+export function runSSE(
+  serverFactory: () => Server,
+  logger: ILogger,
+  port = 3000
+): void {
   const sessions = new Map<string, { transport: SSEServerTransport; server: Server }>();
 
   const app = express();
@@ -142,13 +150,13 @@ export function runSSE(serverFactory: () => Server, port = 3000): void {
       // Set up cleanup on close
       transport.onclose = () => {
         sessions.delete(sessionId);
-        transportLogger.debug(`SSE session closed: ${sessionId}`);
+        logger.debug(`SSE session closed: ${sessionId}`);
       };
 
       // Note: transport.start() is automatically called by server.connect()
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
-      transportLogger.error('Error starting SSE session', error, { sessionId });
+      logger.error('Error starting SSE session', error, { sessionId });
       sessions.delete(sessionId);
       if (!res.headersSent) {
         res.status(500).json({ error: 'Failed to start SSE session' });
@@ -162,7 +170,7 @@ export function runSSE(serverFactory: () => Server, port = 3000): void {
     const session = sessions.get(sessionId);
 
     if (!session) {
-      transportLogger.warn(`SSE session not found: ${sessionId}`);
+      logger.warn(`SSE session not found: ${sessionId}`);
       res.status(404).json({ error: 'Session not found' });
       return;
     }
@@ -171,7 +179,7 @@ export function runSSE(serverFactory: () => Server, port = 3000): void {
       await session.transport.handlePostMessage(req, res, req.body);
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
-      transportLogger.error('Error handling SSE POST message', error, {
+      logger.error('Error handling SSE POST message', error, {
         sessionId,
       });
       if (!res.headersSent) {
@@ -186,9 +194,7 @@ export function runSSE(serverFactory: () => Server, port = 3000): void {
   });
 
   app.listen(port, () => {
-    transportLogger.info(`SSE server listening on port ${port.toString()}`);
-    transportLogger.info(
-      `SSE endpoint available at: http://localhost:${port.toString()}/sse`
-    );
+    logger.info(`SSE server listening on port ${port.toString()}`);
+    logger.info(`SSE endpoint available at: http://localhost:${port.toString()}/sse`);
   });
 }

@@ -16,7 +16,6 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { encode as msgpackEncode } from '@msgpack/msgpack';
 
-import { parseInstructionModules } from '../modules/parsing.js';
 import { getContainer } from '../modules/container.js';
 import type {
   InstructionModule,
@@ -28,6 +27,7 @@ import type {
   EmbeddingProgressCallback,
   IEmbeddingService,
   ISemanticConfig,
+  IInstructionModuleParser,
 } from '../modules/interfaces.js';
 
 /**
@@ -49,22 +49,18 @@ interface VectorGenerationProgress {
  * Build-time vector generator that creates pre-computed embeddings.
  */
 export class VectorGenerator {
-  private embeddingService: IEmbeddingService;
-  private config: ISemanticConfig;
   private outputDir: string;
   private progressCallback: ((progress: VectorGenerationProgress) => void) | undefined;
 
   constructor(
+    private embeddingService: IEmbeddingService,
+    private config: ISemanticConfig,
+    private parser: IInstructionModuleParser,
     outputDir = 'dist/vectors',
     progressCallback?: (progress: VectorGenerationProgress) => void
   ) {
     this.outputDir = outputDir;
     this.progressCallback = progressCallback;
-
-    // Initialize dependencies
-    const container = getContainer();
-    this.config = container.getSemanticConfig();
-    this.embeddingService = container.getEmbeddingService();
   }
 
   /**
@@ -90,7 +86,7 @@ export class VectorGenerator {
         stage: 'parsing',
       });
 
-      const modules = await parseInstructionModules();
+      const modules = await this.parser.parseInstructionModules();
 
       // Filter modules that have semantic field
       const modulesWithSemantic = modules.filter(module => module.semantic);
@@ -316,7 +312,16 @@ async function main(): Promise<void> {
     console.log(`[${progress.stage.toUpperCase()}] ${percentage}%${current}`);
   };
 
-  const generator = new VectorGenerator(outputDir, progressCallback);
+  // Composition root: acceptable use of container in CLI entry point
+  const container = getContainer();
+
+  const generator = new VectorGenerator(
+    container.getEmbeddingService(),
+    container.getSemanticConfig(),
+    container.getInstructionModuleParser(),
+    outputDir,
+    progressCallback
+  );
 
   try {
     await generator.generateVectors();

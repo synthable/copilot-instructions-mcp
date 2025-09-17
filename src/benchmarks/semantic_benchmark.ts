@@ -15,7 +15,11 @@
 import { performance } from 'node:perf_hooks';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { createProductionContainer } from '../modules/index.js';
+import {
+  createProductionContainer,
+  IInstructionModuleParser,
+  ISemanticSearchService,
+} from '../modules/index.js';
 
 interface Percentiles {
   p50: number;
@@ -38,150 +42,165 @@ function pretty(ms: number): string {
   return `${ms.toFixed(1)} ms`;
 }
 
-async function main() {
-  const N = Number(process.env.BENCH_N ?? '30');
-  const container = createProductionContainer();
-  const parser = container.getInstructionModuleParser();
-  const svc = container.getSemanticSearchService();
+class SemanticBenchmark {
+  constructor(
+    private parser: IInstructionModuleParser,
+    private svc: ISemanticSearchService
+  ) {}
 
-  // Measure cold index build time and peak RSS by sampling during build.
-  let peak = rssMB();
-  const sampler = setInterval(() => {
-    const current = rssMB();
-    if (current > peak) peak = current;
-  }, 50);
+  async run() {
+    const N = Number(process.env.BENCH_N ?? '30');
 
-  const t0 = performance.now();
-  await svc.buildIndex(true);
-  const t1 = performance.now();
-  clearInterval(sampler);
-  // Update peak once more after completion
-  peak = Math.max(peak, rssMB());
+    // Measure cold index build time and peak RSS by sampling during build.
+    let peak = rssMB();
+    const sampler = setInterval(() => {
+      const current = rssMB();
+      if (current > peak) peak = current;
+    }, 50);
 
-  // Embedding dimension: fixed per current model (all-mpnet-base-v2 = 768)
-  const dims = 768;
+    const t0 = performance.now();
+    await this.svc.buildIndex(true);
+    const t1 = performance.now();
+    clearInterval(sampler);
+    // Update peak once more after completion
+    peak = Math.max(peak, rssMB());
 
-  // Estimate index size in memory (vectors only)
-  const modules = await parser.parseInstructionModules();
-  const numItems = modules.length;
-  const indexBytes = numItems * dims * 4; // float32
-  const indexMB = indexBytes / (1024 * 1024);
+    // Embedding dimension: fixed per current model (all-mpnet-base-v2 = 768)
+    const dims = 768;
 
-  // Prepare a small set of representative queries
-  const defaultQueries = [
-    'semantic search',
-    'hybrid search',
-    'embedding pipeline',
-    'dependency injection container',
-    'MCP tools and handlers',
-    'server transports stdio http sse',
-    'instruction modules parsing',
-    'vector store plan and persistence',
-  ];
+    // Estimate index size in memory (vectors only)
+    const modules = await this.parser.parseInstructionModules();
+    const numItems = modules.length;
+    const indexBytes = numItems * dims * 4; // float32
+    const indexMB = indexBytes / (1024 * 1024);
 
-  // Warm-up to avoid one-time overheads
-  await svc.semanticSearch('warm up', 5);
+    // Prepare a small set of representative queries
+    const defaultQueries = [
+      'semantic search',
+      'hybrid search',
+      'embedding pipeline',
+      'dependency injection container',
+      'MCP tools and handlers',
+      'server transports stdio http sse',
+      'instruction modules parsing',
+      'vector store plan and persistence',
+    ];
 
-  // Run warm queries and collect latencies
-  const samples: number[] = [];
-  for (let i = 0; i < N; i++) {
-    const q = defaultQueries[i % defaultQueries.length];
-    const s = performance.now();
-    await svc.semanticSearch(q, 5);
-    const e = performance.now();
-    samples.push(e - s);
-  }
-  const { p50, p95 } = calcPercentiles(samples);
+    // Warm-up to avoid one-time overheads
+    await this.svc.semanticSearch('warm up', 5);
 
-  // Optional: relevance evaluation from bench/relevance.json
-  // Format:
-  // {
-  //   "k": 5,
-  //   "queries": [ { "q": "...", "relevantIds": ["module-id-1", "module-id-2"] } ]
-  // }
-  const benchDir = join(process.cwd(), 'bench');
-  const relevancePath = join(benchDir, 'relevance.json');
-  let relevanceSummary: string | null = null;
-  if (existsSync(relevancePath)) {
-    try {
-      const spec = JSON.parse(readFileSync(relevancePath, 'utf-8')) as {
-        k?: number;
-        queries: { q: string; relevantIds: string[] }[];
-      };
-      const k = Math.max(1, Math.min(20, spec.k ?? 5));
-      let hits = 0;
-      let totalPrec = 0;
-      for (const item of spec.queries) {
-        const res = await svc.semanticSearch(item.q, k);
-        const ids = new Set(res.map(r => r.id));
-        const rel = new Set(item.relevantIds);
-        const intersection = [...ids].filter(x => rel.has(x));
-        const hit = intersection.length > 0 ? 1 : 0;
-        const prec = intersection.length / k;
-        hits += hit;
-        totalPrec += prec;
-      }
-      const mHitsAtK = hits / spec.queries.length;
-      const mPrecAtK = totalPrec / spec.queries.length;
-      relevanceSummary = [
-        'relevance: hits@',
-        String(k),
-        '=',
-        mHitsAtK.toFixed(2),
-        ', precision@',
-        String(k),
-        '=',
-        mPrecAtK.toFixed(2),
-        ' (n=',
-        String(spec.queries.length),
-        ')',
-      ].join('');
-    } catch (err) {
-      relevanceSummary = `relevance: error parsing ${relevancePath}: ${(err as Error).message}`;
+    // Run warm queries and collect latencies
+    const samples: number[] = [];
+    for (let i = 0; i < N; i++) {
+      const q = defaultQueries[i % defaultQueries.length];
+      const s = performance.now();
+      await this.svc.semanticSearch(q, 5);
+      const e = performance.now();
+      samples.push(e - s);
     }
+    const { p50, p95 } = calcPercentiles(samples);
+
+    // Optional: relevance evaluation from bench/relevance.json
+    // Format:
+    // {
+    //   "k": 5,
+    //   "queries": [ { "q": "...", "relevantIds": ["module-id-1", "module-id-2"] } ]
+    // }
+    const benchDir = join(process.cwd(), 'bench');
+    const relevancePath = join(benchDir, 'relevance.json');
+    let relevanceSummary: string | null = null;
+    if (existsSync(relevancePath)) {
+      try {
+        const spec = JSON.parse(readFileSync(relevancePath, 'utf-8')) as {
+          k?: number;
+          queries: { q: string; relevantIds: string[] }[];
+        };
+        const k = Math.max(1, Math.min(20, spec.k ?? 5));
+        let hits = 0;
+        let totalPrec = 0;
+        for (const item of spec.queries) {
+          const res = await this.svc.semanticSearch(item.q, k);
+          const ids = new Set(res.map(r => r.id));
+          const rel = new Set(item.relevantIds);
+          const intersection = [...ids].filter(x => rel.has(x));
+          const hit = intersection.length > 0 ? 1 : 0;
+          const prec = intersection.length / k;
+          hits += hit;
+          totalPrec += prec;
+        }
+        const mHitsAtK = hits / spec.queries.length;
+        const mPrecAtK = totalPrec / spec.queries.length;
+        relevanceSummary = [
+          'relevance: hits@',
+          String(k),
+          '=',
+          mHitsAtK.toFixed(2),
+          ', precision@',
+          String(k),
+          '=',
+          mPrecAtK.toFixed(2),
+          ' (n=',
+          String(spec.queries.length),
+          ')',
+        ].join('');
+      } catch (err) {
+        relevanceSummary = `relevance: error parsing ${relevancePath}: ${
+          (err as Error).message
+        }`;
+      }
+    }
+
+    // Report
+    const report = {
+      model: 'Xenova/all-mpnet-base-v2',
+      dims,
+      itemsIndexed: numItems,
+      indexSizeMB: Number(indexMB.toFixed(2)),
+      coldBuild: {
+        wallTimeMs: Number((t1 - t0).toFixed(1)),
+        peakRssMB: Number(peak.toFixed(1)),
+      },
+      warmQueries: {
+        N,
+        p50ms: Number(p50.toFixed(1)),
+        p95ms: Number(p95.toFixed(1)),
+      },
+      notes:
+        relevanceSummary ??
+        'relevance: bench/relevance.json not found; create to compute hits@k/precision@k',
+    };
+
+    // Pretty print
+    console.log('--- Semantic Search Benchmark ---');
+    console.log('Model:', report.model, '(dims=', report.dims, ')');
+    console.log('Indexed items:', report.itemsIndexed);
+    console.log('Index vector memory (est):', report.indexSizeMB, 'MB');
+    console.log(
+      'Cold build: wall=',
+      pretty(report.coldBuild.wallTimeMs),
+      'peakRSS=',
+      report.coldBuild.peakRssMB.toFixed(1),
+      'MB'
+    );
+    console.log(
+      'Warm queries (N=',
+      report.warmQueries.N,
+      '): p50=',
+      pretty(report.warmQueries.p50ms),
+      'p95=',
+      pretty(report.warmQueries.p95ms)
+    );
+    console.log(report.notes);
   }
+}
 
-  // Report
-  const report = {
-    model: 'Xenova/all-mpnet-base-v2',
-    dims,
-    itemsIndexed: numItems,
-    indexSizeMB: Number(indexMB.toFixed(2)),
-    coldBuild: {
-      wallTimeMs: Number((t1 - t0).toFixed(1)),
-      peakRssMB: Number(peak.toFixed(1)),
-    },
-    warmQueries: {
-      N,
-      p50ms: Number(p50.toFixed(1)),
-      p95ms: Number(p95.toFixed(1)),
-    },
-    notes:
-      relevanceSummary ??
-      'relevance: bench/relevance.json not found; create to compute hits@k/precision@k',
-  };
-
-  // Pretty print
-  console.log('--- Semantic Search Benchmark ---');
-  console.log('Model:', report.model, '(dims=', report.dims, ')');
-  console.log('Indexed items:', report.itemsIndexed);
-  console.log('Index vector memory (est):', report.indexSizeMB, 'MB');
-  console.log(
-    'Cold build: wall=',
-    pretty(report.coldBuild.wallTimeMs),
-    'peakRSS=',
-    report.coldBuild.peakRssMB.toFixed(1),
-    'MB'
+async function main() {
+  const container = createProductionContainer();
+  const benchmark = new SemanticBenchmark(
+    container.getInstructionModuleParser(),
+    container.getSemanticSearchService()
   );
-  console.log(
-    'Warm queries (N=',
-    report.warmQueries.N,
-    '): p50=',
-    pretty(report.warmQueries.p50ms),
-    'p95=',
-    pretty(report.warmQueries.p95ms)
-  );
-  console.log(report.notes);
+  await benchmark.run();
 }
 
 main().catch((err: unknown) => {

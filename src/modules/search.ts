@@ -12,7 +12,6 @@
  */
 
 import { CONFIG, validateFilePath } from './validation.js';
-import { searchLogger } from './logger.js';
 import type { InstructionModule, SearchResult } from './types.js';
 import type {
   IDependencies,
@@ -163,7 +162,10 @@ function searchModuleContent(
       return { score: contentScore, matches };
     }
   } catch (err) {
-    searchLogger.warn(`Failed to read content for ${module.filePath}`, err);
+    dependencies.logger.warn(
+      `Failed to read content for ${module.filePath}`,
+      err instanceof Error ? err : undefined
+    );
   }
 
   return { score: 0, matches: [] };
@@ -333,12 +335,3 @@ export class SearchService implements ISearchService {
  * @param searchTerms Array of search terms to match against
  * @returns Array of matching modules sorted by score descending
  */
-export async function searchInstructionModules(
-  searchTerms: string[]
-): Promise<SearchResult[]> {
-  // Dynamic import to avoid circular dependency issues
-  const { getContainer } = await import('./container.js');
-  const container = getContainer();
-  const searchService = container.getSearchService();
-  return await searchService.searchInstructionModules(searchTerms);
-}

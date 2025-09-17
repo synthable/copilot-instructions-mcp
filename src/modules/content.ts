@@ -11,7 +11,6 @@
  */
 
 import { validateFilePath } from './validation.js';
-import { contentLogger } from './logger.js';
 import type {
   GetModulesContentResult,
   UMSv11Module,
@@ -106,7 +105,10 @@ export class ContentService implements IContentService {
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';
         errors.push(`Error reading module "${moduleId}": ${errorMessage}`);
-        contentLogger.warn(`Error reading module ${moduleId}`, err);
+        this.dependencies.logger.warn(
+          `Error reading module ${moduleId}`,
+          err instanceof Error ? err : undefined
+        );
       }
     }
 
@@ -278,9 +280,9 @@ export class ContentService implements IContentService {
 
       return lines.join('\n');
     } catch (error) {
-      contentLogger.warn(
+      this.dependencies.logger.warn(
         `Failed to render full YAML module content for ${module.id}`,
-        error
+        error instanceof Error ? error : undefined
       );
       return this.renderSimpleYamlContent(module);
     }
@@ -429,12 +431,3 @@ export class ContentService implements IContentService {
  * @param moduleIds Array of module IDs to retrieve
  * @returns Result object with success status, combined content, and error details
  */
-export async function getModulesContent(
-  moduleIds: string[]
-): Promise<GetModulesContentResult> {
-  // Dynamic import to avoid circular dependency issues
-  const { getContainer } = await import('./container.js');
-  const container = getContainer();
-  const contentService = container.getContentService();
-  return await contentService.getModulesContent(moduleIds);
-}

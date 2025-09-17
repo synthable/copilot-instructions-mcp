@@ -14,7 +14,6 @@
  * @since 1.0.0
  */
 
-import { parsingLogger } from './logger.js';
 import type { InstructionModule } from './types.js';
 import type { IDependencies, IInstructionModuleParser, ILogger } from './interfaces.js';
 import { parse as yamlParseFn } from 'yaml';
@@ -378,8 +377,11 @@ function buildModuleObject(
  */
 export class InstructionModuleParser implements IInstructionModuleParser {
   private cachedInstructionModules: InstructionModule[] | null = null;
+  private logger: ILogger;
 
-  constructor(private dependencies: IDependencies) {}
+  constructor(private dependencies: IDependencies) {
+    this.logger = dependencies.logger;
+  }
 
   /**
    * Parses instruction modules by recursively discovering all *.module.yml
@@ -401,7 +403,7 @@ export class InstructionModuleParser implements IInstructionModuleParser {
    */
   async parseInstructionModules(): Promise<InstructionModule[]> {
     if (this.cachedInstructionModules) {
-      parsingLogger.debug('Returning cached instruction modules');
+      this.logger.debug('Returning cached instruction modules');
       return this.cachedInstructionModules;
     }
 
@@ -430,7 +432,7 @@ export class InstructionModuleParser implements IInstructionModuleParser {
       };
       walkForPaths(baseDir);
 
-      parsingLogger.info(`Found ${yamlFiles.length.toString()} YAML modules to parse`);
+      this.logger.info(`Found ${yamlFiles.length.toString()} YAML modules to parse`);
 
       // Second pass: parse all YAML files concurrently
       const parsePromises = yamlFiles.map(async ({ rel, abs }) => {
@@ -447,7 +449,7 @@ export class InstructionModuleParser implements IInstructionModuleParser {
       });
 
       // Wait for all parsing to complete
-      parsingLogger.info(
+      this.logger.info(
         `Parsing ${yamlFiles.length.toString()} YAML modules concurrently`
       );
       const parsedResults = await Promise.allSettled(parsePromises);
@@ -461,21 +463,21 @@ export class InstructionModuleParser implements IInstructionModuleParser {
           modules.push(result.value);
         } else if (result.status === 'rejected') {
           failedModules++;
-          parsingLogger.warn(
+          this.logger.warn(
             'YAML module parsing promise rejected',
             result.reason instanceof Error ? result.reason : undefined
           );
         }
       }
 
-      parsingLogger.info(
+      this.logger.info(
         `Concurrent parsing completed: ${modules.length.toString()} successful modules, ${failedModules.toString()} failed modules`
       );
       this.cachedInstructionModules = modules; // Cache the modules
       return modules;
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
-      parsingLogger.error('Error parsing instruction modules', error);
+      this.logger.error('Error parsing instruction modules', error);
       return [];
     }
   }
@@ -500,26 +502,3 @@ export class InstructionModuleParser implements IInstructionModuleParser {
 }
 
 // Convenience functions that use the global container
-
-/**
- * Convenience function to parse instruction modules using the global container.
- * @returns Array of parsed instruction modules
- */
-export async function parseInstructionModules(): Promise<InstructionModule[]> {
-  // Dynamic import to avoid circular dependency issues
-  const { getContainer } = await import('./container.js');
-  const container = getContainer();
-  const parser = container.getInstructionModuleParser();
-  return await parser.parseInstructionModules();
-}
-
-/**
- * Convenience function to clear module cache using the global container.
- */
-export async function clearModuleCache(): Promise<void> {
-  // Dynamic import to avoid circular dependency issues
-  const { getContainer } = await import('./container.js');
-  const container = getContainer();
-  const parser = container.getInstructionModuleParser();
-  parser.clearModuleCache();
-}

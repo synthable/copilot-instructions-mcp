@@ -1,7 +1,4 @@
 import type { SearchResult } from './types.js';
-import { createLogger } from './logger.js';
-
-const semanticLogger = createLogger('semantic');
 
 /**
  * Represents an entry in the embedding index.
@@ -28,6 +25,7 @@ export function loadEmbeddingIndex(
   },
   path: { join: (...p: string[]) => string },
   cwd: string,
+  logger: { error: (msg: string, err?: Error) => void },
   filename = 'data/embeddings.json'
 ): EmbeddingIndex | null {
   const p = path.join(cwd, filename);
@@ -44,7 +42,7 @@ export function loadEmbeddingIndex(
     }
     return Object.keys(idx).length > 0 ? idx : null;
   } catch (err) {
-    semanticLogger.error(
+    logger.error(
       'Failed to create inverted index',
       err instanceof Error ? err : undefined
     );

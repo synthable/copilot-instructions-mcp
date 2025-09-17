@@ -19,11 +19,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  createToolErrorResponse,
-  getToolFallbackData,
-  ToolHandlers,
-} from './toolHandlers.js';
+import { createToolErrorResponse, getToolFallbackData } from './toolHandlers.js';
 // Note: Avoid convenience wrappers that use require() (not available in ESM)
 import { Container } from './container.js';
 import { initializeServer } from './serverInitializer.js';
@@ -66,6 +62,10 @@ export function setupServerHandlers(
   serverInstance: Server,
   container: Container
 ): void {
+  // Extract dependencies once at setup time, not per request
+  const logger = container.getLogger();
+  const toolHandlers = container.createToolHandlers();
+
   // Tool implementations
   serverInstance.setRequestHandler(ListToolsRequestSchema, () => ({
     tools: [
@@ -170,7 +170,6 @@ export function setupServerHandlers(
     const { name, arguments: args } = request.params;
 
     try {
-      const toolHandlers = new ToolHandlers(container);
       switch (name) {
         case 'list_instruction_modules': {
           const result = await toolHandlers.handleListInstructionModules(args);
@@ -203,7 +202,7 @@ export function setupServerHandlers(
     } catch (err) {
       const error = err instanceof Error ? err : new Error(getErrorMessage(err));
       const fallbackData = getToolFallbackData(name);
-      const errorResponse = createToolErrorResponse(name, error, fallbackData);
+      const errorResponse = createToolErrorResponse(name, error, fallbackData, logger);
       return createJsonResponse(errorResponse);
     }
   });
@@ -368,7 +367,11 @@ export function createServer(container: Container): Server {
  */
 export async function createInitializedServer(container: Container): Promise<Server> {
   // Initialize server components including vector store
-  await initializeServer(container);
+  await initializeServer(
+    container.getDependencies().logger,
+    container.getVectorStore(),
+    container.getSemanticSearchService()
+  );
 
   // Create the server with initialized components
   return createServer(container);
