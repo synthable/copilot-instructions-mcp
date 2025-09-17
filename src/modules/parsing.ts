@@ -223,82 +223,153 @@ async function parseYamlModule(
     validateFileSize(absPath, raw, dependencies.logger);
     const parsedRec = await parseYamlSafely(raw, absPath, dependencies.logger);
 
-    let meta: Record<string, unknown> = {};
-    const metaUnknown = getProp(parsedRec, 'meta');
-    if (isRecord(metaUnknown)) meta = metaUnknown;
-    const name = (getString(meta, 'name') ?? '').trim();
-    const description = (getString(meta, 'description') ?? '').trim();
-    const semanticRaw = getString(meta, 'semantic');
-    const semantic = semanticRaw ? semanticRaw.trim() : undefined;
-    const tags = getStringArray(meta, 'tags');
+    const extractedMeta = extractMetaFromParsed(parsedRec);
+    const moduleId = extractModuleId(parsedRec, relPath);
+    const categoryInfo = deriveCategoryInfo(relPath);
+    const layerValidation = validateLayerField(
+      extractedMeta.layer,
+      categoryInfo.category,
+      moduleId,
+      dependencies.logger
+    );
+    const moduleNames = deriveModuleNames(extractedMeta.name, relPath);
 
-    // UMS v1.1: Extract layer field for foundation modules
-    const layer = getNumber(meta, 'layer');
-
-    const idUnknown = getProp(parsedRec, 'id');
-    const idSource =
-      typeof idUnknown === 'string' && idUnknown.trim().length > 0
-        ? idUnknown
-        : undefined;
-    const id = (
-      idSource ?? relPath.replace(/\.module\.yml$/, '')
-    ).trim();
-
-    const parts = relPath.split('/');
-    const tier = parts.length > 0 ? parts[0] : '';
-    const category = deriveCategoryFromTier(tier);
-    const subjectPath = parts.slice(1, Math.max(1, parts.length - 1)).join('/');
-    const subcategory = subjectPath ? subjectPath.replace(/\//g, ' / ') : undefined;
-
-    // UMS v1.1: Validate layer field for foundation modules
-    if (category === 'Foundation') {
-      if (layer !== undefined) {
-        if (!Number.isInteger(layer) || layer < 0 || layer > 4) {
-          parsingLogger.warn(
-            `Invalid layer value for foundation module ${id}: ${layer.toString()}. Must be 0-4.`
-          );
-        }
-      }
-    } else {
-      if (layer !== undefined) {
-        parsingLogger.warn(
-          `Layer field present in non-foundation module ${id}. Ignoring.`
-        );
-      }
-    }
-
-    const fileStem =
+    const mod: InstructionModule = buildModuleObject(
+      moduleId,
+      moduleNames,
+      extractedMeta,
+      categoryInfo,
+      layerValidation,
       relPath
-        .replace(/\.module\.yml$/, '')
-        .split('/')
-        .pop() ?? 'module';
-    const prettyName =
-      name || fileStem.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-    const desc = description || 'Module (parsed from YAML)';
+    );
 
-    const mod: InstructionModule = {
-      id,
-      name: prettyName,
-      description: desc,
-      category,
-      ...(subcategory ? { subcategory } : {}),
-      filePath: relPath,
-      ...(semantic ? { semantic } : {}),
-      ...(tags ? { tags } : {}),
-      // Only include layer for foundation modules with valid values
-      ...(category === 'Foundation' &&
-      layer !== undefined &&
-      Number.isInteger(layer) &&
-      layer >= 0 &&
-      layer <= 4
-        ? { layer }
-        : {}),
-    };
     return mod;
   } catch (err) {
-    parsingLogger.warn(`Failed to parse YAML module: ${relPath}`, err);
+    dependencies.logger.warn(
+      `Failed to parse YAML module: ${relPath}`,
+      err instanceof Error ? err : undefined
+    );
     return null;
   }
+}
+
+function extractMetaFromParsed(parsedRec: Record<string, unknown>): {
+  name: string;
+  description: string;
+  semantic: string | undefined;
+  tags: string[] | undefined;
+  layer: number | undefined;
+} {
+  let meta: Record<string, unknown> = {};
+  const metaUnknown = getProp(parsedRec, 'meta');
+  if (isRecord(metaUnknown)) meta = metaUnknown;
+
+  const name = (getString(meta, 'name') ?? '').trim();
+  const description = (getString(meta, 'description') ?? '').trim();
+  const semanticRaw = getString(meta, 'semantic');
+  const semantic = semanticRaw ? semanticRaw.trim() : undefined;
+  const tags = getStringArray(meta, 'tags');
+  const layer = getNumber(meta, 'layer');
+
+  return { name, description, semantic, tags, layer };
+}
+
+function extractModuleId(parsedRec: Record<string, unknown>, relPath: string): string {
+  const idUnknown = getProp(parsedRec, 'id');
+  const idSource =
+    typeof idUnknown === 'string' && idUnknown.trim().length > 0
+      ? idUnknown
+      : undefined;
+  return (idSource ?? relPath.replace(/\.module\.yml$/, '')).trim();
+}
+
+function deriveCategoryInfo(relPath: string): {
+  category: string;
+  subcategory: string | undefined;
+} {
+  const parts = relPath.split('/');
+  const tier = parts.length > 0 ? parts[0] : '';
+  const category = deriveCategoryFromTier(tier);
+  const subjectPath = parts.slice(1, Math.max(1, parts.length - 1)).join('/');
+  const subcategory = subjectPath ? subjectPath.replace(/\//g, ' / ') : undefined;
+
+  return { category, subcategory };
+}
+
+function validateLayerField(
+  layer: number | undefined,
+  category: string,
+  moduleId: string,
+  logger: ILogger
+): { isValid: boolean; shouldInclude: boolean } {
+  if (category === 'Foundation') {
+    if (layer !== undefined) {
+      const isValid = Number.isInteger(layer) && layer >= 0 && layer <= 4;
+      if (!isValid) {
+        logger.warn(
+          `Invalid layer value for foundation module ${moduleId}: ${layer.toString()}. Must be 0-4.`
+        );
+      }
+      return { isValid, shouldInclude: isValid };
+    }
+    return { isValid: true, shouldInclude: false };
+  } else {
+    if (layer !== undefined) {
+      logger.warn(
+        `Layer field present in non-foundation module ${moduleId}. Ignoring.`
+      );
+    }
+    return { isValid: true, shouldInclude: false };
+  }
+}
+
+function deriveModuleNames(
+  metaName: string,
+  relPath: string
+): {
+  prettyName: string;
+  description: string;
+} {
+  const fileStem =
+    relPath
+      .replace(/\.module\.yml$/, '')
+      .split('/')
+      .pop() ?? 'module';
+  const prettyName =
+    metaName || fileStem.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  const description = metaName ? metaName : 'Module (parsed from YAML)';
+
+  return { prettyName, description };
+}
+
+function buildModuleObject(
+  moduleId: string,
+  moduleNames: { prettyName: string; description: string },
+  extractedMeta: {
+    description: string;
+    semantic: string | undefined;
+    tags: string[] | undefined;
+    layer: number | undefined;
+  },
+  categoryInfo: { category: string; subcategory: string | undefined },
+  layerValidation: { shouldInclude: boolean },
+  relPath: string
+): InstructionModule {
+  const finalDescription = extractedMeta.description || moduleNames.description;
+
+  return {
+    id: moduleId,
+    name: moduleNames.prettyName,
+    description: finalDescription,
+    category: categoryInfo.category,
+    ...(categoryInfo.subcategory ? { subcategory: categoryInfo.subcategory } : {}),
+    filePath: relPath,
+    ...(extractedMeta.semantic ? { semantic: extractedMeta.semantic } : {}),
+    ...(extractedMeta.tags ? { tags: extractedMeta.tags } : {}),
+    ...(layerValidation.shouldInclude && extractedMeta.layer !== undefined
+      ? { layer: extractedMeta.layer }
+      : {}),
+  };
 }
 
 /**
