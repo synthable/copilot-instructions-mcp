@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import { ContentService } from './content.js';
 import type { IDependencies, IInstructionModuleParser } from './interfaces.js';
 import type { InstructionModule } from './types.js';
+import path from 'node:path';
 
 describe('ContentService - UMS v1.1 Rendering', () => {
   let mockDependencies: IDependencies;
@@ -18,13 +19,7 @@ describe('ContentService - UMS v1.1 Rendering', () => {
         statSync: vi.fn(),
         existsSync: vi.fn(() => true),
       },
-      pathUtils: {
-        join: vi.fn((...args: string[]) => args.join('/')),
-        relative: vi.fn((base: string, target: string) =>
-          target.replace(base + '/', '')
-        ),
-        resolve: vi.fn((base: string, target: string) => `${base}/${target}`),
-      },
+      pathUtils: path,
       processUtils: {
         cwd: vi.fn(() => '/test/cwd'),
       },
@@ -65,6 +60,9 @@ id: "foundation/test/v11-module"
 version: "1.0.0"
 schemaVersion: "1.1"
 shape: specification
+declaredDirectives:
+  required: ["purpose"]
+  optional: ["process", "constraints", "principles", "recommended", "discouraged", "advantages", "disadvantages", "criteria"]
 meta:
   name: "Test V1.1 Module"
   description: "A comprehensive v1.1 test module"
@@ -169,8 +167,12 @@ body:
 
       const compositeListYaml = `
 id: "foundation/test/composite"
+version: "1.0.0"
 schemaVersion: "1.1"
 shape: specification
+declaredDirectives:
+  required: []
+  optional: ["purpose", "recommended", "discouraged"]
 meta:
   name: "Composite List Test"
   description: "Testing composite list directives"
@@ -235,8 +237,12 @@ body:
 
         const yamlContent = `
 id: "test/${shape}"
+version: "1.0.0"
 schemaVersion: "1.1"
 shape: ${shape}
+declaredDirectives:
+  required: ["purpose"]
+  optional: []
 meta:
   name: "${shape} Test"
   description: "Testing ${shape} shape"
@@ -269,8 +275,12 @@ body:
 
       const dataYaml = `
 id: "test/data-module"
+version: "1.0.0"
 schemaVersion: "1.1"
 shape: data
+declaredDirectives:
+  required: ["data"]
+  optional: ["purpose"]
 meta:
   name: "Data Module Test"
   description: "Testing data directive"
@@ -306,8 +316,12 @@ body:
 
       const exampleYaml = `
 id: "test/example-module"
+version: "1.0.0"
 schemaVersion: "1.1"
 shape: specification
+declaredDirectives:
+  required: ["examples"]
+  optional: ["purpose"]
 meta:
   name: "Example Module Test"
   description: "Testing examples directive"
@@ -358,6 +372,9 @@ id: "foundation/test/v10-module"
 version: "1.0.0"
 schemaVersion: "1.0"
 shape: specification
+declaredDirectives:
+  required: ["goal"]
+  optional: ["constraints"]
 meta:
   name: "Test V1.0 Module"
   description: "Legacy v1.0 module"
@@ -432,8 +449,12 @@ body:
 
       const yamlWithoutBody = `
 id: "test/no-body"
+version: "1.0.0"
 schemaVersion: "1.1"
 shape: specification
+declaredDirectives:
+  required: []
+  optional: []
 meta:
   name: "No Body Module"
   description: "Module without body section"

@@ -13,14 +13,17 @@
     "start:http": "node dist/index.js http",
     "start:sse": "node dist/index.js sse",
     "dev": "tsc --watch",
-    "test": "vitest",
+    "test": "vitest run --run",
     "test:search": "npm run build && node test_search.js",
     "test:semantic": "npm run build && node test_semantic_search.js",
     "bench:semantic": "npm run build && node dist/benchmarks/semantic_benchmark.js",
     "lint": "eslint 'src/**/*.ts'",
+    "lint:code": "eslint 'src/**/*.ts' --ignore-pattern 'src/**/*.{test.ts,spec.ts}'",
     "lint:fix": "eslint 'src/**/*.ts' --fix",
+    "lint:tests": "eslint 'src/**/*.{test.ts,spec.ts}'",
     "format": "prettier --write 'src/**/*.{ts,js,json,md,test.ts}'",
-    "format:check": "prettier --check 'src/**/*.{ts,js,json,md,test.ts}'"
+    "format:check": "prettier --check 'src/**/*.{ts,js,json,md,test.ts}'",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [
     "mcp"
