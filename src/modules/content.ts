@@ -284,7 +284,7 @@ class DataRenderer extends BaseSectionRenderer {
 
     const language =
       validatedData.language ??
-      this.inferLanguageFromMediaType(validatedData.mediaType);
+      inferLanguageFromMediaType(validatedData.mediaType);
     lines.push('```' + language);
     lines.push(validatedData.value);
     lines.push('```');
@@ -310,10 +310,6 @@ class DataRenderer extends BaseSectionRenderer {
       }
     }
     return null;
-  }
-
-  private inferLanguageFromMediaType(mediaType: string): string {
-    return MEDIA_TYPE_MAP[mediaType] ?? 'text';
   }
 }
 
@@ -413,7 +409,7 @@ class ResourcesRenderer extends BaseSectionRenderer {
     for (const resource of validatedResources) {
       lines.push(`### ${resource.name}`);
       const language =
-        resource.language ?? this.inferLanguageFromMediaType(resource.mediaType);
+        resource.language ?? inferLanguageFromMediaType(resource.mediaType);
       lines.push('```' + language);
       lines.push(resource.value);
       lines.push('```');
@@ -469,10 +465,6 @@ class ResourcesRenderer extends BaseSectionRenderer {
       value: string;
       language?: string;
     }[];
-  }
-
-  private inferLanguageFromMediaType(mediaType: string): string {
-    return MEDIA_TYPE_MAP[mediaType] ?? 'text';
   }
 }
 
