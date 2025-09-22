@@ -22,6 +22,7 @@ import {
   validateModuleIds,
 } from './validation.js';
 import type { ToolArgs } from './types.js';
+import type { SemanticSearchOptions } from './semanticSearch.js';
 import type {
   IInstructionModuleParser,
   ISearchService,
@@ -178,7 +179,7 @@ export class ToolHandlers {
     const limit = validateSearchLimit(args.limit);
 
     // Parse semantic search options
-    const options: import('./semanticSearch.js').SemanticSearchOptions = {};
+    const options: SemanticSearchOptions = {};
 
     // Handle tier filtering
     if (args.tiers) {
@@ -234,7 +235,7 @@ export class ToolHandlers {
         : 0.6;
 
     // Parse semantic search options
-    const options: import('./semanticSearch.js').SemanticSearchOptions = {};
+    const options: SemanticSearchOptions = {};
 
     // Handle tier filtering
     if (args.tiers) {

@@ -10,6 +10,17 @@
  * @since 1.0.0
  */
 
+import type {
+  InstructionModule,
+  SearchResult,
+  GetModulesContentResult,
+  VectorIndex,
+  ModuleVector,
+  VectorIndexMetadata,
+} from './types.js';
+import type { SemanticSearchOptions } from './semanticSearch.js';
+import type { RelevanceThresholds } from './semanticConfig.js';
+
 /**
  * Interface for file system operations.
  * Abstracts Node.js fs module for dependency injection and testing.
@@ -113,7 +124,7 @@ export interface IInstructionModuleParser {
   /**
    * Parses instruction modules from the README file.
    */
-  parseInstructionModules(): Promise<import('./types.js').InstructionModule[]>;
+  parseInstructionModules(): Promise<InstructionModule[]>;
 
   /**
    * Clears the cached instruction modules.
@@ -129,9 +140,7 @@ export interface ISearchService {
   /**
    * Performs fuzzy search over instruction modules.
    */
-  searchInstructionModules(
-    searchTerms: string[]
-  ): Promise<import('./types.js').SearchResult[]>;
+  searchInstructionModules(searchTerms: string[]): Promise<SearchResult[]>;
 }
 
 /**
@@ -144,16 +153,16 @@ export interface ISemanticSearchService {
   semanticSearch(
     query: string,
     limit?: number,
-    options?: import('./semanticSearch.js').SemanticSearchOptions
-  ): Promise<import('./types.js').SearchResult[]>;
+    options?: SemanticSearchOptions
+  ): Promise<SearchResult[]>;
   /** Hybrid re-rank combining lexical and semantic signals. */
   hybridSearch(
     queryTerms: string[],
-    lexicalResults: import('./types.js').SearchResult[],
+    lexicalResults: SearchResult[],
     alpha?: number,
     limit?: number,
-    options?: import('./semanticSearch.js').SemanticSearchOptions
-  ): Promise<import('./types.js').SearchResult[]>;
+    options?: SemanticSearchOptions
+  ): Promise<SearchResult[]>;
 }
 
 /**
@@ -164,9 +173,7 @@ export interface IContentService {
   /**
    * Retrieves and combines content from multiple instruction modules.
    */
-  getModulesContent(
-    moduleIds: string[]
-  ): Promise<import('./types.js').GetModulesContentResult>;
+  getModulesContent(moduleIds: string[]): Promise<GetModulesContentResult>;
 }
 
 /**
@@ -243,17 +250,17 @@ export interface IVectorStore {
   /**
    * Loads vectors from disk (MessagePack preferred, JSON fallback).
    */
-  loadVectors(): Promise<import('./types.js').VectorIndex | null>;
+  loadVectors(): Promise<VectorIndex | null>;
 
   /**
    * Gets vectors by module IDs.
    */
-  getVectorsByIds(moduleIds: string[]): Promise<import('./types.js').ModuleVector[]>;
+  getVectorsByIds(moduleIds: string[]): Promise<ModuleVector[]>;
 
   /**
    * Gets vectors by tier/category filter.
    */
-  getVectorsByTier(tier: string): Promise<import('./types.js').ModuleVector[]>;
+  getVectorsByTier(tier: string): Promise<ModuleVector[]>;
 
   /**
    * Validates vector integrity using checksums.
@@ -263,7 +270,7 @@ export interface IVectorStore {
   /**
    * Gets vector store metadata.
    */
-  getMetadata(): Promise<import('./types.js').VectorIndexMetadata | null>;
+  getMetadata(): Promise<VectorIndexMetadata | null>;
 
   /**
    * Checks if vectors are available on disk.
@@ -319,7 +326,7 @@ export interface ISemanticConfig {
   /**
    * Gets the relevance thresholds for semantic search results.
    */
-  getRelevanceThresholds(): import('./semanticConfig.js').RelevanceThresholds;
+  getRelevanceThresholds(): RelevanceThresholds;
 
   /**
    * Gets the similarity threshold for filtering search results.
