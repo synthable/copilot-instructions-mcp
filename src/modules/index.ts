@@ -11,8 +11,8 @@
  */
 
 // Re-export all public types and interfaces
-export * from './types.js';
-export * from './interfaces.js';
+export type * from './types.js';
+export type * from './interfaces.js';
 
 // Re-export validation utilities and configuration
 export * from './validation.js';

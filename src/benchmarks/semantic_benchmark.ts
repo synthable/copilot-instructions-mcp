@@ -15,11 +15,11 @@
 import { performance } from 'node:perf_hooks';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  createProductionContainer,
+import type {
   IInstructionModuleParser,
   ISemanticSearchService,
 } from '../modules/index.js';
+import { createProductionContainer } from '../modules/index.js';
 
 interface Percentiles {
   p50: number;

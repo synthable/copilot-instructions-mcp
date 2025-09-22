@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ContentService } from './content.js';
+import {
+  ContentService,
+  getPurposeHeading,
+  inferLanguageFromMediaType,
+} from './content.js';
 import type { IDependencies, IInstructionModuleParser } from './interfaces.js';
 import type { InstructionModule } from './types.js';
+import path from 'node:path';
 
 describe('UMS v1.1 Content Rendering', () => {
   let contentService: ContentService;
@@ -16,11 +21,7 @@ describe('UMS v1.1 Content Rendering', () => {
         readdirSync: vi.fn(),
         statSync: vi.fn(),
       },
-      pathUtils: {
-        join: vi.fn((...args) => args.join('/')),
-        relative: vi.fn(),
-        resolve: vi.fn(),
-      },
+      pathUtils: path,
       processUtils: {
         cwd: vi.fn(() => '/test'),
       },
@@ -52,8 +53,17 @@ describe('UMS v1.1 Content Rendering', () => {
       };
 
       const v11Yaml = `
+id: "foundation/test/v11"
+version: "1.0.0"
 schemaVersion: "1.1"
 shape: specification
+declaredDirectives:
+  required: ["purpose"]
+  optional: ["recommended", "discouraged", "advantages", "disadvantages"]
+meta:
+  name: "V1.1 Test Module"
+  description: "Testing v1.1 features"
+  layer: 1
 body:
   purpose: "Test v1.1 purpose directive"
   recommended:
@@ -92,8 +102,16 @@ body:
       };
 
       const yamlWithComposite = `
+id: "test/composite"
+version: "1.0.0"
 schemaVersion: "1.1"
 shape: specification
+declaredDirectives:
+  required: []
+  optional: ["recommended", "discouraged"]
+meta:
+  name: "Composite Test"
+  description: "Testing composite lists"
 body:
   recommended:
     desc: "These are recommended practices:"
@@ -129,8 +147,7 @@ body:
       ];
 
       shapeMappings.forEach(({ shape, heading }) => {
-        const service = new ContentService(mockDependencies, mockParser);
-        const actualHeading = (service as any).getPurposeHeading(shape);
+        const actualHeading = getPurposeHeading(shape);
         expect(actualHeading).toBe(heading);
       });
     });
@@ -146,8 +163,7 @@ body:
       ];
 
       mediaTypeMappings.forEach(({ mediaType, language }) => {
-        const service = new ContentService(mockDependencies, mockParser);
-        const inferredLanguage = (service as any).inferLanguageFromMediaType(mediaType);
+        const inferredLanguage = inferLanguageFromMediaType(mediaType);
         expect(inferredLanguage).toBe(language);
       });
     });
@@ -192,8 +208,16 @@ body:
       };
 
       const v10Yaml = `
+id: "test/v10"
+version: "1.0.0"
 schemaVersion: "1.0"
 shape: specification
+declaredDirectives:
+  required: ["goal"]
+  optional: []
+meta:
+  name: "V1.0 Module"
+  description: "Legacy v1.0 module"
 body:
   goal: "Legacy goal directive"
 `;
