@@ -14,7 +14,6 @@ import { validateFilePath } from './validation.js';
 import type {
   GetModulesContentResult,
   UMSv11Module,
-  CompositeListDirective,
   SectionConfig,
   ListType,
 } from './types.js';
@@ -196,20 +195,60 @@ class PurposeRenderer extends BaseSectionRenderer {
  */
 class ListDirectiveRenderer extends BaseSectionRenderer {
   render(content: unknown, lines: string[], config: SectionConfig): void {
-    const directive = content as CompositeListDirective;
     const heading = config.getHeading();
     lines.push(`## ${heading}`);
 
-    if (Array.isArray(directive)) {
-      this.renderList(directive, lines, config.listType ?? 'unordered');
+    const validatedContent = this.validateListDirective(content);
+    if (!validatedContent) {
+      lines.push('_Invalid list directive format_');
+      lines.push('');
+      return;
+    }
+
+    if (validatedContent.type === 'array') {
+      this.renderList(validatedContent.items, lines, config.listType ?? 'unordered');
     } else {
-      if (directive.desc) {
-        lines.push(directive.desc);
+      if (validatedContent.desc) {
+        lines.push(validatedContent.desc);
         lines.push('');
       }
-      this.renderList(directive.list, lines, config.listType ?? 'unordered');
+      this.renderList(validatedContent.items, lines, config.listType ?? 'unordered');
     }
     lines.push('');
+  }
+
+  private validateListDirective(
+    content: unknown
+  ):
+    | { type: 'array'; items: string[] }
+    | { type: 'object'; desc?: string; items: string[] }
+    | null {
+    // Case 1: Direct array of strings
+    if (Array.isArray(content) && content.every(item => typeof item === 'string')) {
+      return { type: 'array', items: content };
+    }
+
+    // Case 2: Object with list property
+    if (typeof content === 'object' && content !== null && 'list' in content) {
+      const obj = content as Record<string, unknown>;
+      if (
+        Array.isArray(obj.list) &&
+        obj.list.every((item: unknown) => typeof item === 'string')
+      ) {
+        const result: { type: 'object'; desc?: string; items: string[] } = {
+          type: 'object',
+          items: obj.list,
+        };
+
+        if (typeof obj.desc === 'string') {
+          result.desc = obj.desc;
+        }
+
+        return result;
+      }
+    }
+
+    return null;
   }
 
   private renderList(items: string[], lines: string[], listType: ListType): void {
@@ -233,15 +272,44 @@ class ListDirectiveRenderer extends BaseSectionRenderer {
  */
 class DataRenderer extends BaseSectionRenderer {
   render(content: unknown, lines: string[], config: SectionConfig): void {
-    const data = content as { mediaType: string; value: string; language?: string };
     const heading = config.getHeading();
     lines.push(`## ${heading}`);
 
-    const language = data.language ?? this.inferLanguageFromMediaType(data.mediaType);
+    const validatedData = this.validateDataContent(content);
+    if (!validatedData) {
+      lines.push('_Invalid data format_');
+      lines.push('');
+      return;
+    }
+
+    const language =
+      validatedData.language ??
+      this.inferLanguageFromMediaType(validatedData.mediaType);
     lines.push('```' + language);
-    lines.push(data.value);
+    lines.push(validatedData.value);
     lines.push('```');
     lines.push('');
+  }
+
+  private validateDataContent(
+    content: unknown
+  ): { mediaType: string; value: string; language?: string } | null {
+    if (
+      typeof content === 'object' &&
+      content !== null &&
+      'mediaType' in content &&
+      'value' in content
+    ) {
+      const obj = content as Record<string, unknown>;
+      if (typeof obj.mediaType === 'string' && typeof obj.value === 'string') {
+        return {
+          mediaType: obj.mediaType,
+          value: obj.value,
+          ...(typeof obj.language === 'string' && { language: obj.language }),
+        };
+      }
+    }
+    return null;
   }
 
   private inferLanguageFromMediaType(mediaType: string): string {
@@ -254,16 +322,17 @@ class DataRenderer extends BaseSectionRenderer {
  */
 class ExamplesRenderer extends BaseSectionRenderer {
   render(content: unknown, lines: string[], config: SectionConfig): void {
-    const examples = content as {
-      title: string;
-      rationale: string;
-      snippet: string;
-      language?: string;
-    }[];
     const heading = config.getHeading();
     lines.push(`## ${heading}`);
 
-    for (const example of examples) {
+    const validatedExamples = this.validateExamplesContent(content);
+    if (!validatedExamples) {
+      lines.push('_Invalid examples format_');
+      lines.push('');
+      return;
+    }
+
+    for (const example of validatedExamples) {
       lines.push(`### ${example.title}`);
       lines.push(example.rationale);
       lines.push('');
@@ -274,6 +343,56 @@ class ExamplesRenderer extends BaseSectionRenderer {
       lines.push('');
     }
   }
+
+  private validateExamplesContent(content: unknown):
+    | {
+        title: string;
+        rationale: string;
+        snippet: string;
+        language?: string;
+      }[]
+    | null {
+    if (!Array.isArray(content)) {
+      return null;
+    }
+
+    const validated = content.map(item => {
+      if (
+        typeof item === 'object' &&
+        item !== null &&
+        'title' in item &&
+        'rationale' in item &&
+        'snippet' in item
+      ) {
+        const obj = item as Record<string, unknown>;
+        if (
+          typeof obj.title === 'string' &&
+          typeof obj.rationale === 'string' &&
+          typeof obj.snippet === 'string'
+        ) {
+          return {
+            title: obj.title,
+            rationale: obj.rationale,
+            snippet: obj.snippet,
+            ...(typeof obj.language === 'string' && { language: obj.language }),
+          };
+        }
+      }
+      return null;
+    });
+
+    // Check if all items were validated successfully
+    if (validated.some(item => item === null)) {
+      return null;
+    }
+
+    return validated as {
+      title: string;
+      rationale: string;
+      snippet: string;
+      language?: string;
+    }[];
+  }
 }
 
 /**
@@ -281,16 +400,17 @@ class ExamplesRenderer extends BaseSectionRenderer {
  */
 class ResourcesRenderer extends BaseSectionRenderer {
   render(content: unknown, lines: string[], config: SectionConfig): void {
-    const resources = content as {
-      name: string;
-      mediaType: string;
-      value: string;
-      language?: string;
-    }[];
     const heading = config.getHeading();
     lines.push(`## ${heading}`);
 
-    for (const resource of resources) {
+    const validatedResources = this.validateResourcesContent(content);
+    if (!validatedResources) {
+      lines.push('_Invalid resources format_');
+      lines.push('');
+      return;
+    }
+
+    for (const resource of validatedResources) {
       lines.push(`### ${resource.name}`);
       const language =
         resource.language ?? this.inferLanguageFromMediaType(resource.mediaType);
@@ -299,6 +419,56 @@ class ResourcesRenderer extends BaseSectionRenderer {
       lines.push('```');
       lines.push('');
     }
+  }
+
+  private validateResourcesContent(content: unknown):
+    | {
+        name: string;
+        mediaType: string;
+        value: string;
+        language?: string;
+      }[]
+    | null {
+    if (!Array.isArray(content)) {
+      return null;
+    }
+
+    const validated = content.map(item => {
+      if (
+        typeof item === 'object' &&
+        item !== null &&
+        'name' in item &&
+        'mediaType' in item &&
+        'value' in item
+      ) {
+        const obj = item as Record<string, unknown>;
+        if (
+          typeof obj.name === 'string' &&
+          typeof obj.mediaType === 'string' &&
+          typeof obj.value === 'string'
+        ) {
+          return {
+            name: obj.name,
+            mediaType: obj.mediaType,
+            value: obj.value,
+            ...(typeof obj.language === 'string' && { language: obj.language }),
+          };
+        }
+      }
+      return null;
+    });
+
+    // Check if all items were validated successfully
+    if (validated.some(item => item === null)) {
+      return null;
+    }
+
+    return validated as {
+      name: string;
+      mediaType: string;
+      value: string;
+      language?: string;
+    }[];
   }
 
   private inferLanguageFromMediaType(mediaType: string): string {
@@ -311,17 +481,51 @@ class ResourcesRenderer extends BaseSectionRenderer {
  */
 class MetadataRenderer extends BaseSectionRenderer {
   render(content: unknown, lines: string[]): void {
-    const metadata = content as { layer?: number; tags?: string[] };
+    const validatedMetadata = this.validateMetadataContent(content);
+    if (!validatedMetadata) {
+      return; // Skip rendering if invalid, no error message for metadata
+    }
 
-    if (metadata.layer !== undefined) {
-      lines.push(`_Foundation Layer: ${metadata.layer.toString()}_`);
+    if (validatedMetadata.layer !== undefined) {
+      lines.push(`_Foundation Layer: ${validatedMetadata.layer.toString()}_`);
       lines.push('');
     }
 
-    if (metadata.tags && metadata.tags.length > 0) {
-      lines.push(`_Tags: ${metadata.tags.join(', ')}_`);
+    if (validatedMetadata.tags && validatedMetadata.tags.length > 0) {
+      lines.push(`_Tags: ${validatedMetadata.tags.join(', ')}_`);
       lines.push('');
     }
+  }
+
+  private validateMetadataContent(
+    content: unknown
+  ): { layer?: number; tags?: string[] } | null {
+    if (typeof content !== 'object' || content === null) {
+      return null;
+    }
+
+    const obj = content as Record<string, unknown>;
+    const result: { layer?: number; tags?: string[] } = {};
+
+    // Validate layer if present
+    if ('layer' in obj) {
+      if (typeof obj.layer === 'number') {
+        result.layer = obj.layer;
+      } else {
+        return null; // Invalid layer type
+      }
+    }
+
+    // Validate tags if present
+    if ('tags' in obj) {
+      if (Array.isArray(obj.tags) && obj.tags.every(tag => typeof tag === 'string')) {
+        result.tags = obj.tags;
+      } else {
+        return null; // Invalid tags format
+      }
+    }
+
+    return result;
   }
 }
 
