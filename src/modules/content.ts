@@ -733,7 +733,7 @@ export class ContentService implements IContentService {
       const lines: string[] = [];
 
       // Render sections based on configuration, sorted by priority
-      const sortedConfigs = SECTION_CONFIGS.sort((a, b) => a.priority - b.priority);
+      const sortedConfigs = [...SECTION_CONFIGS].sort((a, b) => a.priority - b.priority);
 
       for (const config of sortedConfigs) {
         let content = body[config.key];
