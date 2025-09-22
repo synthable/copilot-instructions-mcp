@@ -550,7 +550,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /**
  * Type guard to check if parsed object is a valid UMS module
  */
-function isValidUMSModule(obj: Record<string, unknown>): boolean {
+function isValidUMSModule(obj: unknown): obj is UMSv11Module {
+  if (!isRecord(obj)) {
+    return false;
+  }
+  
   return (
     typeof obj.id === 'string' &&
     typeof obj.version === 'string' &&
@@ -573,13 +577,6 @@ function parseYamlModule(content: string): {
   try {
     const parsed: unknown = yamlParseFn(content);
 
-    if (!isRecord(parsed)) {
-      return {
-        success: false,
-        error: 'YAML content is not a valid object',
-      };
-    }
-
     if (!isValidUMSModule(parsed)) {
       return {
         success: false,
@@ -589,7 +586,7 @@ function parseYamlModule(content: string): {
 
     return {
       success: true,
-      module: parsed as unknown as UMSv11Module,
+      module: parsed, // No casting needed! TypeScript knows it's UMSv11Module
     };
   } catch (error) {
     return {
