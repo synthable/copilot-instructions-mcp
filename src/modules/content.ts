@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/explicit-member-accessibility */
+/* eslint-disable max-lines */
 /**
  * @fileoverview Module content retrieval and formatting functionality.
  *
@@ -14,6 +16,7 @@ import { validateFilePath } from './validation.js';
 import type {
   GetModulesContentResult,
   UMSv11Module,
+  UMSv11Body,
   SectionConfig,
   ListType,
 } from './types.js';
@@ -717,9 +720,8 @@ export class ContentService implements IContentService {
     contentPath: string
   ): string {
     try {
-      const raw = this.dependencies.fileSystem.readFileSync(contentPath, 'utf-8');
-      const parseResult = parseYamlModule(raw);
-
+      const parseResult = this.parseModuleFile(contentPath);
+      
       if (!parseResult.success || !parseResult.module) {
         this.dependencies.logger.warn(
           `YAML parsing failed for ${module.id}: ${parseResult.error ?? 'Unknown error'}`
@@ -727,45 +729,9 @@ export class ContentService implements IContentService {
         return this.renderSimpleYamlContent(module);
       }
 
-      const parsedModule = parseResult.module;
-      const body = parsedModule.body;
-      const shape = parsedModule.shape;
       const lines: string[] = [];
-
-      // Render sections based on configuration, sorted by priority
-      const sortedConfigs = [...SECTION_CONFIGS].sort((a, b) => a.priority - b.priority);
-
-      for (const config of sortedConfigs) {
-        let content = body[config.key];
-
-        // Special handling for purpose/goal backward compatibility
-        if (config.key === 'purpose') {
-          content = body.purpose ?? body.goal;
-        }
-
-        if (!content) continue;
-
-        // Skip purpose for data shape (rendered under Data heading)
-        if (config.key === 'purpose' && shape === 'data') continue;
-
-        // Skip empty arrays
-        if (Array.isArray(content) && content.length === 0) continue;
-
-        const renderer = getSectionRenderer(config.renderer);
-        if (renderer) {
-          renderer.render(content, lines, config, shape);
-        }
-      }
-
-      // Render metadata footer
-      const metadataRenderer = getSectionRenderer('metadata');
-      if (metadataRenderer) {
-        metadataRenderer.render(
-          { layer: module.layer, tags: module.tags },
-          lines,
-          {} as SectionConfig
-        );
-      }
+      this.renderModuleSections(parseResult.module, lines);
+      this.renderModuleMetadata(module, lines);
 
       return lines.join('\n');
     } catch (error) {
@@ -774,6 +740,89 @@ export class ContentService implements IContentService {
         error instanceof Error ? error : undefined
       );
       return this.renderSimpleYamlContent(module);
+    }
+  }
+
+  /**
+   * Parses a YAML module file and returns the parse result
+   */
+  private parseModuleFile(contentPath: string): {
+    success: boolean;
+    module?: UMSv11Module;
+    error?: string;
+  } {
+    const raw = this.dependencies.fileSystem.readFileSync(contentPath, 'utf-8');
+    return parseYamlModule(raw);
+  }
+
+  /**
+   * Renders all sections of a parsed UMS module
+   */
+  private renderModuleSections(parsedModule: UMSv11Module, lines: string[]): void {
+    const body = parsedModule.body;
+    const shape = parsedModule.shape;
+    
+    // Render sections based on configuration, sorted by priority
+    const sortedConfigs = [...SECTION_CONFIGS].sort((a, b) => a.priority - b.priority);
+
+    for (const config of sortedConfigs) {
+      const content = this.getContentForSection(config.key, body);
+      
+      if (!this.shouldRenderSection(content, config.key, shape)) {
+        continue;
+      }
+
+      const renderer = getSectionRenderer(config.renderer);
+      if (renderer) {
+        renderer.render(content, lines, config, shape);
+      }
+    }
+  }
+
+  /**
+   * Gets content for a specific section with backward compatibility handling
+   */
+  private getContentForSection(sectionKey: string, body: UMSv11Body): unknown {
+    // Use a type assertion to safely access the body properties
+    const bodyRecord = body as Record<string, unknown>;
+    
+    // Special handling for purpose/goal backward compatibility
+    if (sectionKey === 'purpose') {
+      return bodyRecord.purpose ?? bodyRecord.goal;
+    }
+    
+    return bodyRecord[sectionKey];
+  }
+
+  /**
+   * Determines if a section should be rendered based on content and context
+   */
+  private shouldRenderSection(content: unknown, sectionKey: string, shape: string): boolean {
+    if (!content) return false;
+    
+    // Skip purpose for data shape (rendered under Data heading)
+    if (sectionKey === 'purpose' && shape === 'data') return false;
+    
+    // Skip empty arrays
+    if (Array.isArray(content) && content.length === 0) return false;
+    
+    return true;
+  }
+
+  /**
+   * Renders metadata footer for a module
+   */
+  private renderModuleMetadata(
+    module: { layer?: number; tags?: string[] },
+    lines: string[]
+  ): void {
+    const metadataRenderer = getSectionRenderer('metadata');
+    if (metadataRenderer) {
+      metadataRenderer.render(
+        { layer: module.layer, tags: module.tags },
+        lines,
+        {} as SectionConfig
+      );
     }
   }
 
