@@ -142,3 +142,4 @@ vite.config.ts.timestamp-*
 instructions-modules/.DS_Store
 #instructions-modules/
 #instructions-modules
+.claude/TESTING.md
