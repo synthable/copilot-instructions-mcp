@@ -286,8 +286,7 @@ class DataRenderer extends BaseSectionRenderer {
     }
 
     const language =
-      validatedData.language ??
-      inferLanguageFromMediaType(validatedData.mediaType);
+      validatedData.language ?? inferLanguageFromMediaType(validatedData.mediaType);
     lines.push('```' + language);
     lines.push(validatedData.value);
     lines.push('```');
@@ -557,7 +556,7 @@ function isValidUMSModule(obj: unknown): obj is UMSv11Module {
   if (!isRecord(obj)) {
     return false;
   }
-  
+
   return (
     typeof obj.id === 'string' &&
     typeof obj.version === 'string' &&
@@ -721,7 +720,7 @@ export class ContentService implements IContentService {
   ): string {
     try {
       const parseResult = this.parseModuleFile(contentPath);
-      
+
       if (!parseResult.success || !parseResult.module) {
         this.dependencies.logger.warn(
           `YAML parsing failed for ${module.id}: ${parseResult.error ?? 'Unknown error'}`
@@ -761,13 +760,13 @@ export class ContentService implements IContentService {
   private renderModuleSections(parsedModule: UMSv11Module, lines: string[]): void {
     const body = parsedModule.body;
     const shape = parsedModule.shape;
-    
+
     // Render sections based on configuration, sorted by priority
     const sortedConfigs = [...SECTION_CONFIGS].sort((a, b) => a.priority - b.priority);
 
     for (const config of sortedConfigs) {
       const content = this.getContentForSection(config.key, body);
-      
+
       if (!this.shouldRenderSection(content, config.key, shape)) {
         continue;
       }
@@ -785,27 +784,31 @@ export class ContentService implements IContentService {
   private getContentForSection(sectionKey: string, body: UMSv11Body): unknown {
     // Use a type assertion to safely access the body properties
     const bodyRecord = body as Record<string, unknown>;
-    
+
     // Special handling for purpose/goal backward compatibility
     if (sectionKey === 'purpose') {
       return bodyRecord.purpose ?? bodyRecord.goal;
     }
-    
+
     return bodyRecord[sectionKey];
   }
 
   /**
    * Determines if a section should be rendered based on content and context
    */
-  private shouldRenderSection(content: unknown, sectionKey: string, shape: string): boolean {
+  private shouldRenderSection(
+    content: unknown,
+    sectionKey: string,
+    shape: string
+  ): boolean {
     if (!content) return false;
-    
+
     // Skip purpose for data shape (rendered under Data heading)
     if (sectionKey === 'purpose' && shape === 'data') return false;
-    
+
     // Skip empty arrays
     if (Array.isArray(content) && content.length === 0) return false;
-    
+
     return true;
   }
 
