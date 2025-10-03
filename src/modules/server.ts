@@ -16,6 +16,7 @@ import {
   ListToolsRequestSchema,
   ListPromptsRequestSchema,
   GetPromptRequestSchema,
+  ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -339,6 +340,25 @@ export function setupServerHandlers(
       );
     }
   });
+
+  // Resource handlers
+  const resourceService = container.getResourceService();
+
+  serverInstance.setRequestHandler(ReadResourceRequestSchema, async request => {
+    const { uri } = request.params;
+
+    try {
+      const result = await resourceService.readResource(uri);
+      // Return only the contents array as per MCP protocol
+      return {
+        contents: result.contents,
+      };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      logger.error(`Failed to read resource ${uri}`, err instanceof Error ? err : undefined);
+      throw new Error(`Failed to read resource: ${errorMessage}`);
+    }
+  });
 }
 
 /**
@@ -354,6 +374,7 @@ export function createServer(container: Container): Server {
       capabilities: {
         tools: {},
         prompts: {},
+        resources: {},
       },
     }
   );

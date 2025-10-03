@@ -19,6 +19,7 @@ import { EmbeddingService } from './embeddingService.js';
 import { VectorStore } from './vectorStore.js';
 import { createProductionSemanticConfig } from './semanticConfig.js';
 import { createLogger } from './logger.js';
+import { ResourceService } from './resourceService.js';
 import type {
   IDependencies,
   IFileSystem,
@@ -31,6 +32,7 @@ import type {
   IEmbeddingService,
   ISemanticConfig,
   IVectorStore,
+  IResourceService,
 } from './interfaces.js';
 import { SemanticSearchService } from './semanticSearch.js';
 import { ToolHandlers } from './toolHandlers.js';
@@ -98,6 +100,7 @@ export class Container {
   private embeddingService?: IEmbeddingService;
   private semanticConfig?: ISemanticConfig;
   private vectorStore?: IVectorStore;
+  private resourceService?: IResourceService;
 
   constructor(dependencies?: Partial<IDependencies>) {
     this.dependencies = {
@@ -187,9 +190,20 @@ export class Container {
   }
 
   /**
+   * Gets or creates the resource service.
+   */
+  getResourceService(): IResourceService {
+    this.resourceService ??= new ResourceService(
+      this.dependencies,
+      this.getInstructionModuleParser()
+    );
+    return this.resourceService;
+  }
+
+  /**
    * Creates a new ToolHandlers instance with proper dependency injection.
    */
-  createToolHandlers() {
+  createToolHandlers(): ToolHandlers {
     return new ToolHandlers(
       this.getInstructionModuleParser(),
       this.getSearchService(),
@@ -202,7 +216,7 @@ export class Container {
   /**
    * Gets the logger instance for direct use (primarily for CLI and composition root).
    */
-  getLogger() {
+  getLogger(): IDependencies['logger'] {
     return this.dependencies.logger;
   }
 
@@ -240,6 +254,11 @@ export class Container {
   /** Set a custom semantic config (testing). */
   setSemanticConfig(config: ISemanticConfig): void {
     this.semanticConfig = config;
+  }
+
+  /** Set a custom resource service (testing). */
+  setResourceService(service: IResourceService): void {
+    this.resourceService = service;
   }
 }
 

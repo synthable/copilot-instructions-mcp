@@ -323,3 +323,11 @@ export interface SectionConfig {
   /** Priority for section ordering (lower = earlier) */
   priority: number;
 }
+
+// Re-export resource types for convenience
+export type {
+  ResourceContent,
+  ResourceFormat,
+  ParsedResourceUri,
+} from './resourceTypes.js';
+export { MIME_TYPES, VALID_FORMATS } from './resourceTypes.js';
