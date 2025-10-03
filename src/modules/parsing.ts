@@ -378,9 +378,14 @@ function buildModuleObject(
 export class InstructionModuleParser implements IInstructionModuleParser {
   private cachedInstructionModules: InstructionModule[] | null = null;
   private logger: ILogger;
+  private moduleDirectory: string;
 
-  constructor(private dependencies: IDependencies) {
+  constructor(
+    private dependencies: IDependencies,
+    moduleDirectory: string = 'instructions-modules'
+  ) {
     this.logger = dependencies.logger;
+    this.moduleDirectory = moduleDirectory;
   }
 
   /**
@@ -411,7 +416,7 @@ export class InstructionModuleParser implements IInstructionModuleParser {
       // UMS-only: discover and parse all .module.yml files
       const baseDir = this.dependencies.pathUtils.join(
         this.dependencies.processUtils.cwd(),
-        'instructions-modules'
+        this.moduleDirectory
       );
       // First pass: collect all YAML file paths
       const yamlFiles: { rel: string; abs: string }[] = [];

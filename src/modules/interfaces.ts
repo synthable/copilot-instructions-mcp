@@ -20,6 +20,7 @@ import type {
 } from './types.js';
 import type { SemanticSearchOptions } from './semanticSearch.js';
 import type { RelevanceThresholds } from './semanticConfig.js';
+import type { ResourceContent } from './resourceTypes.js';
 
 /**
  * Interface for file system operations.
@@ -337,4 +338,19 @@ export interface ISemanticConfig {
    * Gets relevance level for a given similarity score.
    */
   getRelevanceLevel(score: number): 'high' | 'medium' | 'low' | 'none';
+}
+
+/**
+ * Interface for resource service functionality.
+ * Enables dependency injection for URI-based resource access to instruction modules.
+ */
+export interface IResourceService {
+  /**
+   * Reads a resource by URI and returns its content in the requested format.
+   *
+   * @param uri - The module URI (e.g., "module://foundation/reasoning/systems-thinking")
+   * @returns Promise resolving to ResourceContent with the module content and metadata
+   * @throws Error if URI is malformed or module is not found
+   */
+  readResource(uri: string): Promise<ResourceContent>;
 }

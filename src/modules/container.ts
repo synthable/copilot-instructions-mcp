@@ -19,6 +19,7 @@ import { EmbeddingService } from './embeddingService.js';
 import { VectorStore } from './vectorStore.js';
 import { createProductionSemanticConfig } from './semanticConfig.js';
 import { createLogger } from './logger.js';
+import { ResourceService } from './resourceService.js';
 import type {
   IDependencies,
   IFileSystem,
@@ -31,6 +32,7 @@ import type {
   IEmbeddingService,
   ISemanticConfig,
   IVectorStore,
+  IResourceService,
 } from './interfaces.js';
 import { SemanticSearchService } from './semanticSearch.js';
 import { ToolHandlers } from './toolHandlers.js';
@@ -98,14 +100,20 @@ export class Container {
   private embeddingService?: IEmbeddingService;
   private semanticConfig?: ISemanticConfig;
   private vectorStore?: IVectorStore;
+  private resourceService?: IResourceService;
+  private moduleDirectory: string;
 
-  constructor(dependencies?: Partial<IDependencies>) {
+  constructor(
+    dependencies?: Partial<IDependencies>,
+    moduleDirectory: string = 'instructions-modules'
+  ) {
     this.dependencies = {
       fileSystem: dependencies?.fileSystem ?? new FileSystem(),
       pathUtils: dependencies?.pathUtils ?? new PathUtils(),
       processUtils: dependencies?.processUtils ?? new ProcessUtils(),
       logger: dependencies?.logger ?? createLogger('container'),
     };
+    this.moduleDirectory = moduleDirectory;
   }
 
   /**
@@ -119,7 +127,10 @@ export class Container {
    * Gets or creates the instruction module parser service.
    */
   getInstructionModuleParser(): IInstructionModuleParser {
-    this.instructionModuleParser ??= new InstructionModuleParser(this.dependencies);
+    this.instructionModuleParser ??= new InstructionModuleParser(
+      this.dependencies,
+      this.moduleDirectory
+    );
     return this.instructionModuleParser;
   }
 
@@ -187,9 +198,21 @@ export class Container {
   }
 
   /**
+   * Gets or creates the resource service.
+   */
+  getResourceService(): IResourceService {
+    this.resourceService ??= new ResourceService(
+      this.dependencies,
+      this.getInstructionModuleParser(),
+      this.moduleDirectory
+    );
+    return this.resourceService;
+  }
+
+  /**
    * Creates a new ToolHandlers instance with proper dependency injection.
    */
-  createToolHandlers() {
+  createToolHandlers(): ToolHandlers {
     return new ToolHandlers(
       this.getInstructionModuleParser(),
       this.getSearchService(),
@@ -202,7 +225,7 @@ export class Container {
   /**
    * Gets the logger instance for direct use (primarily for CLI and composition root).
    */
-  getLogger() {
+  getLogger(): IDependencies['logger'] {
     return this.dependencies.logger;
   }
 
@@ -241,6 +264,11 @@ export class Container {
   setSemanticConfig(config: ISemanticConfig): void {
     this.semanticConfig = config;
   }
+
+  /** Set a custom resource service (testing). */
+  setResourceService(service: IResourceService): void {
+    this.resourceService = service;
+  }
 }
 
 /**
@@ -272,17 +300,21 @@ export function resetContainer(): void {
 
 /**
  * Factory function to create a container with production dependencies.
+ * @param moduleDirectory - Base directory for instruction modules (default: 'instructions-modules')
  */
-export function createProductionContainer(): Container {
-  return new Container();
+export function createProductionContainer(moduleDirectory?: string): Container {
+  return new Container(undefined, moduleDirectory);
 }
 
 /**
  * Factory function to create a container with test dependencies.
  * Allows injection of mock implementations for testing.
+ * @param mockDependencies - Partial dependencies to override defaults
+ * @param moduleDirectory - Base directory for instruction modules (default: 'instructions-modules')
  */
 export function createTestContainer(
-  mockDependencies: Partial<IDependencies> = {}
+  mockDependencies: Partial<IDependencies> = {},
+  moduleDirectory?: string
 ): Container {
-  return new Container(mockDependencies);
+  return new Container(mockDependencies, moduleDirectory);
 }
