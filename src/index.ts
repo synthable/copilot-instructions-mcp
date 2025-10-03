@@ -17,6 +17,41 @@ import { createServer, createInitializedServer } from './modules/server.js';
 import { runStdio, runHttp, runSSE } from './modules/transport.js';
 import { setDebugLogging } from './modules/logger.js';
 import { createProductionContainer } from './modules/container.js';
+import { configSchema, type ServerConfig } from './config/config.schema.js';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+/**
+ * Loads and validates configuration from config.json if it exists.
+ * Falls back to default configuration if file is not found.
+ *
+ * @returns Validated server configuration
+ * @since 1.0.0
+ */
+function loadConfig(): ServerConfig {
+  const configPath = join(process.cwd(), 'config.json');
+
+  if (!existsSync(configPath)) {
+    // Return default configuration
+    return configSchema.parse({
+      embeddingProvider: { name: 'transformers' },
+      searchProvider: { name: 'fuzzy' },
+    });
+  }
+
+  try {
+    const configContent = readFileSync(configPath, 'utf-8');
+    const rawConfig: unknown = JSON.parse(configContent);
+    return configSchema.parse(rawConfig);
+  } catch (error) {
+    console.error('Failed to load configuration from config.json:', error);
+    console.error('Falling back to default configuration');
+    return configSchema.parse({
+      embeddingProvider: { name: 'transformers' },
+      searchProvider: { name: 'fuzzy' },
+    });
+  }
+}
 
 /**
  * Commander.js program instance for parsing command-line arguments.
@@ -37,12 +72,15 @@ const program = new Command();
  * @since 1.0.0
  */
 function startStdioServer(message = 'Starting stdio server'): void {
-  // Always use dependency injection now
-  const container = createProductionContainer();
+  const config = loadConfig();
+  const container = createProductionContainer(config.moduleDirectory);
   const logger = container.getLogger();
 
   logger.info(message);
   logger.debug('Using dependency injection');
+  if (config.moduleDirectory !== 'instructions-modules') {
+    logger.info(`Using custom module directory: ${config.moduleDirectory}`);
+  }
 
   createInitializedServer(container)
     .then(server => runStdio(server, logger))
@@ -83,12 +121,15 @@ program
   .option('-p, --port <port>', 'port number', '3000')
   .action((options: { port: string }) => {
     const httpPort = parseInt(options.port, 10) || 3000;
-    // Always use dependency injection now
-    const container = createProductionContainer();
+    const config = loadConfig();
+    const container = createProductionContainer(config.moduleDirectory);
     const logger = container.getLogger();
 
     logger.info(`Starting HTTP server on port ${httpPort.toString()}`);
     logger.debug('Using dependency injection');
+    if (config.moduleDirectory !== 'instructions-modules') {
+      logger.info(`Using custom module directory: ${config.moduleDirectory}`);
+    }
 
     createInitializedServer(container)
       .then(server => runHttp(server, logger, httpPort))
@@ -107,13 +148,21 @@ program
   .option('-p, --port <port>', 'port number', '3000')
   .action((options: { port: string }) => {
     const ssePort = parseInt(options.port, 10) || 3000;
-    const container = createProductionContainer();
+    const config = loadConfig();
+    const container = createProductionContainer(config.moduleDirectory);
     const logger = container.getLogger();
 
     logger.warn('SSE transport is deprecated. Use "http" instead.');
     logger.info(`Starting SSE server on port ${ssePort.toString()}`);
+    if (config.moduleDirectory !== 'instructions-modules') {
+      logger.info(`Using custom module directory: ${config.moduleDirectory}`);
+    }
     // eslint-disable-next-line @typescript-eslint/no-deprecated
-    runSSE(() => createServer(createProductionContainer()), logger, ssePort);
+    runSSE(
+      () => createServer(createProductionContainer(config.moduleDirectory)),
+      logger,
+      ssePort
+    );
   });
 
 // Default action when no command is specified - defaults to stdio
