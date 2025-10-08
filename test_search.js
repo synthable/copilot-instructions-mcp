@@ -1,5 +1,75 @@
 #!/usr/bin/env node
 
+/**
+ * @fileoverview MCP Server Comprehensive Test Suite - Complete functionality testing for all MCP tools and prompts
+ *
+ * OVERVIEW:
+ * This is the primary test suite for the MCP (Model Context Protocol) server implementation.
+ * It runs 11 comprehensive test cases covering all tools, prompts, error handling, and edge cases.
+ * This script validates that the entire MCP server functionality works correctly.
+ *
+ * USE CASES:
+ * 1. Continuous Integration (CI) testing - validate all server functionality
+ * 2. Pre-deployment validation - ensure server works before release
+ * 3. Regression testing - verify changes don't break existing functionality
+ * 4. Development testing - quick validation during feature development
+ * 5. Integration testing - test MCP protocol compliance and tool interactions
+ *
+ * USAGE:
+ *   npm run test:search           # Run via package.json script (recommended)
+ *   node test_search.js           # Run directly
+ *
+ * TEST COVERAGE:
+ * Tools Tested:
+ * - search_instruction_modules: Fuzzy search with scoring, field matching, content extraction
+ * - list_instruction_modules: Tool listing and schema validation
+ * - get_modules_content: Module content compilation, error handling, validation
+ *
+ * Prompts Tested:
+ * - bootstrap-prompt: System prompt generation
+ * - concise-integration: Minimal MCP integration
+ * - persona-builder: Specialized persona development
+ * - system-prompt-generator: Production AI enhancement
+ *
+ * Error Cases Tested:
+ * - Empty queries, invalid module IDs, missing files
+ * - Parameter validation, edge cases, malformed requests
+ *
+ * EXAMPLES:
+ *   # Run full test suite (recommended approach)
+ *   npm run test:search
+ *
+ *   # Run directly for debugging
+ *   node test_search.js
+ *
+ *   # Build project first, then run tests
+ *   npm run build && node test_search.js
+ *
+ * OUTPUT FORMAT:
+ * Each test shows:
+ * ✅ PASSED - Test passed all validations
+ * ❌ FAILED - Test failed with detailed error messages
+ * 📊 Test Summary - Final pass/fail counts
+ *
+ * VALIDATION CRITERIA:
+ * - Response structure compliance (JSON-RPC format)
+ * - Required fields presence and correct types
+ * - Score thresholds and ranking accuracy
+ * - Content matching and extraction quality
+ * - Error message accuracy and proper error handling
+ * - Tool schema validation and parameter requirements
+ *
+ * PERFORMANCE EXPECTATIONS:
+ * - Individual tests should complete within 5-10 seconds
+ * - Full suite should complete within 2-3 minutes
+ * - Search results should have proper scoring (>0.5 for relevant matches)
+ * - Content compilation should handle multiple modules efficiently
+ *
+ * @author MCP Server Team
+ * @version 1.0.0
+ * @since 1.0.0
+ */
+
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';

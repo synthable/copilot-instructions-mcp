@@ -12,7 +12,6 @@
  */
 
 import { CONFIG, validateFilePath } from './validation.js';
-import { searchLogger } from './logger.js';
 import type { InstructionModule, SearchResult } from './types.js';
 import type {
   IDependencies,
@@ -163,7 +162,10 @@ function searchModuleContent(
       return { score: contentScore, matches };
     }
   } catch (err) {
-    searchLogger.warn(`Failed to read content for ${module.filePath}`, err);
+    dependencies.logger.warn(
+      `Failed to read content for ${module.filePath}`,
+      err instanceof Error ? err : undefined
+    );
   }
 
   return { score: 0, matches: [] };
@@ -226,6 +228,30 @@ function calculateModuleScore(
       );
     }
 
+    // Search in tags (UMS)
+    if (module.tags && module.tags.length > 0) {
+      fieldScore += searchModuleField(
+        term,
+        module.tags.join(' '),
+        'tags',
+        CONFIG.SCORING.CATEGORY_WEIGHT,
+        CONFIG.SCORING.MIN_FIELD_SCORE,
+        matchedFields
+      );
+    }
+
+    // Search in semantic paragraph (UMS) as a strong signal
+    if (module.semantic && module.semantic.length > 0) {
+      fieldScore += searchModuleField(
+        term,
+        module.semantic,
+        'semantic',
+        CONFIG.SCORING.DESCRIPTION_WEIGHT,
+        CONFIG.SCORING.MIN_FIELD_SCORE,
+        matchedFields
+      );
+    }
+
     // Search in file content
     const contentResult = searchModuleContent(
       term,
@@ -276,8 +302,8 @@ export class SearchService implements ISearchService {
    * console.log(results[0].contentMatches);  // ["TypeScript generics allow..."]
    * ```
    */
-  searchInstructionModules(searchTerms: string[]): SearchResult[] {
-    const modules = this.parser.parseInstructionModules();
+  async searchInstructionModules(searchTerms: string[]): Promise<SearchResult[]> {
+    const modules = await this.parser.parseInstructionModules();
     const results: SearchResult[] = [];
 
     for (const module of modules) {
@@ -309,11 +335,3 @@ export class SearchService implements ISearchService {
  * @param searchTerms Array of search terms to match against
  * @returns Array of matching modules sorted by score descending
  */
-export function searchInstructionModules(searchTerms: string[]): SearchResult[] {
-  // Dynamic import to avoid circular dependency issues
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { getContainer } = require('./container.js') as typeof import('./container.js');
-  const container = getContainer();
-  const searchService = container.getSearchService();
-  return searchService.searchInstructionModules(searchTerms);
-}

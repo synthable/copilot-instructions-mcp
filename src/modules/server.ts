@@ -16,15 +16,14 @@ import {
   ListToolsRequestSchema,
   ListPromptsRequestSchema,
   GetPromptRequestSchema,
+  ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  createToolErrorResponse,
-  getToolFallbackData,
-  ToolHandlers,
-} from './toolHandlers.js';
-import { Container } from './container.js';
+import { createToolErrorResponse, getToolFallbackData } from './toolHandlers.js';
+// Note: Avoid convenience wrappers that use require() (not available in ESM)
+import type { Container } from './container.js';
+import { initializeServer } from './serverInitializer.js';
 
 /**
  * Helper function to create JSON response format
@@ -55,7 +54,7 @@ function getErrorMessage(error: unknown): string {
  * - **Prompts**: bootstrap-prompt, system-prompt-generator, concise-integration, persona-builder
  *
  * All handlers include comprehensive error handling and return JSON-formatted responses.
- * Prompt handlers dynamically load content from docs/ and map tool names.
+ * Prompt handlers dynamically load content from prompts/ and map tool names.
  *
  * @param {Server} serverInstance - The MCP Server instance to configure with handlers
  * @param {Container} container - Dependency injection container
@@ -64,6 +63,10 @@ export function setupServerHandlers(
   serverInstance: Server,
   container: Container
 ): void {
+  // Extract dependencies once at setup time, not per request
+  const logger = container.getLogger();
+  const toolHandlers = container.createToolHandlers();
+
   // Tool implementations
   serverInstance.setRequestHandler(ListToolsRequestSchema, () => ({
     tools: [
@@ -122,27 +125,75 @@ export function setupServerHandlers(
           required: ['moduleIds'],
         },
       },
+      {
+        name: 'semantic_search',
+        description:
+          'Embedding-based semantic search across instruction modules using all-mpnet-base-v2 embeddings via @xenova/transformers.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: {
+              type: 'string',
+              description: 'Natural language query to embed and search.',
+            },
+            limit: {
+              type: 'number',
+              description: 'Max results to return (default 10).',
+            },
+          },
+          required: ['query'],
+        },
+      },
+      {
+        name: 'hybrid_search',
+        description:
+          'Hybrid re-rank combining fuzzy lexical search with semantic similarity using all-mpnet-base-v2 embeddings.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: 'Search query terms.' },
+            limit: {
+              type: 'number',
+              description: 'Max results to return (default 10).',
+            },
+            alpha: {
+              type: 'number',
+              description: 'Weight for lexical score (0..1, default 0.6).',
+            },
+          },
+          required: ['query'],
+        },
+      },
     ],
   }));
 
-  serverInstance.setRequestHandler(CallToolRequestSchema, request => {
+  serverInstance.setRequestHandler(CallToolRequestSchema, async request => {
     const { name, arguments: args } = request.params;
 
     try {
-      const toolHandlers = new ToolHandlers(container);
       switch (name) {
         case 'list_instruction_modules': {
-          const result = toolHandlers.handleListInstructionModules(args);
+          const result = await toolHandlers.handleListInstructionModules(args);
           return createJsonResponse(result);
         }
 
         case 'search_instruction_modules': {
-          const result = toolHandlers.handleSearchInstructionModules(args);
+          const result = await toolHandlers.handleSearchInstructionModules(args);
           return createJsonResponse(result);
         }
 
         case 'get_modules_content': {
-          const result = toolHandlers.handleGetModulesContent(args);
+          const result = await toolHandlers.handleGetModulesContent(args);
+          return createJsonResponse(result);
+        }
+
+        case 'semantic_search': {
+          const result = await toolHandlers.handleSemanticSearch(args);
+          return createJsonResponse(result);
+        }
+
+        case 'hybrid_search': {
+          const result = await toolHandlers.handleHybridSearch(args);
           return createJsonResponse(result);
         }
 
@@ -152,7 +203,7 @@ export function setupServerHandlers(
     } catch (err) {
       const error = err instanceof Error ? err : new Error(getErrorMessage(err));
       const fallbackData = getToolFallbackData(name);
-      const errorResponse = createToolErrorResponse(name, error, fallbackData);
+      const errorResponse = createToolErrorResponse(name, error, fallbackData, logger);
       return createJsonResponse(errorResponse);
     }
   });
@@ -160,6 +211,24 @@ export function setupServerHandlers(
   // Prompt implementations
   serverInstance.setRequestHandler(ListPromptsRequestSchema, () => ({
     prompts: [
+      {
+        name: 'bootloader-v2-prompt',
+        description:
+          'A Module Integration Specialist that dynamically discovers, selects, and applies specialized instruction modules from an MCP library through a four-phase process (deconstruct, discover & select, synthesize & execute, constraints & communication) to solve user requests using foundation, principle, technology, and execution tier modules while treating user context as absolute source of truth.',
+        arguments: [],
+      },
+      {
+        name: 'bootloader-v1.2-prompt',
+        description:
+          'A Module Integration Specialist that dynamically discovers, selects, and applies specialized instruction modules from an MCP library through a four-phase process (deconstruct, discover & select, synthesize & execute, constraints & communication) to solve user requests using foundation, principle, technology, and execution tier modules while treating user context as absolute source of truth.',
+        arguments: [],
+      },
+      {
+        name: 'bootloader-v1.1-prompt',
+        description:
+          'A Module Integration Specialist that dynamically discovers, selects, and applies specialized instruction modules from an MCP library through a four-phase process (deconstruct, discover & select, synthesize & execute, constraints & communication) to solve user requests using foundation, principle, technology, and execution tier modules while treating user context as absolute source of truth.',
+        arguments: [],
+      },
       {
         name: 'bootstrap-prompt',
         description:
@@ -194,26 +263,44 @@ export function setupServerHandlers(
       let description: string;
 
       switch (name) {
+        case 'bootloader-v2-prompt':
+          promptPath = join(process.cwd(), 'prompts/v2', 'bootloader-v2-prompt.md');
+          description =
+            'A Module Integration Specialist that dynamically discovers, selects, and applies specialized instruction modules from an MCP library through a four-phase process (deconstruct, discover & select, synthesize & execute, constraints & communication) to solve user requests using foundation, principle, technology, and execution tier modules while treating user context as absolute source of truth.';
+          break;
+
+        case 'bootloader-v1.2-prompt':
+          promptPath = join(process.cwd(), 'prompts', 'bootloader-v1.2.md');
+          description =
+            'A Module Integration Specialist that dynamically discovers, selects, and applies specialized instruction modules from an MCP library through a four-phase process (deconstruct, discover & select, synthesize & execute, constraints & communication) to solve user requests using foundation, principle, technology, and execution tier modules while treating user context as absolute source of truth.';
+          break;
+
+        case 'bootloader-v1.1-prompt':
+          promptPath = join(process.cwd(), 'prompts', 'bootloader-v1.1.md');
+          description =
+            'A Module Integration Specialist that dynamically discovers, selects, and applies specialized instruction modules from an MCP library through a four-phase process (deconstruct, discover & select, synthesize & execute, constraints & communication) to solve user requests using foundation, principle, technology, and execution tier modules while treating user context as absolute source of truth.';
+          break;
+
         case 'bootstrap-prompt':
-          promptPath = join(process.cwd(), 'docs', 'bootstrap-prompt.md');
+          promptPath = join(process.cwd(), 'prompts', 'bootstrap-prompt.md');
           description =
             'Comprehensive bootstrap prompt for dynamic system prompt generation with MCP instruction modules';
           break;
 
         case 'system-prompt-generator':
-          promptPath = join(process.cwd(), 'docs', 'system-prompt-generator.md');
+          promptPath = join(process.cwd(), 'prompts', 'system-prompt-generator.md');
           description =
             'Focused prompt for production AI assistants with dynamic capability enhancement';
           break;
 
         case 'concise-integration':
-          promptPath = join(process.cwd(), 'docs', 'concise-mcp-prompt.md');
+          promptPath = join(process.cwd(), 'prompts', 'concise-mcp-prompt.md');
           description =
             'Minimal prompt for adding MCP capabilities to existing prompts';
           break;
 
         case 'persona-builder':
-          promptPath = join(process.cwd(), 'docs', 'persona-builder-prompt.md');
+          promptPath = join(process.cwd(), 'prompts', 'persona-builder-prompt.md');
           description =
             'Specialized prompt for creating well-structured personas following the four-tier philosophy';
           break;
@@ -253,6 +340,28 @@ export function setupServerHandlers(
       );
     }
   });
+
+  // Resource handlers
+  const resourceService = container.getResourceService();
+
+  serverInstance.setRequestHandler(ReadResourceRequestSchema, async request => {
+    const { uri } = request.params;
+
+    try {
+      const result = await resourceService.readResource(uri);
+      // Return only the contents array as per MCP protocol
+      return {
+        contents: result.contents,
+      };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      logger.error(
+        `Failed to read resource ${uri}`,
+        err instanceof Error ? err : undefined
+      );
+      throw new Error(`Failed to read resource: ${errorMessage}`);
+    }
+  });
 }
 
 /**
@@ -261,17 +370,33 @@ export function setupServerHandlers(
 export function createServer(container: Container): Server {
   const server = new Server(
     {
-      name: 'simple-mcp-server',
+      name: 'copilot-instructions-mcp',
       version: '1.0.0',
     },
     {
       capabilities: {
         tools: {},
         prompts: {},
+        resources: {},
       },
     }
   );
 
   setupServerHandlers(server, container);
   return server;
+}
+
+/**
+ * Creates and initializes an MCP server with vector store initialization.
+ */
+export async function createInitializedServer(container: Container): Promise<Server> {
+  // Initialize server components including vector store
+  await initializeServer(
+    container.getDependencies().logger,
+    container.getVectorStore(),
+    container.getSemanticSearchService()
+  );
+
+  // Create the server with initialized components
+  return createServer(container);
 }

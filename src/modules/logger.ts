@@ -333,12 +333,6 @@ export function createLogger(moduleName: string) {
 }
 
 /**
- * Pre-configured logger for server operations and MCP protocol handling.
- * @since 1.0.0
- */
-export const serverLogger = createLogger('server');
-
-/**
  * Pre-configured logger for transport layer operations (stdio, HTTP, SSE).
  * @since 1.0.0
  */
@@ -361,12 +355,6 @@ export const searchLogger = createLogger('search');
  * @since 1.0.0
  */
 export const contentLogger = createLogger('content');
-
-/**
- * Pre-configured logger for input validation and security operations.
- * @since 1.0.0
- */
-export const validationLogger = createLogger('validation');
 
 /**
  * Pre-configured logger for MCP tool request handling.

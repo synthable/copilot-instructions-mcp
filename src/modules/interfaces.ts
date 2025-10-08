@@ -10,6 +10,18 @@
  * @since 1.0.0
  */
 
+import type {
+  InstructionModule,
+  SearchResult,
+  GetModulesContentResult,
+  VectorIndex,
+  ModuleVector,
+  VectorIndexMetadata,
+} from './types.js';
+import type { SemanticSearchOptions } from './semanticSearch.js';
+import type { RelevanceThresholds } from './semanticConfig.js';
+import type { ResourceContent } from './resourceTypes.js';
+
 /**
  * Interface for file system operations.
  * Abstracts Node.js fs module for dependency injection and testing.
@@ -24,6 +36,21 @@ export interface IFileSystem {
    * Synchronously tests whether or not the given path exists.
    */
   existsSync(path: string): boolean;
+
+  /**
+   * Synchronously reads the contents of a directory.
+   */
+  readdirSync(path: string): string[];
+
+  /**
+   * Synchronously returns file/directory stats (at least isDirectory()).
+   */
+  statSync(path: string): { isDirectory(): boolean; size: number };
+
+  /**
+   * Synchronously returns file/directory stats. Does not follow symlinks.
+   */
+  lstatSync(path: string): { isSymbolicLink(): boolean; isFile(): boolean };
 }
 
 /**
@@ -59,6 +86,32 @@ export interface IProcessUtils {
 }
 
 /**
+ * Interface for logging operations.
+ * Abstracts logging functionality for dependency injection and testing.
+ */
+export interface ILogger {
+  /**
+   * Logs an informational message.
+   */
+  info(message: string, metadata?: Record<string, unknown>): void;
+
+  /**
+   * Logs a warning message.
+   */
+  warn(message: string, error?: Error, metadata?: Record<string, unknown>): void;
+
+  /**
+   * Logs an error message.
+   */
+  error(message: string, error?: Error, metadata?: Record<string, unknown>): void;
+
+  /**
+   * Logs a debug message.
+   */
+  debug(message: string, metadata?: Record<string, unknown>): void;
+}
+
+/**
  * Combined interface for all external dependencies.
  * Provides a single injection point for all external dependencies.
  */
@@ -66,6 +119,7 @@ export interface IDependencies {
   fileSystem: IFileSystem;
   pathUtils: IPathUtils;
   processUtils: IProcessUtils;
+  logger: ILogger;
 }
 
 /**
@@ -76,7 +130,7 @@ export interface IInstructionModuleParser {
   /**
    * Parses instruction modules from the README file.
    */
-  parseInstructionModules(): import('./types.js').InstructionModule[];
+  parseInstructionModules(): Promise<InstructionModule[]>;
 
   /**
    * Clears the cached instruction modules.
@@ -92,7 +146,29 @@ export interface ISearchService {
   /**
    * Performs fuzzy search over instruction modules.
    */
-  searchInstructionModules(searchTerms: string[]): import('./types.js').SearchResult[];
+  searchInstructionModules(searchTerms: string[]): Promise<SearchResult[]>;
+}
+
+/**
+ * Interface for semantic search functionality.
+ */
+export interface ISemanticSearchService {
+  /** Build or rebuild the embedding index. */
+  buildIndex(force?: boolean): Promise<void>;
+  /** Pure semantic search using embeddings. */
+  semanticSearch(
+    query: string,
+    limit?: number,
+    options?: SemanticSearchOptions
+  ): Promise<SearchResult[]>;
+  /** Hybrid re-rank combining lexical and semantic signals. */
+  hybridSearch(
+    queryTerms: string[],
+    lexicalResults: SearchResult[],
+    alpha?: number,
+    limit?: number,
+    options?: SemanticSearchOptions
+  ): Promise<SearchResult[]>;
 }
 
 /**
@@ -103,5 +179,183 @@ export interface IContentService {
   /**
    * Retrieves and combines content from multiple instruction modules.
    */
-  getModulesContent(moduleIds: string[]): import('./types.js').GetModulesContentResult;
+  getModulesContent(moduleIds: string[]): Promise<GetModulesContentResult>;
+}
+
+/**
+ * Progress callback for embedding operations.
+ * Called during model initialization and batch processing.
+ */
+export type EmbeddingProgressCallback = (
+  stage: 'initialization' | 'download' | 'loading' | 'processing',
+  progress: number, // 0-1
+  message?: string
+) => void;
+
+/**
+ * Cache entry for embeddings with MD5-based invalidation.
+ */
+export interface EmbeddingCacheEntry {
+  /** MD5 hash of the input text */
+  hash: string;
+  /** Cached embedding vector */
+  embedding: number[];
+  /** Timestamp when cached */
+  timestamp: number;
+}
+
+/**
+ * Interface for embedding service operations.
+ * Abstracts transformer model operations for dependency injection and testing.
+ */
+export interface IEmbeddingService {
+  /**
+   * Initializes the embedding pipeline with the configured model.
+   */
+  initialize(progressCallback?: EmbeddingProgressCallback): Promise<void>;
+
+  /**
+   * Generates embeddings for a single text input.
+   */
+  embed(text: string, progressCallback?: EmbeddingProgressCallback): Promise<number[]>;
+
+  /**
+   * Generates embeddings for multiple text inputs in a batch.
+   */
+  embedBatch(
+    texts: string[],
+    progressCallback?: EmbeddingProgressCallback
+  ): Promise<number[][]>;
+
+  /**
+   * Checks if the service is properly initialized.
+   */
+  isInitialized(): boolean;
+
+  /**
+   * Clears the embedding cache.
+   */
+  clearCache(): void;
+
+  /**
+   * Gets cache statistics.
+   */
+  getCacheStats(): { hits: number; misses: number; size: number };
+
+  /**
+   * Disposes of the embedding model to free memory.
+   */
+  dispose(): void;
+}
+
+/**
+ * Interface for vector storage operations.
+ * Handles loading and managing pre-computed vectors from disk.
+ */
+export interface IVectorStore {
+  /**
+   * Loads vectors from disk (MessagePack preferred, JSON fallback).
+   */
+  loadVectors(): Promise<VectorIndex | null>;
+
+  /**
+   * Gets vectors by module IDs.
+   */
+  getVectorsByIds(moduleIds: string[]): Promise<ModuleVector[]>;
+
+  /**
+   * Gets vectors by tier/category filter.
+   */
+  getVectorsByTier(tier: string): Promise<ModuleVector[]>;
+
+  /**
+   * Validates vector integrity using checksums.
+   */
+  validateIntegrity(): Promise<boolean>;
+
+  /**
+   * Gets vector store metadata.
+   */
+  getMetadata(): Promise<VectorIndexMetadata | null>;
+
+  /**
+   * Checks if vectors are available on disk.
+   */
+  isAvailable(): boolean;
+}
+
+/**
+ * Interface for semantic search configuration.
+ * Enables dependency injection for semantic search parameters.
+ */
+export interface ISemanticConfig {
+  /**
+   * Gets the embedding model name to use.
+   */
+  getModelName(): string;
+
+  /**
+   * Gets the batch size for processing embeddings.
+   */
+  getBatchSize(): number;
+
+  /**
+   * Gets the maximum content length for embedding.
+   */
+  getMaxContentLength(): number;
+
+  /**
+   * Gets the default alpha value for hybrid search weighting.
+   */
+  getDefaultAlpha(): number;
+
+  /**
+   * Gets the embedding dimensions for the configured model.
+   */
+  getEmbeddingDimensions(): number;
+
+  /**
+   * Gets the batch size for indexing operations.
+   */
+  getIndexingBatchSize(): number;
+
+  /**
+   * Gets the maximum memory usage limit in MB.
+   */
+  getMaxMemoryUsageMB(): number;
+
+  /**
+   * Gets whether lazy loading is enabled.
+   */
+  isLazyLoadingEnabled(): boolean;
+
+  /**
+   * Gets the relevance thresholds for semantic search results.
+   */
+  getRelevanceThresholds(): RelevanceThresholds;
+
+  /**
+   * Gets the similarity threshold for filtering search results.
+   */
+  getSimilarityThreshold(): number;
+
+  /**
+   * Gets relevance level for a given similarity score.
+   */
+  getRelevanceLevel(score: number): 'high' | 'medium' | 'low' | 'none';
+}
+
+/**
+ * Interface for resource service functionality.
+ * Enables dependency injection for URI-based resource access to instruction modules.
+ */
+export interface IResourceService {
+  /**
+   * Reads a resource by URI and returns its content in the requested format.
+   *
+   * @param uri - The module URI (e.g., "module://foundation/reasoning/systems-thinking")
+   * @returns Promise resolving to ResourceContent with the module content and metadata
+   * @throws Error if URI is malformed or module is not found
+   */
+  readResource(uri: string): Promise<ResourceContent>;
 }
