@@ -4,15 +4,12 @@
  * This module implements the core business logic for all MCP tools:
  * - list_instruction_modules: Lists all available instruction modules
  * - search: Unified search with fuzzy, semantic, and hybrid modes
- * - search_instruction_modules: Legacy fuzzy search (deprecated, use search)
  * - get_modules_content: Retrieves and combines module content
- * - semantic_search: Legacy semantic search (deprecated, use search with mode=semantic)
- * - hybrid_search: Legacy hybrid search (deprecated, use search with mode=hybrid)
  *
  * Provides input validation, error handling, and standardized response formatting.
  *
  * @author MCP Server Team
- * @version 1.1.0
+ * @version 2.0.0
  * @since 1.0.0
  */
 
@@ -64,9 +61,6 @@ export function getToolFallbackData(toolName: string): Record<string, unknown> {
     case 'list_instruction_modules':
       return { modules: [] };
     case 'search':
-    case 'search_instruction_modules':
-    case 'semantic_search':
-    case 'hybrid_search':
       return { results: [] };
     case 'get_modules_content':
       return { success: false };
@@ -106,39 +100,6 @@ export class ToolHandlers {
       totalModules: modules.length,
       filteredModules: filteredModules.length,
       modules: filteredModules,
-    };
-  }
-
-  /**
-   * Handles the search_instruction_modules tool request
-   */
-  async handleSearchInstructionModules(args: ToolArgs | undefined) {
-    if (!args) {
-      throw new Error(
-        "Missing arguments for search_instruction_modules. 'query' is required."
-      );
-    }
-
-    const query = validateSearchQuery(args.query);
-    const limit = validateSearchLimit(args.limit);
-
-    // Split query into search terms
-    const searchTerms = splitSearchQuery(query);
-
-    this.logger.debug(`Searching for terms: ${searchTerms.join(', ')}`);
-
-    // Perform fuzzy search
-    const searchResults =
-      await this.searchService.searchInstructionModules(searchTerms);
-
-    // Limit results
-    const limitedResults = searchResults.slice(0, limit);
-
-    return {
-      query,
-      totalResults: searchResults.length,
-      returnedResults: limitedResults.length,
-      results: limitedResults,
     };
   }
 
@@ -324,67 +285,6 @@ export class ToolHandlers {
     }
 
     return options;
-  }
-
-  /**
-   * Handles the semantic_search tool request
-   */
-  async handleSemanticSearch(args: ToolArgs | undefined) {
-    if (!args) {
-      throw new Error("Missing arguments for semantic_search. 'query' is required.");
-    }
-    const query = validateSearchQuery(args.query);
-    const limit = validateSearchLimit(args.limit);
-    const options = this.parseSemanticOptions(args);
-
-    const results = await this.semanticSearchService.semanticSearch(
-      query,
-      limit,
-      options
-    );
-    return {
-      query,
-      totalResults: results.length,
-      returnedResults: results.length,
-      results,
-      filters: options.tiers ? { tiers: options.tiers } : undefined,
-    };
-  }
-
-  /**
-   * Handles the hybrid_search tool request
-   */
-  async handleHybridSearch(args: ToolArgs | undefined) {
-    if (!args) {
-      throw new Error(
-        "Missing arguments for hybrid_search. 'query' is required. Optional: alpha (0..1), limit."
-      );
-    }
-    const query = validateSearchQuery(args.query);
-    const limit = validateSearchLimit(args.limit);
-    const alpha =
-      typeof args.alpha === 'number' && args.alpha >= 0 && args.alpha <= 1
-        ? args.alpha
-        : 0.6;
-    const options = this.parseSemanticOptions(args);
-
-    const terms = splitSearchQuery(query);
-    const lexical = await this.searchService.searchInstructionModules(terms);
-    const semantic = await this.semanticSearchService.hybridSearch(
-      terms,
-      lexical,
-      alpha,
-      limit,
-      options
-    );
-    return {
-      query,
-      alpha,
-      totalResults: semantic.length,
-      returnedResults: Math.min(limit, semantic.length),
-      results: semantic.slice(0, limit),
-      filters: options.tiers ? { tiers: options.tiers } : undefined,
-    };
   }
 
   /**

@@ -91,7 +91,7 @@ export default tseslint.config(
 
       // Keep type safety for string operations
       '@typescript-eslint/restrict-plus-operands': 'error',
-      '@typescript-eslint/restrict-template-expressions': 'error',
+      '@typescript-eslint/restrict-template-expressions': ['warn', { allowNumber: true }],
     },
   },
 

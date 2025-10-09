@@ -86,27 +86,6 @@ export function setupServerHandlers(
         },
       },
       {
-        name: 'search_instruction_modules',
-        description:
-          "Perform intelligent fuzzy search across all instruction modules using weighted scoring algorithm. Searches module names (2x weight), descriptions (1.5x), categories/subcategories (1x), and file content (0.8x) with Levenshtein distance matching. Returns ranked results with transparency: match scores, matched fields, and content snippets. Supports multi-term queries for precise discovery. Example: Search 'typescript generics' to find TypeScript generic programming modules, or 'testing pyramid' to discover testing strategy guidance with contextual previews.",
-        inputSchema: {
-          type: 'object',
-          properties: {
-            query: {
-              type: 'string',
-              description:
-                "Search query string - supports multiple terms separated by spaces for AND-style matching. Examples: 'react hooks' finds React hook modules, 'security authentication' finds auth-related security guidance, 'debugging typescript' finds TS debugging help",
-            },
-            limit: {
-              type: 'number',
-              description:
-                'Maximum number of results to return, sorted by relevance score (default: 10, useful range: 3-20). Higher limits provide more options but may include less relevant matches',
-            },
-          },
-          required: ['query'],
-        },
-      },
-      {
         name: 'get_modules_content',
         description:
           "Compile and combine multiple instruction modules into a cohesive markdown document for AI capability enhancement. Retrieves full content from specified modules, adds metadata headers (ID, category, description), and joins with separators for easy parsing. Respects four-tier hierarchy: Foundation modules should be ordered by layer (0→3), followed by Principle, Technology, and Execution modules. Returns success status, combined content, and detailed error reporting. Example: Combine ['foundation.reasoning.systems-thinking', 'technology.language.typescript.strict-type-checking', 'execution.playbook.debug-issue'] to create a TypeScript debugging specialist AI persona.",
@@ -173,45 +152,6 @@ export function setupServerHandlers(
           required: ['query'],
         },
       },
-      {
-        name: 'semantic_search',
-        description:
-          'Embedding-based semantic search across instruction modules using all-mpnet-base-v2 embeddings via @xenova/transformers.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            query: {
-              type: 'string',
-              description: 'Natural language query to embed and search.',
-            },
-            limit: {
-              type: 'number',
-              description: 'Max results to return (default 10).',
-            },
-          },
-          required: ['query'],
-        },
-      },
-      {
-        name: 'hybrid_search',
-        description:
-          'Hybrid re-rank combining fuzzy lexical search with semantic similarity using all-mpnet-base-v2 embeddings.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            query: { type: 'string', description: 'Search query terms.' },
-            limit: {
-              type: 'number',
-              description: 'Max results to return (default 10).',
-            },
-            alpha: {
-              type: 'number',
-              description: 'Weight for lexical score (0..1, default 0.6).',
-            },
-          },
-          required: ['query'],
-        },
-      },
     ],
   }));
 
@@ -225,11 +165,6 @@ export function setupServerHandlers(
           return createJsonResponse(result);
         }
 
-        case 'search_instruction_modules': {
-          const result = await toolHandlers.handleSearchInstructionModules(args);
-          return createJsonResponse(result);
-        }
-
         case 'get_modules_content': {
           const result = await toolHandlers.handleGetModulesContent(args);
           return createJsonResponse(result);
@@ -237,16 +172,6 @@ export function setupServerHandlers(
 
         case 'search': {
           const result = await toolHandlers.handleSearch(args);
-          return createJsonResponse(result);
-        }
-
-        case 'semantic_search': {
-          const result = await toolHandlers.handleSemanticSearch(args);
-          return createJsonResponse(result);
-        }
-
-        case 'hybrid_search': {
-          const result = await toolHandlers.handleHybridSearch(args);
           return createJsonResponse(result);
         }
 
