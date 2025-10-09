@@ -143,3 +143,5 @@ instructions-modules/.DS_Store
 #instructions-modules/
 #instructions-modules
 .claude/TESTING.md
+docs/planning/
+tmp/

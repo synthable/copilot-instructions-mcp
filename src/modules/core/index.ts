@@ -15,25 +15,28 @@ export type * from './types.js';
 export type * from './interfaces.js';
 
 // Re-export validation utilities and configuration
-export * from './validation.js';
+export * from '../services/validation/validation.js';
 
 // Re-export logging system
-export * from './logger.js';
+export * from '../utils/logger.js';
 
 // Re-export dependency injection system (primary architecture)
 export * from './container.js';
 
 // Export service classes (primary architecture)
-export { InstructionModuleParser } from './parsing.js';
-export { SearchService } from './search.js';
-export { ContentService } from './content.js';
-export { SemanticSearchService } from './semanticSearch.js';
-export { ToolHandlers } from './toolHandlers.js';
+export { InstructionModuleParser } from '../services/parsing/parsing.js';
+export { SearchService } from '../services/search/search.js';
+export { ContentService } from '../services/content/content.js';
+export { SemanticSearchService } from '../services/embedding/semanticSearch.js';
+export { ToolHandlers } from '../server/toolHandlers.js';
 
 // Note: Convenience functions removed to eliminate Service Locator anti-pattern
 // Use the service classes directly with proper dependency injection instead
-export { createToolErrorResponse, getToolFallbackData } from './toolHandlers.js';
+export {
+  createToolErrorResponse,
+  getToolFallbackData,
+} from '../server/toolHandlers.js';
 
 // Export server and transport functions
-export { createServer, setupServerHandlers } from './server.js';
-export { runStdio, runHttp, runSSE } from './transport.js';
+export { createServer, setupServerHandlers } from '../server/server.js';
+export { runStdio, runHttp, runSSE } from '../server/transport.js';

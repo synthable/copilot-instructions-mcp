@@ -11,7 +11,7 @@
  */
 
 import { resolve, relative } from 'node:path';
-import type { IPathUtils } from './interfaces.js';
+import type { IPathUtils } from '../../core/interfaces.js';
 
 /**
  * Configuration constants for validation limits and scoring weights.

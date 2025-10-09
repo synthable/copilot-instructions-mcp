@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/explicit-member-accessibility */
 /* eslint-disable max-lines */
 /**
  * @fileoverview Module content retrieval and formatting functionality.
@@ -12,19 +11,19 @@
  * @since 1.0.0
  */
 
-import { validateFilePath } from './validation.js';
+import { validateFilePath } from '../validation/validation.js';
 import type {
   GetModulesContentResult,
   UMSv11Module,
   UMSv11Body,
   SectionConfig,
   ListType,
-} from './types.js';
+} from '../../core/types.js';
 import type {
   IDependencies,
   IContentService,
   IInstructionModuleParser,
-} from './interfaces.js';
+} from '../../core/interfaces.js';
 import { parse as yamlParseFn } from 'yaml';
 
 /**

@@ -17,7 +17,7 @@ import type {
   ILogger,
   EmbeddingProgressCallback,
   EmbeddingCacheEntry,
-} from './interfaces.js';
+} from '../../core/interfaces.js';
 
 /**
  * Validated embedding tensor type from transformer output.

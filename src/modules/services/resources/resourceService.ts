@@ -10,7 +10,7 @@
  * @since 1.0.0
  */
 
-import { validateFilePath } from './validation.js';
+import { validateFilePath } from '../validation/validation.js';
 import type {
   ResourceContent,
   ResourceFormat,
@@ -21,8 +21,8 @@ import type {
   IDependencies,
   IResourceService,
   IInstructionModuleParser,
-} from './interfaces.js';
-import type { InstructionModule } from './types.js';
+} from '../../core/interfaces.js';
+import type { InstructionModule } from '../../core/types.js';
 import {
   ModuleNotFoundError,
   ModuleFileNotFoundError,

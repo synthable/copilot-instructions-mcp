@@ -16,19 +16,19 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { encode as msgpackEncode } from '@msgpack/msgpack';
 
-import { getContainer } from '../modules/container.js';
+import { getContainer } from '../modules/core/container.js';
 import type {
   InstructionModule,
   ModuleVector,
   VectorIndex,
   VectorIndexMetadata,
-} from '../modules/types.js';
+} from '../modules/core/types.js';
 import type {
   EmbeddingProgressCallback,
   IEmbeddingService,
   ISemanticConfig,
   IInstructionModuleParser,
-} from '../modules/interfaces.js';
+} from '../modules/core/interfaces.js';
 
 /**
  * Version of the vector generation tool for metadata tracking.

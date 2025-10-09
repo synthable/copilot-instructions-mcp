@@ -15,8 +15,8 @@ import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import { decode as msgpackDecode } from '@msgpack/msgpack';
 
-import type { IVectorStore, IDependencies, ILogger } from './interfaces.js';
-import type { VectorIndex, VectorIndexMetadata, ModuleVector } from './types.js';
+import type { IVectorStore, IDependencies, ILogger } from '../core/interfaces.js';
+import type { VectorIndex, VectorIndexMetadata, ModuleVector } from '../core/types.js';
 
 /**
  * Vector store implementation that handles loading and managing pre-computed vectors.

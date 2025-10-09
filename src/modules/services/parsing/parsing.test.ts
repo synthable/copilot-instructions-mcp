@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import { InstructionModuleParser } from './parsing.js';
-import type { IDependencies } from './interfaces.js';
+import type { IDependencies } from '../../core/interfaces.js';
 
 // Mock external dependencies
 vi.mock('fs', () => ({ promises: { stat: vi.fn() } }));

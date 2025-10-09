@@ -20,7 +20,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { randomUUID } from 'node:crypto';
 import express from 'express';
-import type { ILogger } from './interfaces.js';
+import type { ILogger } from '../core/interfaces.js';
 
 /**
  * Runs the MCP server using stdio transport.

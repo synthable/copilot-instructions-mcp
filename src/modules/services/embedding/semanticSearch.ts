@@ -13,11 +13,11 @@ import type {
   ISemanticConfig,
   IVectorStore,
   ILogger,
-} from './interfaces.js';
-import type { InstructionModule, SearchResult } from './types.js';
+} from '../../core/interfaces.js';
+import type { InstructionModule, SearchResult } from '../../core/types.js';
 import { cosine } from './semantic.js';
-import { MemoryMonitor, LazyContentLoader } from './memoryUtils.js';
-import { PerformanceCollector } from './performanceMetrics.js';
+import { MemoryMonitor, LazyContentLoader } from '../../utils/memoryUtils.js';
+import { PerformanceCollector } from '../../utils/performanceMetrics.js';
 
 export interface EmbeddingDoc {
   id: string; // module id
