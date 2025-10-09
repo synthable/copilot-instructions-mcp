@@ -16,10 +16,20 @@ import { Command } from 'commander';
 import { createServer, createInitializedServer } from './modules/server.js';
 import { runStdio, runHttp, runSSE } from './modules/transport.js';
 import { setDebugLogging } from './modules/logger.js';
-import { createProductionContainer } from './modules/container.js';
+import { createProductionContainer, type Container } from './modules/container.js';
 import { configSchema, type ServerConfig } from './config/config.schema.js';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+
+/**
+ * Default server configuration used when config.json is not found or invalid.
+ *
+ * @since 1.0.0
+ */
+const DEFAULT_CONFIG = {
+  embeddingProvider: { name: 'transformers' as const },
+  searchProvider: { name: 'fuzzy' as const },
+};
 
 /**
  * Loads and validates configuration from config.json if it exists.
@@ -33,10 +43,7 @@ function loadConfig(): ServerConfig {
 
   if (!existsSync(configPath)) {
     // Return default configuration
-    return configSchema.parse({
-      embeddingProvider: { name: 'transformers' },
-      searchProvider: { name: 'fuzzy' },
-    });
+    return configSchema.parse(DEFAULT_CONFIG);
   }
 
   try {
@@ -46,11 +53,31 @@ function loadConfig(): ServerConfig {
   } catch (error) {
     console.error('Failed to load configuration from config.json:', error);
     console.error('Falling back to default configuration');
-    return configSchema.parse({
-      embeddingProvider: { name: 'transformers' },
-      searchProvider: { name: 'fuzzy' },
-    });
+    return configSchema.parse(DEFAULT_CONFIG);
   }
+}
+
+/**
+ * Initializes server components with config loading and logging.
+ *
+ * @returns Initialized container and logger
+ * @since 1.0.0
+ */
+function initializeServerComponents(): {
+  config: ServerConfig;
+  container: Container;
+  logger: ReturnType<Container['getLogger']>;
+} {
+  const config = loadConfig();
+  const container = createProductionContainer(config.moduleDirectory);
+  const logger = container.getLogger();
+
+  logger.debug('Using dependency injection');
+  if (config.moduleDirectory !== 'instructions-modules') {
+    logger.info(`Using custom module directory: ${config.moduleDirectory}`);
+  }
+
+  return { config, container, logger };
 }
 
 /**
@@ -72,15 +99,9 @@ const program = new Command();
  * @since 1.0.0
  */
 function startStdioServer(message = 'Starting stdio server'): void {
-  const config = loadConfig();
-  const container = createProductionContainer(config.moduleDirectory);
-  const logger = container.getLogger();
+  const { container, logger } = initializeServerComponents();
 
   logger.info(message);
-  logger.debug('Using dependency injection');
-  if (config.moduleDirectory !== 'instructions-modules') {
-    logger.info(`Using custom module directory: ${config.moduleDirectory}`);
-  }
 
   createInitializedServer(container)
     .then(server => runStdio(server, logger))
@@ -121,15 +142,9 @@ program
   .option('-p, --port <port>', 'port number', '3000')
   .action((options: { port: string }) => {
     const httpPort = parseInt(options.port, 10) || 3000;
-    const config = loadConfig();
-    const container = createProductionContainer(config.moduleDirectory);
-    const logger = container.getLogger();
+    const { container, logger } = initializeServerComponents();
 
     logger.info(`Starting HTTP server on port ${httpPort.toString()}`);
-    logger.debug('Using dependency injection');
-    if (config.moduleDirectory !== 'instructions-modules') {
-      logger.info(`Using custom module directory: ${config.moduleDirectory}`);
-    }
 
     createInitializedServer(container)
       .then(server => runHttp(server, logger, httpPort))
@@ -148,15 +163,10 @@ program
   .option('-p, --port <port>', 'port number', '3000')
   .action((options: { port: string }) => {
     const ssePort = parseInt(options.port, 10) || 3000;
-    const config = loadConfig();
-    const container = createProductionContainer(config.moduleDirectory);
-    const logger = container.getLogger();
+    const { config, logger } = initializeServerComponents();
 
     logger.warn('SSE transport is deprecated. Use "http" instead.');
     logger.info(`Starting SSE server on port ${ssePort.toString()}`);
-    if (config.moduleDirectory !== 'instructions-modules') {
-      logger.info(`Using custom module directory: ${config.moduleDirectory}`);
-    }
     // eslint-disable-next-line @typescript-eslint/no-deprecated
     runSSE(
       () => createServer(createProductionContainer(config.moduleDirectory)),

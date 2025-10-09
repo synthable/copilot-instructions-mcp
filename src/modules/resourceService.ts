@@ -243,7 +243,6 @@ export class ResourceService implements IResourceService {
     } catch (err) {
       // Re-throw our own typed errors
       if (
-        err instanceof ModuleNotFoundError ||
         err instanceof ModuleFileNotFoundError ||
         err instanceof UnsupportedFormatError
       ) {
