@@ -126,6 +126,54 @@ export function setupServerHandlers(
         },
       },
       {
+        name: 'search',
+        description:
+          "Unified intelligent search across instruction modules with three powerful modes: fuzzy (lexical matching), semantic (embedding-based), and hybrid (combined re-ranking). **Fuzzy mode** uses weighted Levenshtein distance across names (2x), descriptions (1.5x), categories (1x), and content (0.8x) for fast, transparent matching. **Semantic mode** leverages all-mpnet-base-v2 embeddings via @xenova/transformers for conceptual understanding and meaning-based discovery. **Hybrid mode** combines both approaches with configurable alpha weighting for optimal precision and recall. All modes support tier filtering, similarity thresholds, and rich result metadata. Default mode is 'fuzzy' for speed. Examples: `{query: 'react hooks', mode: 'fuzzy'}` for quick lexical search, `{query: 'managing application state', mode: 'semantic'}` for conceptual discovery, `{query: 'typescript generics', mode: 'hybrid', alpha: 0.7}` for best-of-both-worlds ranking.",
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: {
+              type: 'string',
+              description:
+                "Search query string. For fuzzy mode: supports multiple terms for AND-style matching (e.g., 'react hooks'). For semantic/hybrid: natural language queries work best (e.g., 'how to manage complex state').",
+            },
+            mode: {
+              type: 'string',
+              enum: ['fuzzy', 'semantic', 'hybrid'],
+              description:
+                "Search mode: 'fuzzy' for fast lexical matching (default), 'semantic' for embedding-based conceptual search, 'hybrid' for combined re-ranking with configurable weighting.",
+            },
+            limit: {
+              type: 'number',
+              description:
+                'Maximum number of results to return (1-50, default: 10). Higher limits provide more options but may include less relevant matches.',
+            },
+            tiers: {
+              type: 'array',
+              items: { type: 'string' },
+              description:
+                "Filter results by module tiers (semantic/hybrid modes only). Valid values: 'foundation', 'principle', 'technology', 'execution'. Example: ['foundation', 'principle'] returns only foundational and principle modules.",
+            },
+            similarityThreshold: {
+              type: 'number',
+              description:
+                'Minimum similarity score threshold (0-1, semantic/hybrid modes only). Higher values return fewer but more relevant results. Example: 0.7 for high-precision results.',
+            },
+            includeRelevanceLevel: {
+              type: 'boolean',
+              description:
+                "Include human-readable relevance level in results (semantic/hybrid modes only, default: true). Adds 'high', 'medium', or 'low' classification.",
+            },
+            alpha: {
+              type: 'number',
+              description:
+                'Weight for lexical score in hybrid mode (0-1, default: 0.6). Higher values favor fuzzy matching, lower values favor semantic similarity. Example: 0.8 for mostly lexical, 0.3 for mostly semantic.',
+            },
+          },
+          required: ['query'],
+        },
+      },
+      {
         name: 'semantic_search',
         description:
           'Embedding-based semantic search across instruction modules using all-mpnet-base-v2 embeddings via @xenova/transformers.',
@@ -184,6 +232,11 @@ export function setupServerHandlers(
 
         case 'get_modules_content': {
           const result = await toolHandlers.handleGetModulesContent(args);
+          return createJsonResponse(result);
+        }
+
+        case 'search': {
+          const result = await toolHandlers.handleSearch(args);
           return createJsonResponse(result);
         }
 
