@@ -18,8 +18,8 @@ import { join } from 'node:path';
 import type {
   IInstructionModuleParser,
   ISemanticSearchService,
-} from '../modules/index.js';
-import { createProductionContainer } from '../modules/index.js';
+} from '../modules/core/index.js';
+import { createProductionContainer } from '../modules/core/index.js';
 
 interface Percentiles {
   p50: number;

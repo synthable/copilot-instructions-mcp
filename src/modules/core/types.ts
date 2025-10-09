@@ -329,8 +329,8 @@ export type {
   ResourceContent,
   ResourceFormat,
   ParsedResourceUri,
-} from './resourceTypes.js';
-export { MIME_TYPES, VALID_FORMATS } from './resourceTypes.js';
+} from '../services/resources/resourceTypes.js';
+export { MIME_TYPES, VALID_FORMATS } from '../services/resources/resourceTypes.js';
 
 // Re-export resource error classes
 export {
@@ -340,4 +340,4 @@ export {
   InvalidUriError,
   ModuleReadError,
   UnsupportedFormatError,
-} from './resourceErrors.js';
+} from '../services/resources/resourceErrors.js';

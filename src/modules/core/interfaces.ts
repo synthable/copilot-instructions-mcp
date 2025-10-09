@@ -18,9 +18,9 @@ import type {
   ModuleVector,
   VectorIndexMetadata,
 } from './types.js';
-import type { SemanticSearchOptions } from './semanticSearch.js';
-import type { RelevanceThresholds } from './semanticConfig.js';
-import type { ResourceContent } from './resourceTypes.js';
+import type { SemanticSearchOptions } from '../services/embedding/semanticSearch.js';
+import type { RelevanceThresholds } from '../services/embedding/semanticConfig.js';
+import type { ResourceContent } from '../services/resources/resourceTypes.js';
 
 /**
  * Interface for file system operations.

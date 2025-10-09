@@ -10,7 +10,7 @@
  * @since 1.0.0
  */
 
-import type { ILogger, IVectorStore, ISemanticSearchService } from './interfaces.js';
+import type { ILogger, IVectorStore, ISemanticSearchService } from '../core/interfaces.js';
 
 /**
  * Server initialization service that handles startup tasks.

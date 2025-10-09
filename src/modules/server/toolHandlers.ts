@@ -20,16 +20,16 @@ import {
   validateSearchQuery,
   validateSearchLimit,
   validateModuleIds,
-} from './validation.js';
-import type { ToolArgs } from './types.js';
-import type { SemanticSearchOptions } from './semanticSearch.js';
+} from '../services/validation/validation.js';
+import type { ToolArgs } from '../core/types.js';
+import type { SemanticSearchOptions } from '../services/embedding/semanticSearch.js';
 import type {
   IInstructionModuleParser,
   ISearchService,
   IContentService,
   ISemanticSearchService,
   ILogger,
-} from './interfaces.js';
+} from '../core/interfaces.js';
 
 /**
  * Helper function to split search query into terms

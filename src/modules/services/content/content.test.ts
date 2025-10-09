@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import { ContentService } from './content.js';
-import type { IDependencies, IInstructionModuleParser } from './interfaces.js';
-import type { InstructionModule } from './types.js';
+import type { IDependencies, IInstructionModuleParser } from '../../core/interfaces.js';
+import type { InstructionModule } from '../../core/types.js';
 import path from 'node:path';
 
 describe('ContentService - UMS v1.1 Rendering', () => {

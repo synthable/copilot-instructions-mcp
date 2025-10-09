@@ -13,10 +13,10 @@
  */
 
 import { Command } from 'commander';
-import { createServer, createInitializedServer } from './modules/server.js';
-import { runStdio, runHttp, runSSE } from './modules/transport.js';
-import { setDebugLogging } from './modules/logger.js';
-import { createProductionContainer, type Container } from './modules/container.js';
+import { createServer, createInitializedServer } from './modules/server/server.js';
+import { runStdio, runHttp, runSSE } from './modules/server/transport.js';
+import { setDebugLogging } from './modules/utils/logger.js';
+import { createProductionContainer, type Container } from './modules/core/container.js';
 import { configSchema, type ServerConfig } from './config/config.schema.js';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';

@@ -9,7 +9,7 @@
  * @since 1.0.0
  */
 
-import type { ISemanticConfig } from './interfaces.js';
+import type { ISemanticConfig } from '../../core/interfaces.js';
 
 /**
  * Relevance level mapping for semantic search results.

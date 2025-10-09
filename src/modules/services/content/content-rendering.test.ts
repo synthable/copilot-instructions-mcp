@@ -4,8 +4,8 @@ import {
   getPurposeHeading,
   inferLanguageFromMediaType,
 } from './content.js';
-import type { IDependencies, IInstructionModuleParser } from './interfaces.js';
-import type { InstructionModule } from './types.js';
+import type { IDependencies, IInstructionModuleParser } from '../../core/interfaces.js';
+import type { InstructionModule } from '../../core/types.js';
 import path from 'node:path';
 
 describe('UMS v1.1 Content Rendering', () => {

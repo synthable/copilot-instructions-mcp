@@ -11,8 +11,8 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ResourceService } from './resourceService.js';
-import type { IDependencies, IInstructionModuleParser } from './interfaces.js';
-import type { InstructionModule } from './types.js';
+import type { IDependencies, IInstructionModuleParser } from '../../core/interfaces.js';
+import type { InstructionModule } from '../../core/types.js';
 import {
   ModuleNotFoundError,
   ModuleFileNotFoundError,

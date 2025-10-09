@@ -9,7 +9,7 @@
  * @since 1.0.0
  */
 
-import type { ILogger } from './interfaces.js';
+import type { ILogger } from '../core/interfaces.js';
 
 /**
  * Memory usage information.

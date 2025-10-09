@@ -11,13 +11,13 @@
  * @since 1.0.0
  */
 
-import { CONFIG, validateFilePath } from './validation.js';
-import type { InstructionModule, SearchResult } from './types.js';
+import { CONFIG, validateFilePath } from '../validation/validation.js';
+import type { InstructionModule, SearchResult } from '../../core/types.js';
 import type {
   IDependencies,
   ISearchService,
   IInstructionModuleParser,
-} from './interfaces.js';
+} from '../../core/interfaces.js';
 
 /**
  * Calculates a fuzzy match score between a search term and a target string using Levenshtein distance.

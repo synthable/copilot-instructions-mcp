@@ -12,14 +12,14 @@
 
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve, relative } from 'node:path';
-import { InstructionModuleParser } from './parsing.js';
-import { SearchService } from './search.js';
-import { ContentService } from './content.js';
-import { EmbeddingService } from './embeddingService.js';
-import { VectorStore } from './vectorStore.js';
-import { createProductionSemanticConfig } from './semanticConfig.js';
-import { createLogger } from './logger.js';
-import { ResourceService } from './resourceService.js';
+import { InstructionModuleParser } from '../services/parsing/parsing.js';
+import { SearchService } from '../services/search/search.js';
+import { ContentService } from '../services/content/content.js';
+import { EmbeddingService } from '../services/embedding/embeddingService.js';
+import { VectorStore } from '../utils/vectorStore.js';
+import { createProductionSemanticConfig } from '../services/embedding/semanticConfig.js';
+import { createLogger } from '../utils/logger.js';
+import { ResourceService } from '../services/resources/resourceService.js';
 import type {
   IDependencies,
   IFileSystem,
@@ -34,8 +34,8 @@ import type {
   IVectorStore,
   IResourceService,
 } from './interfaces.js';
-import { SemanticSearchService } from './semanticSearch.js';
-import { ToolHandlers } from './toolHandlers.js';
+import { SemanticSearchService } from '../services/embedding/semanticSearch.js';
+import { ToolHandlers } from '../server/toolHandlers.js';
 
 /**
  * Production implementation of file system operations.
