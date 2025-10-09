@@ -1,4 +1,3 @@
- 
 /* eslint-disable max-lines */
 /**
  * @fileoverview Module content retrieval and formatting functionality.

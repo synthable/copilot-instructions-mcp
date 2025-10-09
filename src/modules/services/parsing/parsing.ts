@@ -15,7 +15,11 @@
  */
 
 import type { InstructionModule } from '../../core/types.js';
-import type { IDependencies, IInstructionModuleParser, ILogger } from '../../core/interfaces.js';
+import type {
+  IDependencies,
+  IInstructionModuleParser,
+  ILogger,
+} from '../../core/interfaces.js';
 import { parse as yamlParseFn } from 'yaml';
 
 /**

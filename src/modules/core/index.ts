@@ -32,7 +32,10 @@ export { ToolHandlers } from '../server/toolHandlers.js';
 
 // Note: Convenience functions removed to eliminate Service Locator anti-pattern
 // Use the service classes directly with proper dependency injection instead
-export { createToolErrorResponse, getToolFallbackData } from '../server/toolHandlers.js';
+export {
+  createToolErrorResponse,
+  getToolFallbackData,
+} from '../server/toolHandlers.js';
 
 // Export server and transport functions
 export { createServer, setupServerHandlers } from '../server/server.js';

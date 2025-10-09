@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import type { UMSv11Module, UMSv11Body, CompositeListDirective } from '../../core/types.js';
+import type {
+  UMSv11Module,
+  UMSv11Body,
+  CompositeListDirective,
+} from '../../core/types.js';
 import { validateFoundationLayer } from '../validation/validation.js';
 
 describe('UMS v1.1 Implementation', () => {
