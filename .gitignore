@@ -143,12 +143,5 @@ instructions-modules/.DS_Store
 #instructions-modules/
 #instructions-modules
 .claude/TESTING.md
-docs/planning/COMPLETED-uri-resources-implementation-plan.md
-docs/planning/docs-resources-implementation-plan.md
-docs/planning/memory-uri-schema-plan.md
-docs/planning/provider-plans-comparative-analysis.md
-docs/planning/provider-system-plan-gemini25pro-v2.md
-docs/planning/provider-system-plan-gemini25pro.md
-docs/planning/providers-plan-gpt5mini.md
-docs/planning/yaml-config-implementation-plan.md
-tmp/embedding-plugins.md
+docs/planning/
+tmp/
