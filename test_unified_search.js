@@ -52,8 +52,10 @@ function runMCP(query) {
             const parsed = JSON.parse(item.text);
             resolve(parsed);
             return;
-          } catch {
-            // fall through: return raw text
+          } catch (parseError) {
+            // Not JSON, or malformed JSON. Fall back to returning raw text.
+            // This can happen for error responses.
+            console.debug(`Could not parse inner JSON from tool response, returning as text. Error: ${parseError.message}`);
             resolve(item.text);
             return;
           }

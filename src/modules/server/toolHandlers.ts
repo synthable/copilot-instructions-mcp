@@ -150,8 +150,12 @@ export class ToolHandlers {
         return this.performSemanticSearch(query, limit, args);
       case 'hybrid':
         return this.performHybridSearch(query, limit, args);
-      default:
-        throw new Error(`Invalid search mode: ${mode as string}`);
+      default: {
+        // This case should be unreachable due to the validation in `validateSearchMode`.
+        // Using an exhaustive check to enforce that all cases are handled.
+        const exhaustiveCheck: never = mode;
+        throw new Error(`Unhandled search mode: ${String(exhaustiveCheck)}`);
+      }
     }
   }
 
@@ -244,13 +248,14 @@ export class ToolHandlers {
       options
     );
 
+    const results = semantic.slice(0, limit);
     return {
       query,
       mode: 'hybrid' as const,
       alpha,
       totalResults: semantic.length,
-      returnedResults: Math.min(limit, semantic.length),
-      results: semantic.slice(0, limit),
+      returnedResults: results.length,
+      results,
       filters: options.tiers ? { tiers: options.tiers } : undefined,
     };
   }
