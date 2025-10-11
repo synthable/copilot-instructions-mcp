@@ -3,15 +3,13 @@
  *
  * This module implements the core business logic for all MCP tools:
  * - list_instruction_modules: Lists all available instruction modules
- * - search_instruction_modules: Performs fuzzy search across modules
+ * - search: Unified search with fuzzy, semantic, and hybrid modes
  * - get_modules_content: Retrieves and combines module content
- * - semantic_search: Embedding-based semantic search across modules
- * - hybrid_search: Re-rank fuzzy results with semantic similarity
  *
  * Provides input validation, error handling, and standardized response formatting.
  *
  * @author MCP Server Team
- * @version 1.0.0
+ * @version 2.0.0
  * @since 1.0.0
  */
 
@@ -62,14 +60,10 @@ export function getToolFallbackData(toolName: string): Record<string, unknown> {
   switch (toolName) {
     case 'list_instruction_modules':
       return { modules: [] };
-    case 'search_instruction_modules':
+    case 'search':
       return { results: [] };
     case 'get_modules_content':
       return { success: false };
-    case 'semantic_search':
-      return { results: [] };
-    case 'hybrid_search':
-      return { results: [] };
     default:
       return {};
   }
@@ -110,39 +104,6 @@ export class ToolHandlers {
   }
 
   /**
-   * Handles the search_instruction_modules tool request
-   */
-  async handleSearchInstructionModules(args: ToolArgs | undefined) {
-    if (!args) {
-      throw new Error(
-        "Missing arguments for search_instruction_modules. 'query' is required."
-      );
-    }
-
-    const query = validateSearchQuery(args.query);
-    const limit = validateSearchLimit(args.limit);
-
-    // Split query into search terms
-    const searchTerms = splitSearchQuery(query);
-
-    this.logger.debug(`Searching for terms: ${searchTerms.join(', ')}`);
-
-    // Perform fuzzy search
-    const searchResults =
-      await this.searchService.searchInstructionModules(searchTerms);
-
-    // Limit results
-    const limitedResults = searchResults.slice(0, limit);
-
-    return {
-      query,
-      totalResults: searchResults.length,
-      returnedResults: limitedResults.length,
-      results: limitedResults,
-    };
-  }
-
-  /**
    * Handles the get_modules_content tool request
    */
   async handleGetModulesContent(args: ToolArgs | undefined) {
@@ -169,48 +130,97 @@ export class ToolHandlers {
   }
 
   /**
-   * Handles the semantic_search tool request
+   * Handles the unified search tool request.
+   * Supports three modes: fuzzy (lexical), semantic (embedding), hybrid (combined).
    */
-  async handleSemanticSearch(args: ToolArgs | undefined) {
+  async handleSearch(args: ToolArgs | undefined) {
     if (!args) {
-      throw new Error("Missing arguments for semantic_search. 'query' is required.");
+      throw new Error("Missing arguments for search. 'query' is required.");
     }
+
     const query = validateSearchQuery(args.query);
     const limit = validateSearchLimit(args.limit);
+    const mode = this.validateSearchMode(args.mode);
 
-    // Parse semantic search options
-    const options: SemanticSearchOptions = {};
-
-    // Handle tier filtering
-    if (args.tiers) {
-      if (Array.isArray(args.tiers)) {
-        options.tiers = args.tiers.filter((t): t is string => typeof t === 'string');
-      } else if (typeof args.tiers === 'string') {
-        options.tiers = [args.tiers];
+    // Route to appropriate search implementation
+    switch (mode) {
+      case 'fuzzy':
+        return this.performFuzzySearch(query, limit);
+      case 'semantic':
+        return this.performSemanticSearch(query, limit, args);
+      case 'hybrid':
+        return this.performHybridSearch(query, limit, args);
+      default: {
+        // This case should be unreachable due to the validation in `validateSearchMode`.
+        // Using an exhaustive check to enforce that all cases are handled.
+        const exhaustiveCheck: never = mode;
+        throw new Error(`Unhandled search mode: ${String(exhaustiveCheck)}`);
       }
     }
+  }
 
-    // Handle similarity threshold
+  /**
+   * Validates and normalizes the search mode parameter
+   */
+  private validateSearchMode(mode: unknown): 'fuzzy' | 'semantic' | 'hybrid' {
+    // Default to fuzzy if not specified
+    if (mode === undefined || mode === null) {
+      return 'fuzzy';
+    }
+
+    if (typeof mode !== 'string') {
+      throw new Error('Search mode must be a string');
+    }
+
+    const normalized = mode.toLowerCase().trim();
     if (
-      typeof args.similarityThreshold === 'number' &&
-      args.similarityThreshold >= 0 &&
-      args.similarityThreshold <= 1
+      normalized === 'fuzzy' ||
+      normalized === 'semantic' ||
+      normalized === 'hybrid'
     ) {
-      options.similarityThreshold = args.similarityThreshold;
+      return normalized;
     }
 
-    // Handle relevance level inclusion (default: true)
-    if (args.includeRelevanceLevel === false) {
-      options.includeRelevanceLevel = false;
-    }
+    throw new Error(
+      `Invalid search mode: '${mode}'. Must be one of: fuzzy, semantic, hybrid`
+    );
+  }
+
+  /**
+   * Performs fuzzy (lexical) search
+   */
+  private async performFuzzySearch(query: string, limit: number) {
+    const searchTerms = splitSearchQuery(query);
+    this.logger.debug(`Fuzzy search for terms: ${searchTerms.join(', ')}`);
+
+    const searchResults =
+      await this.searchService.searchInstructionModules(searchTerms);
+    const limitedResults = searchResults.slice(0, limit);
+
+    return {
+      query,
+      mode: 'fuzzy' as const,
+      totalResults: searchResults.length,
+      returnedResults: limitedResults.length,
+      results: limitedResults,
+    };
+  }
+
+  /**
+   * Performs semantic (embedding-based) search
+   */
+  private async performSemanticSearch(query: string, limit: number, args: ToolArgs) {
+    const options = this.parseSemanticOptions(args);
 
     const results = await this.semanticSearchService.semanticSearch(
       query,
       limit,
       options
     );
+
     return {
       query,
+      mode: 'semantic' as const,
       totalResults: results.length,
       returnedResults: results.length,
       results,
@@ -219,46 +229,14 @@ export class ToolHandlers {
   }
 
   /**
-   * Handles the hybrid_search tool request
+   * Performs hybrid search (re-ranked fuzzy + semantic)
    */
-  async handleHybridSearch(args: ToolArgs | undefined) {
-    if (!args) {
-      throw new Error(
-        "Missing arguments for hybrid_search. 'query' is required. Optional: alpha (0..1), limit."
-      );
-    }
-    const query = validateSearchQuery(args.query);
-    const limit = validateSearchLimit(args.limit);
+  private async performHybridSearch(query: string, limit: number, args: ToolArgs) {
     const alpha =
       typeof args.alpha === 'number' && args.alpha >= 0 && args.alpha <= 1
         ? args.alpha
         : 0.6;
-
-    // Parse semantic search options
-    const options: SemanticSearchOptions = {};
-
-    // Handle tier filtering
-    if (args.tiers) {
-      if (Array.isArray(args.tiers)) {
-        options.tiers = args.tiers.filter((t): t is string => typeof t === 'string');
-      } else if (typeof args.tiers === 'string') {
-        options.tiers = [args.tiers];
-      }
-    }
-
-    // Handle similarity threshold
-    if (
-      typeof args.similarityThreshold === 'number' &&
-      args.similarityThreshold >= 0 &&
-      args.similarityThreshold <= 1
-    ) {
-      options.similarityThreshold = args.similarityThreshold;
-    }
-
-    // Handle relevance level inclusion (default: true)
-    if (args.includeRelevanceLevel === false) {
-      options.includeRelevanceLevel = false;
-    }
+    const options = this.parseSemanticOptions(args);
 
     const terms = splitSearchQuery(query);
     const lexical = await this.searchService.searchInstructionModules(terms);
@@ -269,14 +247,49 @@ export class ToolHandlers {
       limit,
       options
     );
+
+    const results = semantic.slice(0, limit);
     return {
       query,
+      mode: 'hybrid' as const,
       alpha,
       totalResults: semantic.length,
-      returnedResults: Math.min(limit, semantic.length),
-      results: semantic.slice(0, limit),
+      returnedResults: results.length,
+      results,
       filters: options.tiers ? { tiers: options.tiers } : undefined,
     };
+  }
+
+  /**
+   * Parses semantic search options from tool arguments (DRY helper)
+   */
+  private parseSemanticOptions(args: ToolArgs): SemanticSearchOptions {
+    const options: SemanticSearchOptions = {};
+
+    // Handle tier filtering
+    if (args.tiers) {
+      if (Array.isArray(args.tiers)) {
+        options.tiers = args.tiers.filter((t): t is string => typeof t === 'string');
+      } else if (typeof args.tiers === 'string') {
+        options.tiers = [args.tiers];
+      }
+    }
+
+    // Handle similarity threshold
+    if (
+      typeof args.similarityThreshold === 'number' &&
+      args.similarityThreshold >= 0 &&
+      args.similarityThreshold <= 1
+    ) {
+      options.similarityThreshold = args.similarityThreshold;
+    }
+
+    // Handle relevance level inclusion (default: true)
+    if (args.includeRelevanceLevel === false) {
+      options.includeRelevanceLevel = false;
+    }
+
+    return options;
   }
 
   /**

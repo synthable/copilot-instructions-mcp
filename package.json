@@ -16,6 +16,7 @@
     "test": "vitest run --run",
     "test:search": "npm run build && node test_search.js",
     "test:semantic": "npm run build && node test_semantic_search.js",
+    "test:unified-search": "npm run build && node test_unified_search.js",
     "bench:semantic": "npm run build && node dist/benchmarks/semantic_benchmark.js",
     "lint": "eslint 'src/**/*.ts'",
     "lint:code": "eslint 'src/**/*.ts' --ignore-pattern 'src/**/*.{test.ts,spec.ts}'",

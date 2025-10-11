@@ -86,27 +86,6 @@ export function setupServerHandlers(
         },
       },
       {
-        name: 'search_instruction_modules',
-        description:
-          "Perform intelligent fuzzy search across all instruction modules using weighted scoring algorithm. Searches module names (2x weight), descriptions (1.5x), categories/subcategories (1x), and file content (0.8x) with Levenshtein distance matching. Returns ranked results with transparency: match scores, matched fields, and content snippets. Supports multi-term queries for precise discovery. Example: Search 'typescript generics' to find TypeScript generic programming modules, or 'testing pyramid' to discover testing strategy guidance with contextual previews.",
-        inputSchema: {
-          type: 'object',
-          properties: {
-            query: {
-              type: 'string',
-              description:
-                "Search query string - supports multiple terms separated by spaces for AND-style matching. Examples: 'react hooks' finds React hook modules, 'security authentication' finds auth-related security guidance, 'debugging typescript' finds TS debugging help",
-            },
-            limit: {
-              type: 'number',
-              description:
-                'Maximum number of results to return, sorted by relevance score (default: 10, useful range: 3-20). Higher limits provide more options but may include less relevant matches',
-            },
-          },
-          required: ['query'],
-        },
-      },
-      {
         name: 'get_modules_content',
         description:
           "Compile and combine multiple instruction modules into a cohesive markdown document for AI capability enhancement. Retrieves full content from specified modules, adds metadata headers (ID, category, description), and joins with separators for easy parsing. Respects four-tier hierarchy: Foundation modules should be ordered by layer (0→3), followed by Principle, Technology, and Execution modules. Returns success status, combined content, and detailed error reporting. Example: Combine ['foundation.reasoning.systems-thinking', 'technology.language.typescript.strict-type-checking', 'execution.playbook.debug-issue'] to create a TypeScript debugging specialist AI persona.",
@@ -126,39 +105,48 @@ export function setupServerHandlers(
         },
       },
       {
-        name: 'semantic_search',
+        name: 'search',
         description:
-          'Embedding-based semantic search across instruction modules using all-mpnet-base-v2 embeddings via @xenova/transformers.',
+          "Unified intelligent search across instruction modules with three powerful modes: fuzzy (lexical matching), semantic (embedding-based), and hybrid (combined re-ranking). **Fuzzy mode** uses weighted Levenshtein distance across names (2x), descriptions (1.5x), categories (1x), and content (0.8x) for fast, transparent matching. **Semantic mode** leverages all-mpnet-base-v2 embeddings via @xenova/transformers for conceptual understanding and meaning-based discovery. **Hybrid mode** combines both approaches with configurable alpha weighting for optimal precision and recall. All modes support tier filtering, similarity thresholds, and rich result metadata. Default mode is 'fuzzy' for speed. Examples: `{query: 'react hooks', mode: 'fuzzy'}` for quick lexical search, `{query: 'managing application state', mode: 'semantic'}` for conceptual discovery, `{query: 'typescript generics', mode: 'hybrid', alpha: 0.7}` for best-of-both-worlds ranking.",
         inputSchema: {
           type: 'object',
           properties: {
             query: {
               type: 'string',
-              description: 'Natural language query to embed and search.',
+              description:
+                "Search query string. For fuzzy mode: supports multiple terms for AND-style matching (e.g., 'react hooks'). For semantic/hybrid: natural language queries work best (e.g., 'how to manage complex state').",
+            },
+            mode: {
+              type: 'string',
+              enum: ['fuzzy', 'semantic', 'hybrid'],
+              description:
+                "Search mode: 'fuzzy' for fast lexical matching (default), 'semantic' for embedding-based conceptual search, 'hybrid' for combined re-ranking with configurable weighting.",
             },
             limit: {
               type: 'number',
-              description: 'Max results to return (default 10).',
+              description:
+                'Maximum number of results to return (1-50, default: 10). Higher limits provide more options but may include less relevant matches.',
             },
-          },
-          required: ['query'],
-        },
-      },
-      {
-        name: 'hybrid_search',
-        description:
-          'Hybrid re-rank combining fuzzy lexical search with semantic similarity using all-mpnet-base-v2 embeddings.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            query: { type: 'string', description: 'Search query terms.' },
-            limit: {
+            tiers: {
+              type: 'array',
+              items: { type: 'string' },
+              description:
+                "Filter results by module tiers (semantic/hybrid modes only). Valid values: 'foundation', 'principle', 'technology', 'execution'. Example: ['foundation', 'principle'] returns only foundational and principle modules.",
+            },
+            similarityThreshold: {
               type: 'number',
-              description: 'Max results to return (default 10).',
+              description:
+                'Minimum similarity score threshold (0-1, semantic/hybrid modes only). Higher values return fewer but more relevant results. Example: 0.7 for high-precision results.',
+            },
+            includeRelevanceLevel: {
+              type: 'boolean',
+              description:
+                "Include human-readable relevance level in results (semantic/hybrid modes only, default: true). Adds 'high', 'medium', or 'low' classification.",
             },
             alpha: {
               type: 'number',
-              description: 'Weight for lexical score (0..1, default 0.6).',
+              description:
+                'Weight for lexical score in hybrid mode (0-1, default: 0.6). Higher values favor fuzzy matching, lower values favor semantic similarity. Example: 0.8 for mostly lexical, 0.3 for mostly semantic.',
             },
           },
           required: ['query'],
@@ -177,23 +165,13 @@ export function setupServerHandlers(
           return createJsonResponse(result);
         }
 
-        case 'search_instruction_modules': {
-          const result = await toolHandlers.handleSearchInstructionModules(args);
-          return createJsonResponse(result);
-        }
-
         case 'get_modules_content': {
           const result = await toolHandlers.handleGetModulesContent(args);
           return createJsonResponse(result);
         }
 
-        case 'semantic_search': {
-          const result = await toolHandlers.handleSemanticSearch(args);
-          return createJsonResponse(result);
-        }
-
-        case 'hybrid_search': {
-          const result = await toolHandlers.handleHybridSearch(args);
+        case 'search': {
+          const result = await toolHandlers.handleSearch(args);
           return createJsonResponse(result);
         }
 

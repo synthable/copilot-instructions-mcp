@@ -10,7 +10,7 @@ This server exposes 100+ instruction modules organized in a four-tier hierarchy 
 
 ### MCP Tools
 - **`list_instruction_modules`** - List all available instruction modules with optional category filtering
-- **`search_instruction_modules`** - Fuzzy search across module names, descriptions, and content
+- **`search`** - Unified search with three modes: fuzzy (lexical), semantic (embedding-based), and hybrid (combined)
 - **`get_modules_content`** - Combine multiple modules into formatted markdown documents
 
 ### MCP Prompts
@@ -50,6 +50,9 @@ node dist/index.js http --port 8000
 
 ### Test
 ```bash
+# Test unified search tool with all modes
+npm run test:unified-search
+
 # Run comprehensive test suite
 npm run test:search
 
@@ -108,9 +111,10 @@ Step-by-step playbooks for common development tasks:
   "id": 1,
   "method": "tools/call",
   "params": {
-    "name": "search_instruction_modules",
+    "name": "search",
     "arguments": {
       "query": "typescript generics",
+      "mode": "fuzzy",
       "limit": 5
     }
   }
@@ -171,9 +175,10 @@ npm run test:semantic
 npm start
 ```
 
-### New MCP Tools
-- `semantic_search` - Pure embedding-based search
-- Enhanced `search_instruction_modules` - Now includes semantic scoring
+### Search Modes
+- **Fuzzy mode**: Fast lexical matching with weighted Levenshtein distance
+- **Semantic mode**: Embedding-based conceptual search for meaning understanding
+- **Hybrid mode**: Combined re-ranking with configurable alpha weighting
 
 ### Documentation
 - [Architecture Overview](docs/ARCHITECTURE.md) - Comprehensive system design
