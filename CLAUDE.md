@@ -1,3 +1,6 @@
+@.claude/AGENTS.md
+@.claude/COMMANDS.md
+
 # Vitest Implementation and Testing Strategy
 
 ## Overview
