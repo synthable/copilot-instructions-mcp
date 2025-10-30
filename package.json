@@ -17,7 +17,11 @@
     "test:search": "npm run build && node test_search.js",
     "test:semantic": "npm run build && node test_semantic_search.js",
     "test:unified-search": "npm run build && node test_unified_search.js",
-    "bench:semantic": "npm run build && node dist/benchmarks/semantic_benchmark.js",
+    "bench": "npm run build && node dist/benchmarks/benchmark.js",
+    "bench:semantic": "npm run build && BENCH_SUITE=semantic node dist/benchmarks/benchmark.js",
+    "bench:parsing": "npm run build && BENCH_SUITE=parsing node dist/benchmarks/benchmark.js",
+    "bench:providers": "npm run build && BENCH_SUITE=providers node dist/benchmarks/benchmark.js",
+    "bench:memory": "npm run build && BENCH_SUITE=memory node dist/benchmarks/benchmark.js",
     "lint": "eslint 'src/**/*.ts'",
     "lint:code": "eslint 'src/**/*.ts' --ignore-pattern 'src/**/*.{test.ts,spec.ts}'",
     "lint:fix": "eslint 'src/**/*.ts' --fix",
@@ -37,8 +41,9 @@
     "@xenova/transformers": "^2.17.2",
     "commander": "^12.0.0",
     "express": "^5.1.0",
-    "yaml": "^2.8.1",
-    "ums-parser": "file:ums-parser"
+    "ollama": "^0.6.0",
+    "ums-parser": "file:ums-parser",
+    "yaml": "^2.8.1"
   },
   "devDependencies": {
     "@tsconfig/node-ts": "^23.6.1",
