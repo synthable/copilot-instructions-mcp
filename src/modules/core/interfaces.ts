@@ -205,7 +205,21 @@ export interface EmbeddingCacheEntry {
  */
 export interface IEmbeddingService {
   /**
-   * Initializes the embedding pipeline with the configured model.
+   * Initializes the embedding pipeline with the given configuration.
+   *
+   * @param config - Provider configuration
+   * @param progressCallback - Optional callback for initialization progress
+   */
+  initialize(
+    config: import('../plugins/embedding/embeddingProvider.interface.js').EmbeddingProviderConfig,
+    progressCallback?: EmbeddingProgressCallback
+  ): Promise<void>;
+
+  /**
+   * Initializes the embedding pipeline with stored configuration.
+   * Only works if initialize(config) was called previously.
+   *
+   * @param progressCallback - Optional callback for initialization progress
    */
   initialize(progressCallback?: EmbeddingProgressCallback): Promise<void>;
 

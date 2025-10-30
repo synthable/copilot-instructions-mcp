@@ -33,6 +33,7 @@ import type {
   ISemanticConfig,
   IInstructionModuleParser,
 } from '../modules/core/interfaces.js';
+import type { EmbeddingProviderConfig } from '../modules/plugins/embedding/embeddingProvider.interface.js';
 import { configSchema, type ServerConfig } from '../config/config.schema.js';
 import { existsSync, readFileSync } from 'node:fs';
 
@@ -63,6 +64,7 @@ export class VectorGenerator {
     private embeddingService: IEmbeddingService,
     private config: ISemanticConfig,
     private parser: IInstructionModuleParser,
+    private providerConfig: EmbeddingProviderConfig,
     outputDir = 'dist/vectors',
     progressCallback?: (progress: VectorGenerationProgress) => void,
     providerName?: string
@@ -77,6 +79,7 @@ export class VectorGenerator {
    */
   static fromContainer(
     container: Container,
+    providerConfig: EmbeddingProviderConfig,
     outputDir = 'dist/vectors',
     progressCallback?: (progress: VectorGenerationProgress) => void,
     providerName?: string
@@ -85,6 +88,7 @@ export class VectorGenerator {
       container.getEmbeddingService(),
       container.getSemanticConfig(),
       container.getInstructionModuleParser(),
+      providerConfig,
       outputDir,
       progressCallback,
       providerName
@@ -104,8 +108,9 @@ export class VectorGenerator {
         stage: 'initializing',
       });
 
-      // Initialize embedding service
+      // Initialize embedding service with provider config
       await this.embeddingService.initialize(
+        this.providerConfig,
         this.createEmbeddingProgressCallback(this.providerName)
       );
 
@@ -419,6 +424,7 @@ async function main(): Promise<void> {
     // Create generator using factory method
     const generator = VectorGenerator.fromContainer(
       container,
+      config.embeddingProvider as EmbeddingProviderConfig,
       options.output,
       progressCallback,
       providerType

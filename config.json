@@ -1,0 +1,11 @@
+{
+  "embeddingProvider": {
+    "type": "ollama",
+    "model": "qwen3-embedding:0.6b",
+    "baseUrl": "http://localhost:11434"
+  },
+  "searchProvider": {
+    "name": "fuzzy"
+  },
+  "moduleDirectory": "instructions-modules"
+}
