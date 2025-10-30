@@ -21,6 +21,7 @@ import type {
 import type { SemanticSearchOptions } from '../services/embedding/semanticSearch.js';
 import type { RelevanceThresholds } from '../services/embedding/semanticConfig.js';
 import type { ResourceContent } from '../services/resources/resourceTypes.js';
+import type { EmbeddingProgressCallback as EmbeddingProgressCallbackPlugin } from '../plugins/embedding/embeddingProvider.interface.js';
 
 /**
  * Interface for file system operations.
@@ -180,12 +181,11 @@ export interface IContentService {
 /**
  * Progress callback for embedding operations.
  * Called during model initialization and batch processing.
+ *
+ * @remarks
+ * Re-exported from the plugin interface for backward compatibility.
  */
-export type EmbeddingProgressCallback = (
-  stage: 'initialization' | 'download' | 'loading' | 'processing',
-  progress: number, // 0-1
-  message?: string
-) => void;
+export type EmbeddingProgressCallback = EmbeddingProgressCallbackPlugin;
 
 /**
  * Cache entry for embeddings with MD5-based invalidation.
@@ -240,7 +240,7 @@ export interface IEmbeddingService {
   /**
    * Disposes of the embedding model to free memory.
    */
-  dispose(): void;
+  dispose(): Promise<void>;
 }
 
 /**

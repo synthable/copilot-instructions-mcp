@@ -36,6 +36,10 @@ import type {
 } from './interfaces.js';
 import { SemanticSearchService } from '../services/embedding/semanticSearch.js';
 import { ToolHandlers } from '../server/toolHandlers.js';
+import type { IEmbeddingProvider } from '../plugins/embedding/embeddingProvider.interface.js';
+import { TransformersEmbeddingProvider } from '../plugins/embedding/transformersProvider.js';
+import { OllamaEmbeddingProvider } from '../plugins/embedding/ollamaProvider.js';
+import type { ServerConfig } from '../../config/config.schema.js';
 
 /**
  * Production implementation of file system operations.
@@ -98,14 +102,17 @@ export class Container {
   private contentService?: IContentService;
   private semanticSearchService?: ISemanticSearchService;
   private embeddingService?: IEmbeddingService;
+  private embeddingProvider?: IEmbeddingProvider;
   private semanticConfig?: ISemanticConfig;
   private vectorStore?: IVectorStore;
   private resourceService?: IResourceService;
   private moduleDirectory: string;
+  private config?: ServerConfig;
 
   constructor(
     dependencies?: Partial<IDependencies>,
-    moduleDirectory: string = 'instructions-modules'
+    moduleDirectory: string = 'instructions-modules',
+    config?: ServerConfig
   ) {
     this.dependencies = {
       fileSystem: dependencies?.fileSystem ?? new FileSystem(),
@@ -114,6 +121,9 @@ export class Container {
       logger: dependencies?.logger ?? createLogger('container'),
     };
     this.moduleDirectory = moduleDirectory;
+    if (config) {
+      this.config = config;
+    }
   }
 
   /**
@@ -171,13 +181,62 @@ export class Container {
   }
 
   /**
+   * Creates an embedding provider based on configuration.
+   */
+  private createEmbeddingProvider(config: ServerConfig): IEmbeddingProvider {
+    const providerConfig = config.embeddingProvider;
+
+    switch (providerConfig.type) {
+      case 'transformers':
+        return new TransformersEmbeddingProvider();
+      case 'ollama':
+        return new OllamaEmbeddingProvider();
+      case 'openai':
+        throw new Error('OpenAI provider not yet implemented');
+      case 'cohere':
+        throw new Error('Cohere provider not yet implemented');
+      default:
+        throw new Error(`Unknown embedding provider: ${providerConfig.type as string}`);
+    }
+  }
+
+  /**
+   * Gets or creates the embedding provider (if config is available).
+   */
+  private getEmbeddingProvider(): IEmbeddingProvider | null {
+    if (!this.config) {
+      return null;
+    }
+
+    if (!this.embeddingProvider) {
+      this.embeddingProvider = this.createEmbeddingProvider(this.config);
+    }
+
+    return this.embeddingProvider;
+  }
+
+  /**
    * Gets or creates the embedding service.
+   * If a config is provided and supports plugins, uses the provider-based approach.
+   * Otherwise, creates a default Transformers provider.
    */
   getEmbeddingService(): IEmbeddingService {
-    this.embeddingService ??= new EmbeddingService(
-      this.getSemanticConfig(),
-      this.dependencies.logger
-    );
+    if (!this.embeddingService) {
+      // Try to use provider-based approach if config is available
+      let provider = this.getEmbeddingProvider();
+
+      // If no provider from config, create a default Transformers provider
+      if (!provider) {
+        this.dependencies.logger.debug(
+          'No config provided, creating default Transformers provider'
+        );
+        provider = new TransformersEmbeddingProvider();
+      }
+
+      // Wrap provider in EmbeddingService
+      this.embeddingService = new EmbeddingService(provider, this.dependencies.logger);
+    }
+
     return this.embeddingService;
   }
 
@@ -269,6 +328,29 @@ export class Container {
   setResourceService(service: IResourceService): void {
     this.resourceService = service;
   }
+
+  /** Set a custom embedding provider (testing). */
+  setEmbeddingProvider(provider: IEmbeddingProvider): void {
+    this.embeddingProvider = provider;
+  }
+
+  /**
+   * Disposes all services and releases resources.
+   * Call this when shutting down the container.
+   */
+  async dispose(): Promise<void> {
+    // Dispose embedding service if it exists (which will dispose the provider internally)
+    if (this.embeddingService) {
+      await this.embeddingService.dispose();
+    }
+
+    // Reset services by deleting them (TypeScript will recreate them as undefined)
+    // Use type assertion to allow delete on private properties
+    delete (this as Record<string, unknown>).embeddingService;
+    delete (this as Record<string, unknown>).embeddingProvider;
+
+    this.dependencies.logger.info('Container disposed');
+  }
 }
 
 /**
@@ -301,9 +383,13 @@ export function resetContainer(): void {
 /**
  * Factory function to create a container with production dependencies.
  * @param moduleDirectory - Base directory for instruction modules (default: 'instructions-modules')
+ * @param config - Optional server configuration
  */
-export function createProductionContainer(moduleDirectory?: string): Container {
-  return new Container(undefined, moduleDirectory);
+export function createProductionContainer(
+  moduleDirectory?: string,
+  config?: ServerConfig
+): Container {
+  return new Container(undefined, moduleDirectory, config);
 }
 
 /**
@@ -311,10 +397,12 @@ export function createProductionContainer(moduleDirectory?: string): Container {
  * Allows injection of mock implementations for testing.
  * @param mockDependencies - Partial dependencies to override defaults
  * @param moduleDirectory - Base directory for instruction modules (default: 'instructions-modules')
+ * @param config - Optional server configuration
  */
 export function createTestContainer(
   mockDependencies: Partial<IDependencies> = {},
-  moduleDirectory?: string
+  moduleDirectory?: string,
+  config?: ServerConfig
 ): Container {
-  return new Container(mockDependencies, moduleDirectory);
+  return new Container(mockDependencies, moduleDirectory, config);
 }

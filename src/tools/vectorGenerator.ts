@@ -15,8 +15,12 @@ import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { encode as msgpackEncode } from '@msgpack/msgpack';
+import { Command } from 'commander';
 
-import { getContainer } from '../modules/core/container.js';
+import {
+  createProductionContainer,
+  type Container,
+} from '../modules/core/container.js';
 import type {
   InstructionModule,
   ModuleVector,
@@ -29,6 +33,8 @@ import type {
   ISemanticConfig,
   IInstructionModuleParser,
 } from '../modules/core/interfaces.js';
+import { configSchema, type ServerConfig } from '../config/config.schema.js';
+import { existsSync, readFileSync } from 'node:fs';
 
 /**
  * Version of the vector generation tool for metadata tracking.
@@ -51,16 +57,38 @@ interface VectorGenerationProgress {
 export class VectorGenerator {
   private outputDir: string;
   private progressCallback: ((progress: VectorGenerationProgress) => void) | undefined;
+  private providerName: string | undefined;
 
   constructor(
     private embeddingService: IEmbeddingService,
     private config: ISemanticConfig,
     private parser: IInstructionModuleParser,
     outputDir = 'dist/vectors',
-    progressCallback?: (progress: VectorGenerationProgress) => void
+    progressCallback?: (progress: VectorGenerationProgress) => void,
+    providerName?: string
   ) {
     this.outputDir = outputDir;
     this.progressCallback = progressCallback;
+    this.providerName = providerName ?? undefined;
+  }
+
+  /**
+   * Factory method to create VectorGenerator from a container.
+   */
+  static fromContainer(
+    container: Container,
+    outputDir = 'dist/vectors',
+    progressCallback?: (progress: VectorGenerationProgress) => void,
+    providerName?: string
+  ): VectorGenerator {
+    return new VectorGenerator(
+      container.getEmbeddingService(),
+      container.getSemanticConfig(),
+      container.getInstructionModuleParser(),
+      outputDir,
+      progressCallback,
+      providerName
+    );
   }
 
   /**
@@ -77,7 +105,9 @@ export class VectorGenerator {
       });
 
       // Initialize embedding service
-      await this.embeddingService.initialize(this.createEmbeddingProgressCallback());
+      await this.embeddingService.initialize(
+        this.createEmbeddingProgressCallback(this.providerName)
+      );
 
       // Parse all modules
       this.reportProgress({
@@ -129,7 +159,7 @@ export class VectorGenerator {
       throw error;
     } finally {
       // Clean up embedding service
-      this.embeddingService.dispose();
+      await this.embeddingService.dispose();
     }
   }
 
@@ -159,7 +189,7 @@ export class VectorGenerator {
       // Generate embeddings for batch
       const embeddings = await this.embeddingService.embedBatch(
         semanticTexts,
-        this.createEmbeddingProgressCallback()
+        this.createEmbeddingProgressCallback(this.providerName)
       );
 
       // Create ModuleVector objects
@@ -274,11 +304,16 @@ export class VectorGenerator {
   /**
    * Creates embedding progress callback for batch operations.
    */
-  private createEmbeddingProgressCallback(): EmbeddingProgressCallback {
+  private createEmbeddingProgressCallback(
+    providerName?: string
+  ): EmbeddingProgressCallback {
     return (stage, progress, message) => {
       // Optional: Log detailed embedding progress
       if (message) {
-        console.log(`Embedding ${stage}: ${message} (${(progress * 100).toFixed(1)}%)`);
+        const provider = providerName ? `[${providerName}] ` : '';
+        console.log(
+          `${provider}Embedding ${stage}: ${message} (${(progress * 100).toFixed(1)}%)`
+        );
       }
     };
   }
@@ -294,14 +329,79 @@ export class VectorGenerator {
 }
 
 /**
+ * Default configuration for vector generation if config.json is not found.
+ */
+const DEFAULT_CONFIG = {
+  embeddingProvider: { type: 'transformers' as const },
+  searchProvider: { name: 'fuzzy' as const },
+};
+
+/**
+ * Loads and validates configuration from config.json.
+ */
+function loadConfig(): ServerConfig {
+  const configPath = join(process.cwd(), 'config.json');
+
+  if (!existsSync(configPath)) {
+    console.log('No config.json found, using default configuration');
+    return configSchema.parse(DEFAULT_CONFIG);
+  }
+
+  try {
+    const configContent = readFileSync(configPath, 'utf-8');
+    const rawConfig: unknown = JSON.parse(configContent);
+    return configSchema.parse(rawConfig);
+  } catch (error) {
+    console.error('Failed to load configuration from config.json:', error);
+    console.error('Falling back to default configuration');
+    return configSchema.parse(DEFAULT_CONFIG);
+  }
+}
+
+/**
  * CLI entry point for vector generation.
  */
 async function main(): Promise<void> {
-  const args = process.argv.slice(2);
-  const outputDir = args[0] || 'dist/vectors';
+  const program = new Command();
+
+  program
+    .name('vector-generator')
+    .description('Build-time vector generation tool for instruction modules')
+    .version('1.0.0')
+    .option(
+      '-o, --output <directory>',
+      'Output directory for generated vectors',
+      'dist/vectors'
+    )
+    .option(
+      '-p, --provider <type>',
+      'Embedding provider to use (transformers, ollama)',
+      undefined
+    )
+    .option('-d, --debug', 'Enable debug logging', false)
+    .parse(process.argv);
+
+  const options = program.opts<{
+    output: string;
+    provider?: 'transformers' | 'ollama';
+    debug: boolean;
+  }>();
 
   console.log('Starting build-time vector generation...');
-  console.log(`Output directory: ${outputDir}`);
+  console.log(`Output directory: ${options.output}`);
+
+  // Load config from file
+  const config = loadConfig();
+
+  // Override provider if specified via CLI
+  if (options.provider) {
+    console.log(`Using provider override: ${options.provider}`);
+    config.embeddingProvider.type = options.provider;
+  }
+
+  const providerType = config.embeddingProvider.type;
+  console.log(`Embedding provider: ${providerType}`);
+  console.log(`Model: ${config.embeddingProvider.model}`);
 
   const progressCallback = (progress: VectorGenerationProgress) => {
     const percentage =
@@ -312,23 +412,41 @@ async function main(): Promise<void> {
     console.log(`[${progress.stage.toUpperCase()}] ${percentage}%${current}`);
   };
 
-  // Composition root: acceptable use of container in CLI entry point
-  const container = getContainer();
-
-  const generator = new VectorGenerator(
-    container.getEmbeddingService(),
-    container.getSemanticConfig(),
-    container.getInstructionModuleParser(),
-    outputDir,
-    progressCallback
-  );
-
   try {
+    // Create container with config
+    const container = createProductionContainer(config.moduleDirectory, config);
+
+    // Create generator using factory method
+    const generator = VectorGenerator.fromContainer(
+      container,
+      options.output,
+      progressCallback,
+      providerType
+    );
+
     await generator.generateVectors();
     console.log('Vector generation completed successfully!');
+
+    // Clean up container resources
+    await container.dispose();
+
     process.exit(0);
   } catch (error) {
-    console.error('Vector generation failed:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+
+    console.error('Vector generation failed:', errorMessage);
+    if (options.debug && errorStack) {
+      console.error('Stack trace:', errorStack);
+    }
+
+    // Provide helpful error messages for common issues
+    if (errorMessage.includes('provider')) {
+      console.error('\nProvider initialization failed. Check your configuration:');
+      console.error('- For Ollama: ensure Ollama is running (ollama serve)');
+      console.error('- For Transformers: ensure @xenova/transformers is installed');
+    }
+
     process.exit(1);
   }
 }

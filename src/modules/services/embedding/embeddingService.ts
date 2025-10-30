@@ -1,648 +1,341 @@
 /**
- * @fileoverview Production embedding service implementation.
+ * @fileoverview Embedding service wrapper for provider abstraction.
  *
- * This module provides a type-safe, properly validated embedding service
- * that abstracts transformer model operations with comprehensive error handling,
- * resource management, embedding caching, and progress callbacks.
+ * This module provides a thin wrapper around IEmbeddingProvider implementations,
+ * maintaining backward compatibility with the IEmbeddingService interface while
+ * delegating all embedding operations to the underlying provider.
+ *
+ * The service acts as an adapter between the legacy IEmbeddingService interface
+ * and the new plugin-based IEmbeddingProvider architecture, enabling:
+ * - Seamless provider swapping (Transformers.js, Ollama, OpenAI, etc.)
+ * - Consistent error handling and logging
+ * - Optional caching support when providers implement IEmbeddingProviderCache
+ * - Progress callback standardization
  *
  * @author MCP Server Team
- * @version 1.0.0
+ * @version 2.0.0
  * @since 1.0.0
  */
 
-import { createHash } from 'node:crypto';
 import type {
   IEmbeddingService,
-  ISemanticConfig,
   ILogger,
   EmbeddingProgressCallback,
-  EmbeddingCacheEntry,
 } from '../../core/interfaces.js';
+import type {
+  IEmbeddingProvider,
+  IEmbeddingProviderCache,
+  EmbeddingProviderConfig,
+} from '../../plugins/embedding/embeddingProvider.interface.js';
 
 /**
- * Validated embedding tensor type from transformer output.
+ * Type guard to check if a provider supports caching.
  */
-interface ValidatedEmbeddingTensor {
-  data: Float32Array | number[];
-  dimensions: number;
+function isCacheableProvider(
+  provider: IEmbeddingProvider
+): provider is IEmbeddingProvider & IEmbeddingProviderCache {
+  return (
+    'clearCache' in provider &&
+    'getCacheStats' in provider &&
+    'isCacheEnabled' in provider &&
+    'setCacheEnabled' in provider &&
+    typeof (provider as IEmbeddingProviderCache).clearCache === 'function' &&
+    typeof (provider as IEmbeddingProviderCache).getCacheStats === 'function' &&
+    typeof (provider as IEmbeddingProviderCache).isCacheEnabled === 'function' &&
+    typeof (provider as IEmbeddingProviderCache).setCacheEnabled === 'function'
+  );
 }
 
 /**
- * Type-safe transformer pipeline interface.
- */
-type TransformerPipeline = (
-  input: string | string[],
-  options?: {
-    pooling?: 'mean' | 'max';
-    normalize?: boolean;
-  }
-) => Promise<unknown>;
-
-/**
- * Type-safe transformers module interface.
- */
-interface TransformersModule {
-  pipeline: (task: string, model: string) => Promise<TransformerPipeline>;
-}
-
-/**
- * Production embedding service with proper type safety, error handling, caching, and progress callbacks.
+ * Embedding service that delegates to an IEmbeddingProvider implementation.
+ *
+ * @remarks
+ * This service provides backward compatibility with the IEmbeddingService interface
+ * while delegating all actual embedding operations to the injected provider.
+ * It supports optional caching when the provider implements IEmbeddingProviderCache.
+ *
+ * The service is designed to be provider-agnostic and can work with any provider
+ * implementation (Transformers.js, Ollama, OpenAI, Cohere, etc.).
+ *
+ * @example
+ * ```typescript
+ * // Using Transformers.js provider
+ * const provider = new TransformersEmbeddingProvider();
+ * const service = new EmbeddingService(provider, logger);
+ *
+ * await service.initialize({
+ *   type: 'transformers',
+ *   model: 'Xenova/all-MiniLM-L6-v2',
+ *   dimensions: 384
+ * });
+ *
+ * const embedding = await service.embed("Hello, world!");
+ * ```
  */
 export class EmbeddingService implements IEmbeddingService {
-  private pipeline: TransformerPipeline | null = null;
-  private initialized = false;
-  private embeddingCache = new Map<string, EmbeddingCacheEntry>();
-  private cacheStats = { hits: 0, misses: 0 };
-  private disposeTimer: NodeJS.Timeout | null = null;
+  private config: EmbeddingProviderConfig | null = null;
 
   constructor(
-    private config: ISemanticConfig,
-    private logger: ILogger
+    private readonly provider: IEmbeddingProvider,
+    private readonly logger: ILogger
   ) {}
 
   /**
-   * Initializes the embedding pipeline with comprehensive error handling and progress callbacks.
+   * Initializes the embedding provider with the given configuration.
+   *
+   * @param config - Provider configuration (will be passed to the underlying provider)
+   * @param progressCallback - Optional callback for initialization progress
+   *
+   * @throws {Error} If provider initialization fails
+   *
+   * @remarks
+   * This method delegates to the underlying provider's initialize() method.
+   * The provider handles all model loading, downloads, and setup.
    */
-  async initialize(progressCallback?: EmbeddingProgressCallback): Promise<void> {
-    if (this.initialized) {
-      this.logger.debug('Embedding service already initialized');
-      progressCallback?.('initialization', 1.0, 'Already initialized');
-      return;
-    }
+  async initialize(
+    config: EmbeddingProviderConfig,
+    progressCallback?: EmbeddingProgressCallback
+  ): Promise<void>;
 
+  /**
+   * Legacy initialize signature for backward compatibility.
+   * Initializes with stored configuration.
+   */
+  async initialize(progressCallback?: EmbeddingProgressCallback): Promise<void>;
+
+  async initialize(
+    configOrCallback?: EmbeddingProviderConfig | EmbeddingProgressCallback,
+    progressCallback?: EmbeddingProgressCallback
+  ): Promise<void> {
     try {
-      this.logger.info('Initializing embedding service', {
-        model: this.config.getModelName(),
-        batchSize: this.config.getBatchSize(),
+      // Handle overloaded signatures
+      let config: EmbeddingProviderConfig | null = null;
+      let callback: EmbeddingProgressCallback | undefined = undefined;
+
+      if (typeof configOrCallback === 'function') {
+        // Legacy signature: initialize(progressCallback?)
+        callback = configOrCallback;
+        config = this.config;
+
+        if (!config) {
+          throw new Error(
+            'No configuration available. Call initialize with configuration first.'
+          );
+        }
+      } else if (configOrCallback && typeof configOrCallback === 'object') {
+        // New signature: initialize(config, progressCallback?)
+        config = configOrCallback;
+        callback = progressCallback;
+        this.config = config;
+      } else if (!configOrCallback) {
+        // initialize() with no arguments - use stored config
+        config = this.config;
+
+        if (!config) {
+          throw new Error(
+            'No configuration available. Call initialize with configuration first.'
+          );
+        }
+      }
+
+      if (!config) {
+        throw new Error('Invalid configuration provided');
+      }
+
+      this.logger.debug('Initializing embedding service', {
+        provider: this.provider.name,
+        model: config.model,
       });
 
-      progressCallback?.('initialization', 0.1, 'Starting initialization');
+      await this.provider.initialize(config, callback);
 
-      // Dynamic import with proper error handling
-      progressCallback?.('loading', 0.2, 'Loading transformers module');
-      const transformersModule = await this.loadTransformersModule();
-
-      progressCallback?.('loading', 0.5, 'Creating pipeline');
-      this.pipeline = await this.createPipeline(transformersModule, progressCallback);
-
-      // Validate pipeline with test embedding
-      progressCallback?.('loading', 0.8, 'Validating pipeline');
-      await this.validatePipeline();
-
-      this.initialized = true;
-      progressCallback?.('initialization', 1.0, 'Initialization complete');
-      this.logger.info('Embedding service initialized successfully');
-
-      // Set up idle disposal timer
-      this.resetDisposeTimer();
+      this.logger.info('Embedding service initialized successfully', {
+        provider: this.provider.name,
+        model: this.provider.model,
+        dimensions: this.provider.dimensions,
+      });
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown initialization error';
       this.logger.error(
         'Failed to initialize embedding service',
         error instanceof Error ? error : undefined,
         {
-          model: this.config.getModelName(),
-          error: errorMessage,
+          provider: this.provider.name,
+          error: error instanceof Error ? error.message : 'Unknown error',
         }
       );
-      progressCallback?.('initialization', 0, `Initialization failed: ${errorMessage}`);
-      throw new Error(`Embedding service initialization failed: ${errorMessage}`);
+      throw error;
     }
   }
 
   /**
-   * Generates embeddings for a single text input with validation, caching, and progress callbacks.
+   * Generates an embedding vector for a single text input.
+   *
+   * @param text - The text to embed
+   * @param progressCallback - Optional callback for progress updates
+   * @returns Promise resolving to the embedding vector
+   *
+   * @throws {Error} If provider is not initialized or embedding generation fails
+   *
+   * @remarks
+   * Delegates to the underlying provider's embed() method. The provider handles
+   * all validation, truncation, and transformation logic.
    */
   async embed(
     text: string,
     progressCallback?: EmbeddingProgressCallback
   ): Promise<number[]> {
-    this.ensureInitialized();
-    const truncatedText = this.validateAndTruncateText(text);
-
-    // Check cache first
-    const hash = this.computeTextHash(truncatedText);
-    const cached = this.embeddingCache.get(hash);
-
-    if (cached) {
-      this.cacheStats.hits++;
-      progressCallback?.('processing', 1.0, 'Retrieved from cache');
-      this.logger.debug('Cache hit for embedding', {
-        hash,
-        textLength: truncatedText.length,
-      });
-      this.resetDisposeTimer();
-      return cached.embedding;
-    }
-
-    this.cacheStats.misses++;
-
     try {
-      progressCallback?.('processing', 0.1, 'Computing embedding');
-      const results = await this.embedBatch([truncatedText], progressCallback);
-      const embedding = results[0];
-
-      // Cache the result
-      this.embeddingCache.set(hash, {
-        hash,
-        embedding,
-        timestamp: Date.now(),
+      this.logger.debug('Generating single embedding', {
+        textLength: text.length,
+        provider: this.provider.name,
       });
 
-      progressCallback?.('processing', 1.0, 'Embedding computed and cached');
-      this.resetDisposeTimer();
+      const embedding = await this.provider.embed(text, progressCallback);
+
+      this.logger.debug('Successfully generated embedding', {
+        dimensions: embedding.length,
+        provider: this.provider.name,
+      });
+
       return embedding;
     } catch (error) {
       this.logger.error(
         'Failed to generate single embedding',
         error instanceof Error ? error : undefined,
         {
-          originalLength: text.length.toString(),
-          truncatedLength: truncatedText.length.toString(),
-          hash,
+          provider: this.provider.name,
+          textLength: text.length,
+          error: error instanceof Error ? error.message : 'Unknown error',
         }
       );
-      throw new Error(
-        `Single embedding generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
-  }
-
-  /**
-   * Generates embeddings for multiple text inputs with proper batching, caching, and validation.
-   */
-  async embedBatch(
-    texts: string[],
-    progressCallback?: EmbeddingProgressCallback
-  ): Promise<number[][]> {
-    this.ensureInitialized();
-    const truncatedTexts = this.validateAndTruncateBatch(texts);
-
-    if (!this.pipeline) {
-      throw new Error('Pipeline not initialized');
-    }
-
-    // Check cache for existing embeddings
-    const results: number[][] = [];
-    const uncachedTexts: string[] = [];
-    const uncachedIndices: number[] = [];
-
-    progressCallback?.('processing', 0.1, 'Checking cache for batch');
-
-    truncatedTexts.forEach((text, index) => {
-      const hash = this.computeTextHash(text);
-      const cached = this.embeddingCache.get(hash);
-
-      if (cached) {
-        results[index] = cached.embedding;
-        this.cacheStats.hits++;
-      } else {
-        uncachedTexts.push(text);
-        uncachedIndices.push(index);
-        this.cacheStats.misses++;
-      }
-    });
-
-    this.logger.debug('Batch cache analysis', {
-      totalTexts: truncatedTexts.length,
-      cachedCount: truncatedTexts.length - uncachedTexts.length,
-      uncachedCount: uncachedTexts.length,
-    });
-
-    // Process uncached texts
-    if (uncachedTexts.length > 0) {
-      try {
-        progressCallback?.(
-          'processing',
-          0.3,
-          `Computing ${uncachedTexts.length.toString()} new embeddings`
-        );
-
-        this.logger.debug('Generating batch embeddings', {
-          batchSize: uncachedTexts.length.toString(),
-          totalChars: uncachedTexts.reduce((sum, text) => sum + text.length, 0),
-        });
-
-        const result = await this.pipeline(uncachedTexts, {
-          pooling: 'mean',
-          normalize: true,
-        });
-
-        progressCallback?.('processing', 0.8, 'Extracting embeddings');
-        const embeddings = this.validateAndExtractEmbeddings(
-          result,
-          uncachedTexts.length
-        );
-
-        // Cache new embeddings and fill results
-        embeddings.forEach((embedding, embeddingIndex) => {
-          const originalIndex = uncachedIndices[embeddingIndex];
-          const text = uncachedTexts[embeddingIndex];
-          const hash = this.computeTextHash(text);
-
-          // Cache the result
-          this.embeddingCache.set(hash, {
-            hash,
-            embedding,
-            timestamp: Date.now(),
-          });
-
-          results[originalIndex] = embedding;
-        });
-
-        progressCallback?.('processing', 1.0, 'Batch processing complete');
-
-        this.logger.debug('Successfully generated batch embeddings', {
-          count: embeddings.length.toString(),
-          dimensions: (embeddings[0]?.length || 0).toString(),
-        });
-      } catch (error) {
-        this.logger.error(
-          'Failed to generate batch embeddings',
-          error instanceof Error ? error : undefined,
-          {
-            batchSize: uncachedTexts.length.toString(),
-            error: error instanceof Error ? error.message : 'Unknown error',
-          }
-        );
-        throw new Error(
-          `Batch embedding generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-        );
-      }
-    } else {
-      progressCallback?.('processing', 1.0, 'All embeddings retrieved from cache');
-    }
-
-    this.resetDisposeTimer();
-    return results;
-  }
-
-  /**
-   * Checks if the service is properly initialized.
-   */
-  isInitialized(): boolean {
-    return this.initialized && this.pipeline !== null;
-  }
-
-  /**
-   * Loads the transformers module with proper error handling.
-   */
-  private async loadTransformersModule(): Promise<TransformersModule> {
-    try {
-      const module = await import('@xenova/transformers');
-
-      if (typeof module.pipeline !== 'function') {
-        throw new Error('Invalid transformers module: missing pipeline function');
-      }
-
-      return module as TransformersModule;
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('Cannot resolve module')) {
-        throw new Error(
-          'Transformers module not installed. Run: npm install @xenova/transformers'
-        );
-      }
       throw error;
     }
   }
 
   /**
-   * Creates a validated transformer pipeline with download progress feedback.
+   * Generates embedding vectors for multiple text inputs in a batch.
+   *
+   * @param texts - Array of texts to embed
+   * @param progressCallback - Optional callback for batch processing progress
+   * @returns Promise resolving to array of embedding vectors
+   *
+   * @throws {Error} If provider is not initialized or batch generation fails
+   *
+   * @remarks
+   * Delegates to the underlying provider's embedBatch() method. The provider handles
+   * all batching, optimization, and parallel processing logic.
    */
-  private async createPipeline(
-    transformersModule: TransformersModule,
+  async embedBatch(
+    texts: string[],
     progressCallback?: EmbeddingProgressCallback
-  ): Promise<TransformerPipeline> {
+  ): Promise<number[][]> {
     try {
-      // Emit download start progress
-      progressCallback?.('download', 0.0, 'Starting model download');
-
-      // Create pipeline - @xenova/transformers will automatically download the model if not cached
-      // Note: The transformers library doesn't expose download progress directly
-      const pipeline = await transformersModule.pipeline(
-        'feature-extraction',
-        this.config.getModelName()
-      );
-
-      // Emit download completion
-      progressCallback?.('download', 1.0, 'Model download complete');
-
-      if (typeof pipeline !== 'function') {
-        throw new Error('Pipeline creation returned invalid function');
-      }
-
-      return pipeline;
-    } catch (error) {
-      const modelName = this.config.getModelName();
-      throw new Error(
-        `Failed to create pipeline for model "${modelName}": ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
-  }
-
-  /**
-   * Validates the pipeline with a test embedding.
-   */
-  private async validatePipeline(): Promise<void> {
-    if (!this.pipeline) {
-      throw new Error('Pipeline not available for validation');
-    }
-
-    try {
-      const testResult = await this.pipeline('test validation', {
-        pooling: 'mean',
-        normalize: true,
+      this.logger.debug('Generating batch embeddings', {
+        batchSize: texts.length,
+        provider: this.provider.name,
       });
 
-      const validated = this.validateAndExtractEmbeddings(testResult, 1);
+      const embeddings = await this.provider.embedBatch(texts, progressCallback);
 
-      if (
-        validated.length !== 1 ||
-        validated[0].length !== this.config.getEmbeddingDimensions()
-      ) {
-        throw new Error(
-          `Pipeline validation failed: expected ${this.config.getEmbeddingDimensions().toString()} dimensions, got ${(validated[0]?.length || 0).toString()}`
-        );
-      }
-
-      this.logger.debug('Pipeline validation successful', {
-        dimensions: validated[0].length.toString(),
+      this.logger.debug('Successfully generated batch embeddings', {
+        count: embeddings.length,
+        dimensions: embeddings[0]?.length || 0,
+        provider: this.provider.name,
       });
-    } catch (error) {
-      throw new Error(
-        `Pipeline validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
-  }
-
-  /**
-   * Ensures the service is initialized before operations.
-   */
-  private ensureInitialized(): void {
-    if (!this.initialized || !this.pipeline) {
-      throw new Error('Embedding service not initialized. Call initialize() first.');
-    }
-  }
-
-  /**
-   * Validates and truncates individual text input for embedding.
-   */
-  private validateAndTruncateText(text: string): string {
-    if (typeof text !== 'string') {
-      throw new Error(
-        `Text input must be a string, got ${typeof text === 'object' ? JSON.stringify(text) : String(text)}`
-      );
-    }
-
-    if (text.length === 0) {
-      throw new Error('Text input cannot be empty');
-    }
-
-    const maxLength = this.config.getMaxContentLength();
-    if (text.length > maxLength) {
-      this.logger.warn('Text input truncated due to model length limit', undefined, {
-        originalLength: text.length,
-        maxLength,
-        truncated: text.length - maxLength,
-        modelLimit: 'all-mpnet-base-v2 supports max 1536 characters',
-      });
-      return text.substring(0, maxLength);
-    }
-
-    return text;
-  }
-
-  /**
-   * Validates batch input for embedding.
-   */
-  private validateBatchInput(texts: string[]): void {
-    if (!Array.isArray(texts)) {
-      throw new Error('Batch input must be an array of strings');
-    }
-
-    if (texts.length === 0) {
-      throw new Error('Batch input cannot be empty');
-    }
-
-    const maxBatchSize = this.config.getBatchSize();
-    if (texts.length > maxBatchSize) {
-      throw new Error(
-        `Batch size too large: ${texts.length.toString()} > ${maxBatchSize.toString()}`
-      );
-    }
-  }
-
-  /**
-   * Validates and truncates batch input for embedding.
-   */
-  private validateAndTruncateBatch(texts: string[]): string[] {
-    this.validateBatchInput(texts);
-
-    return texts.map((text, index) => {
-      try {
-        return this.validateAndTruncateText(text);
-      } catch (error) {
-        throw new Error(
-          `Invalid text at index ${index.toString()}: ${error instanceof Error ? error.message : 'Unknown error'}`
-        );
-      }
-    });
-  }
-
-  /**
-   * Validates and extracts embeddings from transformer output.
-   */
-  private validateAndExtractEmbeddings(
-    result: unknown,
-    expectedCount: number
-  ): number[][] {
-    if (!result) {
-      throw new Error('Transformer returned null or undefined result');
-    }
-
-    // Handle array of results (individual tensor objects)
-    if (Array.isArray(result)) {
-      if (result.length !== expectedCount) {
-        throw new Error(
-          `Expected ${expectedCount.toString()} results, got ${result.length.toString()}`
-        );
-      }
-      return result.map((item, index) => this.extractSingleEmbedding(item, index));
-    }
-
-    // Handle single tensor object containing batch data
-    if (expectedCount === 1) {
-      return [this.extractSingleEmbedding(result, 0)];
-    }
-
-    // For batch processing, the transformer returns a single tensor with all embeddings
-    // We need to extract the batch data and split it into individual embeddings
-    try {
-      const validated = this.validateTensorStructure(result);
-      const embeddingDim = this.config.getEmbeddingDimensions();
-      const totalExpectedElements = expectedCount * embeddingDim;
-
-      if (validated.data.length !== totalExpectedElements) {
-        throw new Error(
-          `Invalid batch tensor size: expected ${totalExpectedElements.toString()} elements (${expectedCount.toString()} × ${embeddingDim.toString()}), got ${validated.data.length.toString()}`
-        );
-      }
-
-      // Split the flattened data into individual embeddings
-      const embeddings: number[][] = [];
-      const numbers = this.convertToNumbers(validated.data);
-
-      for (let i = 0; i < expectedCount; i++) {
-        const start = i * embeddingDim;
-        const end = start + embeddingDim;
-        embeddings.push(numbers.slice(start, end));
-      }
 
       return embeddings;
     } catch (error) {
-      throw new Error(
-        `Failed to extract batch embeddings: ${error instanceof Error ? error.message : 'Unknown error'}`
+      this.logger.error(
+        'Failed to generate batch embeddings',
+        error instanceof Error ? error : undefined,
+        {
+          provider: this.provider.name,
+          batchSize: texts.length,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
       );
+      throw error;
     }
   }
 
   /**
-   * Extracts a single embedding vector from transformer output.
+   * Checks if the embedding service is properly initialized.
+   *
+   * @returns true if the underlying provider is initialized, false otherwise
    */
-  private extractSingleEmbedding(item: unknown, index: number): number[] {
-    try {
-      const validated = this.validateTensorStructure(item);
-      const numbers = this.convertToNumbers(validated.data);
-
-      if (numbers.length !== this.config.getEmbeddingDimensions()) {
-        throw new Error(
-          `Invalid embedding dimensions: expected ${this.config.getEmbeddingDimensions().toString()}, got ${numbers.length.toString()}`
-        );
-      }
-
-      return numbers;
-    } catch (error) {
-      throw new Error(
-        `Failed to extract embedding at index ${index.toString()}: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+  isInitialized(): boolean {
+    return this.provider.isInitialized();
   }
 
   /**
-   * Validates tensor structure with proper type checking.
-   */
-  private validateTensorStructure(item: unknown): ValidatedEmbeddingTensor {
-    if (!item || typeof item !== 'object') {
-      throw new Error('Invalid tensor: not an object');
-    }
-
-    const obj = item as Record<string, unknown>;
-
-    // Check for data property
-    if (!('data' in obj) || !obj.data) {
-      throw new Error('Invalid tensor: missing data property');
-    }
-
-    const data = obj.data;
-
-    // Validate data is array-like
-    if (!this.isArrayLike(data)) {
-      throw new Error('Invalid tensor: data is not array-like');
-    }
-
-    const arrayData = data;
-
-    return {
-      data: arrayData,
-      dimensions: arrayData.length,
-    };
-  }
-
-  /**
-   * Checks if value is array-like (Float32Array or number array).
-   */
-  private isArrayLike(value: unknown): value is Float32Array | number[] {
-    return (
-      value instanceof Float32Array ||
-      (Array.isArray(value) && value.every(item => typeof item === 'number'))
-    );
-  }
-
-  /**
-   * Converts Float32Array or number array to number array.
-   */
-  private convertToNumbers(data: Float32Array | number[]): number[] {
-    if (data instanceof Float32Array) {
-      return Array.from(data);
-    }
-
-    if (Array.isArray(data)) {
-      return data.map(Number);
-    }
-
-    throw new Error('Invalid data type for conversion to numbers');
-  }
-
-  /**
-   * Clears the embedding cache.
+   * Clears the embedding cache if the provider supports caching.
+   *
+   * @remarks
+   * This method only works if the underlying provider implements IEmbeddingProviderCache.
+   * If the provider doesn't support caching, this method logs a warning and does nothing.
    */
   clearCache(): void {
-    this.embeddingCache.clear();
-    this.cacheStats = { hits: 0, misses: 0 };
-    this.logger.debug('Embedding cache cleared');
+    if (isCacheableProvider(this.provider)) {
+      const cleared = this.provider.clearCache();
+      this.logger.debug('Embedding cache cleared', {
+        entriesCleared: cleared,
+        provider: this.provider.name,
+      });
+    } else {
+      this.logger.warn('Provider does not support caching', undefined, {
+        provider: this.provider.name,
+      });
+    }
   }
 
   /**
-   * Gets cache statistics.
+   * Gets cache statistics if the provider supports caching.
+   *
+   * @returns Cache statistics or default values if caching is not supported
+   *
+   * @remarks
+   * Returns cache hit/miss statistics and current size if the provider implements
+   * IEmbeddingProviderCache. Otherwise returns zeros.
    */
   getCacheStats(): { hits: number; misses: number; size: number } {
+    if (isCacheableProvider(this.provider)) {
+      const stats = this.provider.getCacheStats();
+      return {
+        hits: stats.hits,
+        misses: stats.misses,
+        size: stats.size,
+      };
+    }
+
+    this.logger.debug('Provider does not support caching, returning empty stats', {
+      provider: this.provider.name,
+    });
+
     return {
-      hits: this.cacheStats.hits,
-      misses: this.cacheStats.misses,
-      size: this.embeddingCache.size,
+      hits: 0,
+      misses: 0,
+      size: 0,
     };
   }
 
   /**
-   * Disposes of the embedding model to free memory.
+   * Disposes of the embedding provider and releases all resources.
+   *
+   * @remarks
+   * Delegates to the underlying provider's dispose() method. After disposal,
+   * isInitialized() will return false and embedding operations will fail.
+   *
+   * Safe to call multiple times - subsequent calls are no-ops.
    */
-  dispose(): void {
-    if (this.disposeTimer) {
-      clearTimeout(this.disposeTimer);
-      this.disposeTimer = null;
-    }
+  async dispose(): Promise<void> {
+    this.logger.info('Disposing embedding service', {
+      provider: this.provider.name,
+    });
 
-    this.pipeline = null;
-    this.initialized = false;
-    this.clearCache();
+    await this.provider.dispose();
 
-    this.logger.info('Embedding service disposed');
-  }
-
-  /**
-   * Computes MD5 hash of text for cache keys.
-   */
-  private computeTextHash(text: string): string {
-    return createHash('md5').update(text, 'utf8').digest('hex');
-  }
-
-  /**
-   * Resets the dispose timer for idle disposal.
-   */
-  private resetDisposeTimer(): void {
-    if (this.disposeTimer) {
-      clearTimeout(this.disposeTimer);
-    }
-
-    // Dispose after 5 minutes of inactivity
-    // Use unref() so the timer doesn't prevent the process from exiting
-    this.disposeTimer = setTimeout(
-      () => {
-        this.logger.debug('Disposing embedding service due to inactivity');
-        this.dispose();
-      },
-      5 * 60 * 1000
-    ).unref();
+    this.logger.debug('Embedding service disposed successfully', {
+      provider: this.provider.name,
+    });
   }
 }
