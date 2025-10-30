@@ -408,7 +408,7 @@ async function main(): Promise<void> {
   console.log(`Embedding provider: ${providerType}`);
   console.log(`Model: ${config.embeddingProvider.model}`);
 
-  const progressCallback = (progress: VectorGenerationProgress) => {
+  const progressCallback = (progress: VectorGenerationProgress): void => {
     const percentage =
       progress.total > 0
         ? ((progress.completed / progress.total) * 100).toFixed(1)

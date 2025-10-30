@@ -51,15 +51,30 @@ interface ProviderMetrics {
     p99ms: number;
     meanMs: number;
   };
-  batchEmbed: Array<{
+  batchEmbed: {
     batchSize: number;
     durationMs: number;
     throughput: number;
     msPerItem: number;
-  }>;
+  }[];
   memoryFootprint: {
     rss: number;
     heapUsed: number;
+  };
+}
+
+interface ComparisonFastest {
+  initialization: string;
+  singleEmbed: string;
+  batchEmbed: string;
+  memoryEfficient: string;
+}
+
+interface EmbeddingProvidersMetrics {
+  providers: ProviderMetrics[];
+  comparison: {
+    fastest: ComparisonFastest;
+    recommendedFor: Record<string, string>;
   };
 }
 
@@ -69,7 +84,7 @@ export class EmbeddingProviderBenchmark {
     private config: ProviderBenchmarkConfig = {}
   ) {}
 
-  async run(): Promise<BenchmarkResult> {
+  async run(): Promise<BenchmarkResult<EmbeddingProvidersMetrics>> {
     try {
       const singleIterations = this.config.singleEmbedIterations ?? 20;
       const batchSizes = this.config.batchSizes ?? [10, 50, 100];
@@ -90,13 +105,14 @@ export class EmbeddingProviderBenchmark {
 
         try {
           // Measure initialization
-          const { result: initTime, peakRssMB: initPeakRss } =
-            await monitorPeakMemory(async () => {
+          const { result: initTime, peakRssMB: initPeakRss } = await monitorPeakMemory(
+            async () => {
               const start = performance.now();
               await provider.initialize();
               const end = performance.now();
               return end - start;
-            });
+            }
+          );
 
           // Single embedding benchmark
           const { samples: singleSamples } = await timedBenchmark(
@@ -161,7 +177,9 @@ export class EmbeddingProviderBenchmark {
             },
           });
         } catch (error) {
-          console.error(`  ❌ Failed to benchmark ${providerName}: ${(error as Error).message}`);
+          console.error(
+            `  ❌ Failed to benchmark ${providerName}: ${(error as Error).message}`
+          );
         }
       }
 
@@ -179,14 +197,27 @@ export class EmbeddingProviderBenchmark {
         name: 'Embedding Providers',
         timestamp: new Date().toISOString(),
         success: false,
-        metrics: {},
+        metrics: {} as EmbeddingProvidersMetrics,
         error: (error as Error).message,
       };
     }
   }
 
-  private generateComparison(results: ProviderMetrics[]): Record<string, unknown> {
-    if (results.length === 0) return {};
+  private generateComparison(results: ProviderMetrics[]): {
+    fastest: ComparisonFastest;
+    recommendedFor: Record<string, string>;
+  } {
+    if (results.length === 0) {
+      return {
+        fastest: {
+          initialization: 'N/A',
+          singleEmbed: 'N/A',
+          batchEmbed: 'N/A',
+          memoryEfficient: 'N/A',
+        },
+        recommendedFor: {},
+      };
+    }
 
     // Find fastest provider for various metrics
     const fastest = {
@@ -241,13 +272,13 @@ export class EmbeddingProviderBenchmark {
     return recommendations;
   }
 
-  printReport(result: BenchmarkResult): void {
+  printReport(result: BenchmarkResult<EmbeddingProvidersMetrics>): void {
     if (!result.success) {
-      console.error(`❌ ${result.name} failed: ${result.error}`);
+      console.error(`❌ ${result.name} failed: ${result.error ?? 'Unknown error'}`);
       return;
     }
 
-    const m = result.metrics as any; // Type assertion for metrics access
+    const m = result.metrics;
     console.log('');
     console.log('━'.repeat(80));
     console.log(`📊 ${result.name} Benchmark Results`);
@@ -259,9 +290,9 @@ export class EmbeddingProviderBenchmark {
       console.log('─'.repeat(80));
       console.log('Initialization:');
       console.log(`  Duration: ${formatMs(provider.initialization.durationMs)}`);
-      console.log(`  Peak RSS: ${provider.initialization.peakRssMB} MB`);
+      console.log(`  Peak RSS: ${provider.initialization.peakRssMB.toString()} MB`);
       console.log('');
-      console.log(`Single Embed (N=${provider.singleEmbed.iterations}):`);
+      console.log(`Single Embed (N=${provider.singleEmbed.iterations.toString()}):`);
       console.log(`  p50:  ${formatMs(provider.singleEmbed.p50ms)}`);
       console.log(`  p95:  ${formatMs(provider.singleEmbed.p95ms)}`);
       console.log(`  p99:  ${formatMs(provider.singleEmbed.p99ms)}`);
@@ -269,31 +300,29 @@ export class EmbeddingProviderBenchmark {
       console.log('');
       console.log('Batch Embed:');
       for (const batch of provider.batchEmbed) {
-        console.log(`  Size ${batch.batchSize}: ${formatMs(batch.durationMs)} total, ${batch.throughput.toFixed(0)} items/sec, ${formatMs(batch.msPerItem)}/item`);
+        console.log(
+          `  Size ${batch.batchSize.toString()}: ${formatMs(batch.durationMs)} total, ${batch.throughput.toFixed(0)} items/sec, ${formatMs(batch.msPerItem)}/item`
+        );
       }
       console.log('');
       console.log('Memory Footprint:');
-      console.log(`  RSS: ${provider.memoryFootprint.rss} MB`);
-      console.log(`  Heap: ${provider.memoryFootprint.heapUsed} MB`);
+      console.log(`  RSS: ${provider.memoryFootprint.rss.toString()} MB`);
+      console.log(`  Heap: ${provider.memoryFootprint.heapUsed.toString()} MB`);
     }
 
-    if (m.comparison?.fastest) {
-      console.log('');
-      console.log('🏆 Comparison:');
-      console.log('─'.repeat(80));
-      console.log(`Fastest initialization: ${m.comparison.fastest.initialization}`);
-      console.log(`Fastest single embed: ${m.comparison.fastest.singleEmbed}`);
-      console.log(`Fastest batch embed: ${m.comparison.fastest.batchEmbed}`);
-      console.log(`Most memory efficient: ${m.comparison.fastest.memoryEfficient}`);
-    }
+    console.log('');
+    console.log('🏆 Comparison:');
+    console.log('─'.repeat(80));
+    console.log(`Fastest initialization: ${m.comparison.fastest.initialization}`);
+    console.log(`Fastest single embed: ${m.comparison.fastest.singleEmbed}`);
+    console.log(`Fastest batch embed: ${m.comparison.fastest.batchEmbed}`);
+    console.log(`Most memory efficient: ${m.comparison.fastest.memoryEfficient}`);
 
-    if (m.comparison?.recommendedFor) {
-      console.log('');
-      console.log('💡 Recommendations:');
-      console.log('─'.repeat(80));
-      for (const [useCase, provider] of Object.entries(m.comparison.recommendedFor)) {
-        console.log(`  ${useCase}: ${provider}`);
-      }
+    console.log('');
+    console.log('💡 Recommendations:');
+    console.log('─'.repeat(80));
+    for (const [useCase, provider] of Object.entries(m.comparison.recommendedFor)) {
+      console.log(`  ${useCase}: ${provider}`);
     }
 
     console.log('━'.repeat(80));

@@ -113,8 +113,8 @@ export class OllamaEmbeddingProvider implements IEmbeddingProvider {
     this.validateConfig(config);
 
     // Set configuration
-    this._baseUrl = config.baseUrl || DEFAULTS.BASE_URL;
-    this._model = config.model || DEFAULTS.MODEL;
+    this._baseUrl = config.baseUrl ?? DEFAULTS.BASE_URL;
+    this._model = config.model;
 
     // Determine dimensions
     if (config.dimensions) {
@@ -170,7 +170,7 @@ export class OllamaEmbeddingProvider implements IEmbeddingProvider {
       // embed() returns embeddings as number[][], take first element for single text
       const embedding = response.embeddings[0];
 
-      if (!embedding) {
+      if (embedding.length === 0) {
         throw new Error('No embedding returned from Ollama');
       }
 
@@ -241,7 +241,7 @@ export class OllamaEmbeddingProvider implements IEmbeddingProvider {
       // Set dimensions from first embedding if not set (for custom models)
       if (this._dimensions === 0 && response.embeddings.length > 0) {
         const firstEmbedding = response.embeddings[0];
-        if (firstEmbedding) {
+        if (firstEmbedding.length > 0) {
           this._dimensions = firstEmbedding.length;
         }
       }
@@ -249,7 +249,7 @@ export class OllamaEmbeddingProvider implements IEmbeddingProvider {
       // Validate all embeddings have correct dimensions
       for (let i = 0; i < response.embeddings.length; i++) {
         const embedding = response.embeddings[i];
-        if (!embedding) {
+        if (embedding.length === 0) {
           throw new Error(`Missing embedding at index ${String(i)}`);
         }
         if (embedding.length !== this._dimensions) {
@@ -317,7 +317,7 @@ export class OllamaEmbeddingProvider implements IEmbeddingProvider {
       );
     }
 
-    if (!config.model && !DEFAULTS.MODEL) {
+    if (!config.model) {
       throw new EmbeddingConfigError(this.name, 'Model name is required');
     }
 
@@ -336,10 +336,7 @@ export class OllamaEmbeddingProvider implements IEmbeddingProvider {
    */
   private async verifyModel(): Promise<void> {
     if (!this._client) {
-      throw new EmbeddingProviderInitError(
-        this.name,
-        'Client not initialized'
-      );
+      throw new EmbeddingProviderInitError(this.name, 'Client not initialized');
     }
 
     try {

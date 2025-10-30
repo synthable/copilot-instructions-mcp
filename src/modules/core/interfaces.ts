@@ -21,7 +21,10 @@ import type {
 import type { SemanticSearchOptions } from '../services/embedding/semanticSearch.js';
 import type { RelevanceThresholds } from '../services/embedding/semanticConfig.js';
 import type { ResourceContent } from '../services/resources/resourceTypes.js';
-import type { EmbeddingProgressCallback as EmbeddingProgressCallbackPlugin } from '../plugins/embedding/embeddingProvider.interface.js';
+import type {
+  EmbeddingProgressCallback as EmbeddingProgressCallbackPlugin,
+  EmbeddingProviderConfig,
+} from '../plugins/embedding/embeddingProvider.interface.js';
 
 /**
  * Interface for file system operations.
@@ -211,7 +214,7 @@ export interface IEmbeddingService {
    * @param progressCallback - Optional callback for initialization progress
    */
   initialize(
-    config: import('../plugins/embedding/embeddingProvider.interface.js').EmbeddingProviderConfig,
+    config: EmbeddingProviderConfig,
     progressCallback?: EmbeddingProgressCallback
   ): Promise<void>;
 

@@ -84,12 +84,14 @@ src/benchmarks/
 Measures semantic search service performance and quality.
 
 **Metrics:**
+
 - Cold index build time and peak memory
 - Warm query latency (p50, p95, p99, min, max, mean)
 - Index size estimation
 - Optional relevance evaluation (hits@k, precision@k)
 
 **Usage:**
+
 ```bash
 npm run bench:semantic
 
@@ -104,6 +106,7 @@ npm run bench:semantic
 **Relevance Evaluation:**
 
 Create `bench/relevance.json` to enable relevance testing:
+
 ```json
 {
   "k": 5,
@@ -121,12 +124,14 @@ Create `bench/relevance.json` to enable relevance testing:
 Measures YAML module parsing performance.
 
 **Metrics:**
+
 - Cold parse duration and memory delta
 - Warm parse latency (p50, p95, p99)
 - Throughput (modules/sec, ms/module)
 - Memory footprint
 
 **Usage:**
+
 ```bash
 npm run bench:parsing
 
@@ -139,6 +144,7 @@ BENCH_N=20 npm run bench:parsing
 Compares different embedding providers side-by-side.
 
 **Metrics:**
+
 - Initialization time and memory
 - Single embedding latency
 - Batch embedding throughput
@@ -146,11 +152,13 @@ Compares different embedding providers side-by-side.
 - Recommendations for different use cases
 
 **Usage:**
+
 ```bash
 npm run bench:providers
 ```
 
 **Supported Providers:**
+
 - Transformers.js (local, offline)
 - Ollama (local API)
 - OpenAI (cloud API) - if configured
@@ -161,6 +169,7 @@ npm run bench:providers
 Tracks memory usage and detects potential leaks.
 
 **Metrics:**
+
 - Baseline memory usage
 - Memory deltas (module load, index build, operations)
 - Peak RSS tracking
@@ -169,6 +178,7 @@ Tracks memory usage and detects potential leaks.
 - Confidence scoring
 
 **Usage:**
+
 ```bash
 npm run bench:memory
 
@@ -180,18 +190,19 @@ BENCH_SUITE=memory npm run bench:memory
 **Leak Detection:**
 
 The memory profiling suite uses linear regression to detect consistent memory growth:
+
 - **Slope**: Memory growth rate (MB/iteration)
 - **R²**: Consistency of growth (0-1, higher = more consistent)
 - **Suspected Leak**: Flagged when slope > 0.01 and R² > 0.8
 
 ## Environment Variables
 
-| Variable | Description | Default | Example |
-|----------|-------------|---------|---------|
-| `BENCH_SUITE` | Which suite to run | `all` | `BENCH_SUITE=semantic` |
-| `BENCH_N` | Number of iterations | `30` | `BENCH_N=100` |
-| `BENCH_EXPORT` | Export results to JSON | - | `BENCH_EXPORT=results.json` |
-| `BENCH_VERBOSE` | Verbose output | `false` | `BENCH_VERBOSE=true` |
+| Variable        | Description            | Default | Example                     |
+| --------------- | ---------------------- | ------- | --------------------------- |
+| `BENCH_SUITE`   | Which suite to run     | `all`   | `BENCH_SUITE=semantic`      |
+| `BENCH_N`       | Number of iterations   | `30`    | `BENCH_N=100`               |
+| `BENCH_EXPORT`  | Export results to JSON | -       | `BENCH_EXPORT=results.json` |
+| `BENCH_VERBOSE` | Verbose output         | `false` | `BENCH_VERBOSE=true`        |
 
 ## Utilities
 
@@ -326,6 +337,7 @@ node --expose-gc dist/benchmarks/benchmark.js
 ### 4. Iteration Count
 
 Choose appropriate iteration counts:
+
 - **Quick validation**: 10-20 iterations
 - **Standard benchmarks**: 30-50 iterations
 - **Statistical significance**: 100+ iterations
@@ -359,7 +371,9 @@ export class MyBenchmark {
       name: 'My Benchmark',
       timestamp: new Date().toISOString(),
       success: true,
-      metrics: { /* your metrics */ }
+      metrics: {
+        /* your metrics */
+      },
     };
   }
 
@@ -375,7 +389,13 @@ export class MyBenchmark {
 import { MyBenchmark } from './suites/my_benchmark.js';
 
 // Add to SuiteName type
-type SuiteName = 'semantic' | 'parsing' | 'providers' | 'memory' | 'my-benchmark' | 'all';
+type SuiteName =
+  | 'semantic'
+  | 'parsing'
+  | 'providers'
+  | 'memory'
+  | 'my-benchmark'
+  | 'all';
 
 // Add to runner
 if (runAll || suites.includes('my-benchmark')) {

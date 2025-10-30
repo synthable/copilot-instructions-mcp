@@ -2,6 +2,9 @@
  * Shared utilities for benchmark metrics collection and reporting.
  */
 
+import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+
 export interface Percentiles {
   p50: number;
   p95: number;
@@ -19,11 +22,11 @@ export interface MemorySnapshot {
   arrayBuffers: number;
 }
 
-export interface BenchmarkResult {
+export interface BenchmarkResult<T = Record<string, unknown>> {
   name: string;
   timestamp: string;
   success: boolean;
-  metrics: Record<string, unknown>;
+  metrics: T;
   error?: string;
 }
 
@@ -57,7 +60,7 @@ export function calcPercentiles(samplesMs: number[]): Percentiles {
   }
 
   const sorted = [...samplesMs].sort((a, b) => a - b);
-  const at = (q: number) =>
+  const at = (q: number): number =>
     sorted[Math.floor(q * (sorted.length - 1))] ?? sorted[sorted.length - 1];
 
   const sum = sorted.reduce((acc, val) => acc + val, 0);
@@ -157,7 +160,7 @@ export async function timedBenchmark<T>(
 /**
  * Format benchmark results as a table
  */
-export function formatResultsTable(results: BenchmarkResult[]): string {
+export function formatResultsTable(results: BenchmarkResult<unknown>[]): string {
   const lines: string[] = [];
   lines.push('='.repeat(80));
   lines.push('BENCHMARK RESULTS');
@@ -169,11 +172,13 @@ export function formatResultsTable(results: BenchmarkResult[]): string {
     lines.push(`${status} ${result.name}`);
     lines.push(`  Timestamp: ${result.timestamp}`);
 
-    if (result.success) {
-      for (const [key, value] of Object.entries(result.metrics)) {
+    if (result.success && result.metrics && typeof result.metrics === 'object') {
+      for (const [key, value] of Object.entries(
+        result.metrics as Record<string, unknown>
+      )) {
         lines.push(`  ${key}: ${JSON.stringify(value)}`);
       }
-    } else {
+    } else if (!result.success) {
       lines.push(`  Error: ${result.error ?? 'Unknown error'}`);
     }
     lines.push('');
@@ -187,18 +192,15 @@ export function formatResultsTable(results: BenchmarkResult[]): string {
  * Export results to JSON file
  */
 export function exportResultsJSON(
-  results: BenchmarkResult[],
+  results: BenchmarkResult<unknown>[],
   filename: string
 ): void {
-  const fs = require('fs');
-  const path = require('path');
-
-  const outputDir = path.join(process.cwd(), 'benchmark-results');
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
+  const outputDir = join(process.cwd(), 'benchmark-results');
+  if (!existsSync(outputDir)) {
+    mkdirSync(outputDir, { recursive: true });
   }
 
-  const outputPath = path.join(outputDir, filename);
-  fs.writeFileSync(outputPath, JSON.stringify(results, null, 2));
+  const outputPath = join(outputDir, filename);
+  writeFileSync(outputPath, JSON.stringify(results, null, 2));
   console.log(`Results exported to: ${outputPath}`);
 }

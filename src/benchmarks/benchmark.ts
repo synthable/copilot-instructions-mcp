@@ -20,15 +20,20 @@
  *   BENCH_SUITE=semantic       # Run specific suite
  */
 
+import { readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { createProductionContainer } from '../modules/core/index.js';
 import { SemanticSearchBenchmark } from './suites/semantic_search.js';
 import { ModuleParsingBenchmark } from './suites/module_parsing.js';
 // import { EmbeddingProviderBenchmark } from './suites/embedding_providers.js';
 import { MemoryProfileBenchmark } from './suites/memory_profile.js';
-import {
-  exportResultsJSON,
-  type BenchmarkResult,
-} from './utils/metrics.js';
+import { exportResultsJSON, type BenchmarkResult } from './utils/metrics.js';
+import { configSchema, type ServerConfig } from '../config/config.schema.js';
+
+const DEFAULT_CONFIG = {
+  embeddingProvider: { type: 'transformers' as const },
+  searchProvider: { name: 'fuzzy' as const },
+};
 
 type SuiteName = 'semantic' | 'parsing' | 'providers' | 'memory' | 'all';
 
@@ -38,8 +43,36 @@ interface BenchmarkRunnerConfig {
   verbose?: boolean;
 }
 
+/**
+ * Load server configuration from config.json or use defaults.
+ */
+function loadConfig(): ServerConfig {
+  const configPath = join(process.cwd(), 'config.json');
+
+  if (!existsSync(configPath)) {
+    console.log(
+      'ℹ️  No config.json found, using default configuration (Transformers.js)'
+    );
+    return configSchema.parse(DEFAULT_CONFIG);
+  }
+
+  try {
+    const configContent = readFileSync(configPath, 'utf-8');
+    const rawConfig: unknown = JSON.parse(configContent);
+    const parsed = configSchema.parse(rawConfig);
+    console.log(
+      `ℹ️  Loaded config from config.json (provider: ${parsed.embeddingProvider.type})`
+    );
+    return parsed;
+  } catch (error) {
+    console.error('⚠️  Failed to load configuration from config.json:', error);
+    console.error('   Falling back to default configuration (Transformers.js)');
+    return configSchema.parse(DEFAULT_CONFIG);
+  }
+}
+
 class BenchmarkRunner {
-  private results: BenchmarkResult[] = [];
+  private results: BenchmarkResult<unknown>[] = [];
 
   constructor(private config: BenchmarkRunnerConfig = {}) {}
 
@@ -52,7 +85,12 @@ class BenchmarkRunner {
     console.log('═'.repeat(80));
     console.log('');
 
-    const container = createProductionContainer();
+    // Load configuration and create container
+    const serverConfig = loadConfig();
+    const container = createProductionContainer(
+      serverConfig.moduleDirectory,
+      serverConfig
+    );
 
     // Semantic Search Benchmark
     if (runAll || suites.includes('semantic')) {
@@ -113,9 +151,9 @@ class BenchmarkRunner {
     }
   }
 
-  private async runSuite(
+  private async runSuite<T = Record<string, unknown>>(
     name: string,
-    fn: () => Promise<BenchmarkResult>
+    fn: () => Promise<BenchmarkResult<T>>
   ): Promise<void> {
     console.log(`Running ${name} benchmark...`);
     console.log('');
@@ -124,11 +162,11 @@ class BenchmarkRunner {
       const result = await fn();
       this.results.push(result);
     } catch (error) {
-      const errorResult: BenchmarkResult = {
+      const errorResult: BenchmarkResult<T> = {
         name,
         timestamp: new Date().toISOString(),
         success: false,
-        metrics: {},
+        metrics: {} as T,
         error: (error as Error).message,
       };
       this.results.push(errorResult);
@@ -147,15 +185,15 @@ class BenchmarkRunner {
     const successful = this.results.filter(r => r.success).length;
     const failed = this.results.filter(r => !r.success).length;
 
-    console.log(`Total suites run: ${this.results.length}`);
-    console.log(`Successful: ${successful} ✓`);
-    console.log(`Failed: ${failed} ✗`);
+    console.log(`Total suites run: ${this.results.length.toString()}`);
+    console.log(`Successful: ${successful.toString()} ✓`);
+    console.log(`Failed: ${failed.toString()} ✗`);
     console.log('');
 
     if (failed > 0) {
       console.log('Failed suites:');
       for (const result of this.results.filter(r => !r.success)) {
-        console.log(`  ✗ ${result.name}: ${result.error}`);
+        console.log(`  ✗ ${result.name}: ${result.error ?? 'Unknown error'}`);
       }
       console.log('');
     }
@@ -166,9 +204,9 @@ class BenchmarkRunner {
   }
 }
 
-async function main() {
+async function main(): Promise<void> {
   // Parse command line arguments and environment variables
-  const suite = (process.env.BENCH_SUITE as SuiteName) ?? 'all';
+  const suite = (process.env.BENCH_SUITE ?? 'all') as SuiteName;
   const exportFile = process.env.BENCH_EXPORT;
   const verbose = process.env.BENCH_VERBOSE === 'true';
 

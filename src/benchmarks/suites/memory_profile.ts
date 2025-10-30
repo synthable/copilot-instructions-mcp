@@ -15,11 +15,7 @@ import type {
   IInstructionModuleParser,
   ISemanticSearchService,
 } from '../../modules/core/index.js';
-import {
-  memorySnapshotMB,
-  rssMB,
-  type BenchmarkResult,
-} from '../utils/metrics.js';
+import { memorySnapshotMB, rssMB, type BenchmarkResult } from '../utils/metrics.js';
 
 interface MemoryProfileConfig {
   operationIterations?: number;
@@ -35,6 +31,57 @@ interface MemoryTimeline {
   external: number;
 }
 
+interface MemorySnapshot {
+  rss: number;
+  heapTotal: number;
+  heapUsed: number;
+  external: number;
+}
+
+interface MemoryDelta {
+  rss: number;
+  heapUsed: number;
+}
+
+interface MemoryDeltas {
+  moduleLoad: MemoryDelta;
+  indexBuild: MemoryDelta;
+  operations: MemoryDelta;
+}
+
+interface GrowthAnalysis {
+  insufficient_data?: boolean;
+  rssGrowthMB?: number;
+  rssGrowthPercent?: number;
+  heapGrowthMB?: number;
+  heapGrowthPercent?: number;
+}
+
+interface LeakDetection {
+  insufficient_data?: boolean;
+  slope?: number;
+  r2?: number;
+  suspectedLeak?: boolean;
+  leakRate?: string | null;
+  confidence?: string;
+}
+
+interface MemoryProfileMetrics {
+  gcAvailable: boolean;
+  iterations: number;
+  snapshots: {
+    baseline: MemorySnapshot;
+    afterModuleLoad: MemorySnapshot;
+    afterIndexBuild: MemorySnapshot;
+    final: MemorySnapshot;
+  };
+  memoryDeltas: MemoryDeltas;
+  peakRssMB: number;
+  growth: GrowthAnalysis;
+  leakDetection: LeakDetection;
+  timeline: MemoryTimeline[];
+}
+
 export class MemoryProfileBenchmark {
   constructor(
     private parser: IInstructionModuleParser,
@@ -42,18 +89,23 @@ export class MemoryProfileBenchmark {
     private config: MemoryProfileConfig = {}
   ) {}
 
-  async run(): Promise<BenchmarkResult> {
+  async run(): Promise<BenchmarkResult<MemoryProfileMetrics>> {
     try {
       const iterations = this.config.operationIterations ?? 100;
       const timeline: MemoryTimeline[] = [];
 
       // Force GC if available (run with --expose-gc)
-      const gc = (global as any).gc;
-      const gcAvailable = typeof gc === 'function';
+      // Type guard to safely check for gc function on global
+      const hasGC = (obj: typeof global): obj is typeof global & { gc: () => void } => {
+        return 'gc' in obj && typeof (obj as { gc?: unknown }).gc === 'function';
+      };
+
+      const gcAvailable = hasGC(global);
+      const gc = gcAvailable ? global.gc : undefined;
 
       // Baseline measurement
       if (gcAvailable && this.config.gcBetweenIterations) {
-        gc();
+        gc?.();
         await this.sleep(100);
       }
 
@@ -101,13 +153,13 @@ export class MemoryProfileBenchmark {
         }
 
         if (this.config.gcBetweenIterations && gcAvailable) {
-          gc();
+          gc?.();
         }
       }
 
       // Final measurement
       if (gcAvailable) {
-        gc();
+        gc?.();
         await this.sleep(100);
       }
 
@@ -121,7 +173,7 @@ export class MemoryProfileBenchmark {
       const growthAnalysis = this.analyzeGrowth(iterationSnapshots);
       const leakDetection = this.detectLeaks(iterationSnapshots);
 
-      const metrics = {
+      const metrics: MemoryProfileMetrics = {
         gcAvailable,
         iterations,
         snapshots: {
@@ -137,7 +189,9 @@ export class MemoryProfileBenchmark {
           },
           indexBuild: {
             rss: Number((afterIndexBuild.rss - afterModuleLoad.rss).toFixed(2)),
-            heapUsed: Number((afterIndexBuild.heapUsed - afterModuleLoad.heapUsed).toFixed(2)),
+            heapUsed: Number(
+              (afterIndexBuild.heapUsed - afterModuleLoad.heapUsed).toFixed(2)
+            ),
           },
           operations: {
             rss: Number((final.rss - afterIndexBuild.rss).toFixed(2)),
@@ -161,13 +215,13 @@ export class MemoryProfileBenchmark {
         name: 'Memory Profile',
         timestamp: new Date().toISOString(),
         success: false,
-        metrics: {},
+        metrics: {} as MemoryProfileMetrics,
         error: (error as Error).message,
       };
     }
   }
 
-  private analyzeGrowth(snapshots: MemoryTimeline[]): Record<string, unknown> {
+  private analyzeGrowth(snapshots: MemoryTimeline[]): GrowthAnalysis {
     if (snapshots.length < 2) {
       return { insufficient_data: true };
     }
@@ -190,7 +244,7 @@ export class MemoryProfileBenchmark {
     };
   }
 
-  private detectLeaks(snapshots: MemoryTimeline[]): Record<string, unknown> {
+  private detectLeaks(snapshots: MemoryTimeline[]): LeakDetection {
     if (snapshots.length < 3) {
       return { insufficient_data: true };
     }
@@ -223,7 +277,9 @@ export class MemoryProfileBenchmark {
       slope: Number(slope.toFixed(4)),
       r2: Number(r2.toFixed(4)),
       suspectedLeak,
-      leakRate: suspectedLeak ? `${(slope * 100).toFixed(3)} MB per 100 operations` : null,
+      leakRate: suspectedLeak
+        ? `${(slope * 100).toFixed(3)} MB per 100 operations`
+        : null,
       confidence: suspectedLeak ? (r2 > 0.95 ? 'high' : 'medium') : 'low',
     };
   }
@@ -232,48 +288,79 @@ export class MemoryProfileBenchmark {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  printReport(result: BenchmarkResult): void {
+  printReport(result: BenchmarkResult<MemoryProfileMetrics>): void {
     if (!result.success) {
-      console.error(`❌ ${result.name} failed: ${result.error}`);
+      console.error(`❌ ${result.name} failed: ${String(result.error)}`);
       return;
     }
 
-    const m = result.metrics as any; // Type assertion for metrics access
+    const m = result.metrics;
     console.log('');
     console.log('━'.repeat(80));
     console.log(`📊 ${result.name} Benchmark Results`);
     console.log('━'.repeat(80));
     console.log(`GC available: ${m.gcAvailable ? 'Yes (--expose-gc)' : 'No'}`);
-    console.log(`Operations: ${m.iterations}`);
+    console.log(`Operations: ${String(m.iterations)}`);
     console.log('');
     console.log('Memory Snapshots:');
-    console.log(`  Baseline:        RSS ${m.snapshots.baseline.rss.toFixed(2)} MB, Heap ${m.snapshots.baseline.heapUsed.toFixed(2)} MB`);
-    console.log(`  After module load: RSS ${m.snapshots.afterModuleLoad.rss.toFixed(2)} MB, Heap ${m.snapshots.afterModuleLoad.heapUsed.toFixed(2)} MB`);
-    console.log(`  After index build: RSS ${m.snapshots.afterIndexBuild.rss.toFixed(2)} MB, Heap ${m.snapshots.afterIndexBuild.heapUsed.toFixed(2)} MB`);
-    console.log(`  Final:           RSS ${m.snapshots.final.rss.toFixed(2)} MB, Heap ${m.snapshots.final.heapUsed.toFixed(2)} MB`);
-    console.log(`  Peak RSS:        ${m.peakRssMB} MB`);
+    const baselineMsg = `  Baseline:        RSS ${m.snapshots.baseline.rss.toFixed(2)} MB, Heap ${m.snapshots.baseline.heapUsed.toFixed(2)} MB`;
+    console.log(baselineMsg);
+    const moduleMsg = `  After module load: RSS ${m.snapshots.afterModuleLoad.rss.toFixed(2)} MB, Heap ${m.snapshots.afterModuleLoad.heapUsed.toFixed(2)} MB`;
+    console.log(moduleMsg);
+    const indexMsg = `  After index build: RSS ${m.snapshots.afterIndexBuild.rss.toFixed(2)} MB, Heap ${m.snapshots.afterIndexBuild.heapUsed.toFixed(2)} MB`;
+    console.log(indexMsg);
+    const finalMsg = `  Final:           RSS ${m.snapshots.final.rss.toFixed(2)} MB, Heap ${m.snapshots.final.heapUsed.toFixed(2)} MB`;
+    console.log(finalMsg);
+    const peakMsg = `  Peak RSS:        ${String(m.peakRssMB)} MB`;
+    console.log(peakMsg);
     console.log('');
     console.log('Memory Deltas:');
-    console.log(`  Module load:   RSS ${m.memoryDeltas.moduleLoad.rss >= 0 ? '+' : ''}${m.memoryDeltas.moduleLoad.rss} MB, Heap ${m.memoryDeltas.moduleLoad.heapUsed >= 0 ? '+' : ''}${m.memoryDeltas.moduleLoad.heapUsed} MB`);
-    console.log(`  Index build:   RSS ${m.memoryDeltas.indexBuild.rss >= 0 ? '+' : ''}${m.memoryDeltas.indexBuild.rss} MB, Heap ${m.memoryDeltas.indexBuild.heapUsed >= 0 ? '+' : ''}${m.memoryDeltas.indexBuild.heapUsed} MB`);
-    console.log(`  Operations:    RSS ${m.memoryDeltas.operations.rss >= 0 ? '+' : ''}${m.memoryDeltas.operations.rss} MB, Heap ${m.memoryDeltas.operations.heapUsed >= 0 ? '+' : ''}${m.memoryDeltas.operations.heapUsed} MB`);
+    const mlPrefix = m.memoryDeltas.moduleLoad.rss >= 0 ? '+' : '';
+    const mlHeapPrefix = m.memoryDeltas.moduleLoad.heapUsed >= 0 ? '+' : '';
+    const mlMsg = `  Module load:   RSS ${mlPrefix}${String(m.memoryDeltas.moduleLoad.rss)} MB, Heap ${mlHeapPrefix}${String(m.memoryDeltas.moduleLoad.heapUsed)} MB`;
+    console.log(mlMsg);
+    const ibPrefix = m.memoryDeltas.indexBuild.rss >= 0 ? '+' : '';
+    const ibHeapPrefix = m.memoryDeltas.indexBuild.heapUsed >= 0 ? '+' : '';
+    const ibMsg = `  Index build:   RSS ${ibPrefix}${String(m.memoryDeltas.indexBuild.rss)} MB, Heap ${ibHeapPrefix}${String(m.memoryDeltas.indexBuild.heapUsed)} MB`;
+    console.log(ibMsg);
+    const opPrefix = m.memoryDeltas.operations.rss >= 0 ? '+' : '';
+    const opHeapPrefix = m.memoryDeltas.operations.heapUsed >= 0 ? '+' : '';
+    const opMsg = `  Operations:    RSS ${opPrefix}${String(m.memoryDeltas.operations.rss)} MB, Heap ${opHeapPrefix}${String(m.memoryDeltas.operations.heapUsed)} MB`;
+    console.log(opMsg);
 
     if (!m.growth.insufficient_data) {
       console.log('');
       console.log('Growth Analysis:');
-      console.log(`  RSS growth:   ${m.growth.rssGrowthMB >= 0 ? '+' : ''}${m.growth.rssGrowthMB} MB (${m.growth.rssGrowthPercent >= 0 ? '+' : ''}${m.growth.rssGrowthPercent}%)`);
-      console.log(`  Heap growth:  ${m.growth.heapGrowthMB >= 0 ? '+' : ''}${m.growth.heapGrowthMB} MB (${m.growth.heapGrowthPercent >= 0 ? '+' : ''}${m.growth.heapGrowthPercent}%)`);
+      const rssGrowth = m.growth.rssGrowthMB;
+      const rssPercent = m.growth.rssGrowthPercent;
+      const heapGrowth = m.growth.heapGrowthMB;
+      const heapPercent = m.growth.heapGrowthPercent;
+      const rssPrefix = rssGrowth !== undefined && rssGrowth >= 0 ? '+' : '';
+      const rssPercentPrefix = rssPercent !== undefined && rssPercent >= 0 ? '+' : '';
+      const rssMsg = `  RSS growth:   ${rssPrefix}${String(rssGrowth)} MB (${rssPercentPrefix}${String(rssPercent)}%)`;
+      console.log(rssMsg);
+      const heapPrefix = heapGrowth !== undefined && heapGrowth >= 0 ? '+' : '';
+      const heapPercentPrefix =
+        heapPercent !== undefined && heapPercent >= 0 ? '+' : '';
+      const heapMsg = `  Heap growth:  ${heapPrefix}${String(heapGrowth)} MB (${heapPercentPrefix}${String(heapPercent)}%)`;
+      console.log(heapMsg);
     }
 
     if (!m.leakDetection.insufficient_data) {
       console.log('');
       console.log('Leak Detection:');
-      console.log(`  Growth slope: ${m.leakDetection.slope} MB/iteration`);
-      console.log(`  R²: ${m.leakDetection.r2} (consistency)`);
-      console.log(`  Suspected leak: ${m.leakDetection.suspectedLeak ? '⚠️  YES' : '✓ NO'}`);
+      const slopeMsg = `  Growth slope: ${String(m.leakDetection.slope)} MB/iteration`;
+      console.log(slopeMsg);
+      const r2Msg = `  R²: ${String(m.leakDetection.r2)} (consistency)`;
+      console.log(r2Msg);
+      console.log(
+        `  Suspected leak: ${m.leakDetection.suspectedLeak ? '⚠️  YES' : '✓ NO'}`
+      );
       if (m.leakDetection.suspectedLeak) {
-        console.log(`  Leak rate: ${m.leakDetection.leakRate}`);
-        console.log(`  Confidence: ${m.leakDetection.confidence}`);
+        const leakRateMsg = `  Leak rate: ${String(m.leakDetection.leakRate)}`;
+        console.log(leakRateMsg);
+        const confMsg = `  Confidence: ${String(m.leakDetection.confidence)}`;
+        console.log(confMsg);
       }
     }
 

@@ -217,15 +217,16 @@ export function migrateConfig(oldConfig: unknown): ServerConfig {
   // Handle missing embeddingProvider
   if (!configObj.embeddingProvider) {
     logger.warn('Missing embeddingProvider in config, using transformers default');
+    const searchProvider = configObj.searchProvider as { name: string } | undefined;
+    const moduleDirectory = configObj.moduleDirectory as string | undefined;
     return {
       embeddingProvider: {
         ...PROVIDER_DEFAULTS.transformers,
       } as EmbeddingProviderConfig,
-      searchProvider: (configObj.searchProvider as { name: string }) || {
+      searchProvider: searchProvider ?? {
         name: 'fuzzy',
       },
-      moduleDirectory:
-        (configObj.moduleDirectory as string | undefined) || 'instructions-modules',
+      moduleDirectory: moduleDirectory ?? 'instructions-modules',
     };
   }
 
@@ -234,9 +235,11 @@ export function migrateConfig(oldConfig: unknown): ServerConfig {
     | EmbeddingProviderConfig;
 
   // If already in new format, return as-is with defaults filled
-  if ('type' in embeddingProvider && embeddingProvider.type) {
+  if ('type' in embeddingProvider) {
     const providerType = embeddingProvider.type;
     const defaults = getProviderDefaults(providerType);
+    const searchProvider = configObj.searchProvider as { name: string } | undefined;
+    const moduleDirectory = configObj.moduleDirectory as string | undefined;
 
     return {
       embeddingProvider: {
@@ -244,16 +247,15 @@ export function migrateConfig(oldConfig: unknown): ServerConfig {
         ...embeddingProvider,
         type: providerType,
       } as EmbeddingProviderConfig,
-      searchProvider: (configObj.searchProvider as { name: string }) || {
+      searchProvider: searchProvider ?? {
         name: 'fuzzy',
       },
-      moduleDirectory:
-        (configObj.moduleDirectory as string | undefined) || 'instructions-modules',
+      moduleDirectory: moduleDirectory ?? 'instructions-modules',
     };
   }
 
   // Legacy format - migrate from 'name' to 'type'
-  const legacyName = embeddingProvider.name || 'transformers';
+  const legacyName = embeddingProvider.name ?? 'transformers';
 
   logger.warn(
     `Deprecated config format detected: embeddingProvider.name="${legacyName}"`,
@@ -263,9 +265,9 @@ export function migrateConfig(oldConfig: unknown): ServerConfig {
   );
 
   // Map legacy name to new type
-  const providerType = LEGACY_NAME_MAPPING[legacyName.toLowerCase()] || 'transformers';
+  const providerType = LEGACY_NAME_MAPPING[legacyName.toLowerCase()] ?? 'transformers';
 
-  if (!LEGACY_NAME_MAPPING[legacyName.toLowerCase()]) {
+  if (!(legacyName.toLowerCase() in LEGACY_NAME_MAPPING)) {
     logger.warn(`Unknown provider name "${legacyName}", defaulting to "transformers"`, {
       supportedProviders: Object.keys(PROVIDER_DEFAULTS).join(', '),
     });
@@ -277,8 +279,8 @@ export function migrateConfig(oldConfig: unknown): ServerConfig {
   // Build migrated config with defaults and existing values
   const migratedProvider: EmbeddingProviderConfig = {
     type: providerType,
-    model: embeddingProvider.model || defaults.model!,
-    cacheEnabled: embeddingProvider.cacheEnabled ?? defaults.cacheEnabled!,
+    model: embeddingProvider.model ?? defaults.model ?? '',
+    cacheEnabled: embeddingProvider.cacheEnabled ?? defaults.cacheEnabled ?? true,
   };
 
   // Add optional fields if present
@@ -304,11 +306,13 @@ export function migrateConfig(oldConfig: unknown): ServerConfig {
 
   logger.info(`Migrated config from legacy format to provider type: ${providerType}`);
 
+  const searchProvider = configObj.searchProvider as { name: string } | undefined;
+  const moduleDirectory = configObj.moduleDirectory as string | undefined;
+
   return {
     embeddingProvider: migratedProvider,
-    searchProvider: (configObj.searchProvider as { name: string }) || { name: 'fuzzy' },
-    moduleDirectory:
-      (configObj.moduleDirectory as string | undefined) || 'instructions-modules',
+    searchProvider: searchProvider ?? { name: 'fuzzy' },
+    moduleDirectory: moduleDirectory ?? 'instructions-modules',
   };
 }
 
@@ -402,9 +406,12 @@ export function validateProviderConfig(config: ServerConfig): string[] {
   // Validate model is specified
   if (!provider.model || provider.model.trim().length === 0) {
     warnings.push('Embedding model not specified, using provider default');
+    const providerType = provider.type as EmbeddingProviderType;
+    const providerDefaults =
+      providerType in PROVIDER_DEFAULTS ? PROVIDER_DEFAULTS[providerType] : undefined;
     logger.warn('Embedding model not specified', {
       providerType: provider.type,
-      defaultModel: PROVIDER_DEFAULTS[provider.type]?.model || 'unknown',
+      defaultModel: providerDefaults?.model ?? 'unknown',
     });
   }
 

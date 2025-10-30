@@ -77,8 +77,13 @@ export class EmbeddingService implements IEmbeddingService {
 
   constructor(
     private readonly provider: IEmbeddingProvider,
-    private readonly logger: ILogger
-  ) {}
+    private readonly logger: ILogger,
+    initialConfig?: EmbeddingProviderConfig
+  ) {
+    if (initialConfig) {
+      this.config = initialConfig;
+    }
+  }
 
   /**
    * Initializes the embedding provider with the given configuration.
@@ -127,7 +132,7 @@ export class EmbeddingService implements IEmbeddingService {
         config = configOrCallback;
         callback = progressCallback;
         this.config = config;
-      } else if (!configOrCallback) {
+      } else {
         // initialize() with no arguments - use stored config
         config = this.config;
 
@@ -138,9 +143,7 @@ export class EmbeddingService implements IEmbeddingService {
         }
       }
 
-      if (!config) {
-        throw new Error('Invalid configuration provided');
-      }
+      // At this point config is guaranteed to be defined (all branches either set it or throw)
 
       this.logger.debug('Initializing embedding service', {
         provider: this.provider.name,

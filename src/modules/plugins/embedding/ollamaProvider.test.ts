@@ -105,7 +105,9 @@ describe('OllamaEmbeddingProvider', () => {
         models: [{ name: 'other-model', modified_at: '', size: 0, digest: '' }],
       });
 
-      await expect(provider.initialize(config)).rejects.toThrow(EmbeddingProviderInitError);
+      await expect(provider.initialize(config)).rejects.toThrow(
+        EmbeddingProviderInitError
+      );
     });
   });
 

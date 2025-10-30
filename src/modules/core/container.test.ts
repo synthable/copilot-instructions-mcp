@@ -454,7 +454,7 @@ describe('Container', () => {
       };
 
       const container = new Container(mockDependencies, 'instructions-modules');
-       
+
       container.setEmbeddingService(mockService as unknown as IEmbeddingService);
 
       // Dispose should call the service's dispose method
@@ -485,7 +485,7 @@ describe('Container', () => {
       };
 
       const container = new Container(mockDependencies, 'instructions-modules');
-       
+
       container.setEmbeddingService(mockService as unknown as IEmbeddingService);
 
       // Dispose should complete successfully
@@ -504,7 +504,7 @@ describe('Container', () => {
       };
 
       const container = new Container(mockDependencies, 'instructions-modules');
-       
+
       container.setEmbeddingService(mockService as unknown as IEmbeddingService);
 
       await container.dispose();
@@ -572,7 +572,6 @@ describe('Container', () => {
       const container = new Container(mockDependencies, 'test-modules');
       const mockParser = {} as unknown as IInstructionModuleParser;
 
-       
       container.setInstructionModuleParser(mockParser);
       const parser = container.getInstructionModuleParser();
 
@@ -583,7 +582,6 @@ describe('Container', () => {
       const container = new Container(mockDependencies, 'test-modules');
       const mockSearchService = {} as unknown as ISearchService;
 
-       
       container.setSearchService(mockSearchService);
       const searchService = container.getSearchService();
 
@@ -594,7 +592,6 @@ describe('Container', () => {
       const container = new Container(mockDependencies, 'test-modules');
       const mockContentService = {} as unknown as IContentService;
 
-       
       container.setContentService(mockContentService);
       const contentService = container.getContentService();
 
@@ -605,7 +602,6 @@ describe('Container', () => {
       const container = new Container(mockDependencies, 'test-modules');
       const mockEmbeddingService = {} as unknown as IEmbeddingService;
 
-       
       container.setEmbeddingService(mockEmbeddingService);
       const embeddingService = container.getEmbeddingService();
 

@@ -40,6 +40,7 @@ import type { IEmbeddingProvider } from '../plugins/embedding/embeddingProvider.
 import { TransformersEmbeddingProvider } from '../plugins/embedding/transformersProvider.js';
 import { OllamaEmbeddingProvider } from '../plugins/embedding/ollamaProvider.js';
 import type { ServerConfig } from '../../config/config.schema.js';
+import type { EmbeddingProviderConfig } from '../plugins/embedding/embeddingProvider.interface.js';
 
 /**
  * Production implementation of file system operations.
@@ -89,6 +90,32 @@ class ProcessUtils implements IProcessUtils {
   cwd(): string {
     return process.cwd();
   }
+}
+
+/**
+ * Converts ServerConfig.embeddingProvider to EmbeddingProviderConfig.
+ * Removes ServerConfig-specific fields (cacheEnabled, maxCacheSize) that are not
+ * part of the EmbeddingProviderConfig interface.
+ *
+ * @param serverConfig - The server configuration object containing embedding provider config
+ * @returns A properly typed EmbeddingProviderConfig
+ */
+function extractEmbeddingProviderConfig(
+  serverConfig: ServerConfig
+): EmbeddingProviderConfig {
+  const {
+    cacheEnabled: _cacheEnabled,
+    maxCacheSize: _maxCacheSize,
+    ...providerConfig
+  } = serverConfig.embeddingProvider;
+  // Ensure all required fields are present in the returned config
+  return {
+    type: providerConfig.type,
+    model: providerConfig.model,
+    ...(providerConfig.baseUrl && { baseUrl: providerConfig.baseUrl }),
+    ...(providerConfig.apiKey && { apiKey: providerConfig.apiKey }),
+    ...(providerConfig.dimensions && { dimensions: providerConfig.dimensions }),
+  };
 }
 
 /**
@@ -208,9 +235,7 @@ export class Container {
       return null;
     }
 
-    if (!this.embeddingProvider) {
-      this.embeddingProvider = this.createEmbeddingProvider(this.config);
-    }
+    this.embeddingProvider ??= this.createEmbeddingProvider(this.config);
 
     return this.embeddingProvider;
   }
@@ -224,6 +249,7 @@ export class Container {
     if (!this.embeddingService) {
       // Try to use provider-based approach if config is available
       let provider = this.getEmbeddingProvider();
+      let providerConfig: EmbeddingProviderConfig;
 
       // If no provider from config, create a default Transformers provider
       if (!provider) {
@@ -231,10 +257,24 @@ export class Container {
           'No config provided, creating default Transformers provider'
         );
         provider = new TransformersEmbeddingProvider();
+        providerConfig = {
+          type: 'transformers',
+          model: 'Xenova/all-mpnet-base-v2',
+        };
+      } else {
+        // If provider exists, config must exist (see getEmbeddingProvider line 231)
+        if (!this.config) {
+          throw new Error('Config unexpectedly undefined despite provider existence');
+        }
+        providerConfig = extractEmbeddingProviderConfig(this.config);
       }
 
-      // Wrap provider in EmbeddingService
-      this.embeddingService = new EmbeddingService(provider, this.dependencies.logger);
+      // Wrap provider in EmbeddingService with initial config
+      this.embeddingService = new EmbeddingService(
+        provider,
+        this.dependencies.logger,
+        providerConfig
+      );
     }
 
     return this.embeddingService;

@@ -28,7 +28,9 @@ import { initializeServer } from './serverInitializer.js';
 /**
  * Helper function to create JSON response format
  */
-function createJsonResponse(data: unknown) {
+function createJsonResponse(data: unknown): {
+  content: { type: string; text: string }[];
+} {
   return {
     content: [
       {

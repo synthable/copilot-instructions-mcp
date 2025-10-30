@@ -31,6 +31,34 @@ interface SemanticBenchmarkConfig {
   relevanceFile?: string;
 }
 
+interface RelevanceMetrics {
+  k?: number;
+  queries?: number;
+  hitsAtK?: number;
+  precisionAtK?: number;
+  error?: string;
+}
+
+interface SemanticSearchMetrics {
+  model: string;
+  dimensions: number;
+  itemsIndexed: number;
+  indexSizeMB: number;
+  coldBuild: {
+    peakRssMB: number;
+  };
+  warmQueries: {
+    iterations: number;
+    p50ms: number;
+    p95ms: number;
+    p99ms: number;
+    minMs: number;
+    maxMs: number;
+    meanMs: number;
+  };
+  relevance: RelevanceMetrics | null;
+}
+
 export class SemanticSearchBenchmark {
   constructor(
     private parser: IInstructionModuleParser,
@@ -38,21 +66,19 @@ export class SemanticSearchBenchmark {
     private config: SemanticBenchmarkConfig = {}
   ) {}
 
-  async run(): Promise<BenchmarkResult> {
+  async run(): Promise<BenchmarkResult<SemanticSearchMetrics>> {
     try {
       const N = this.config.numQueries ?? Number(process.env.BENCH_N ?? '30');
       const dims = this.config.embeddingDims ?? 768;
       const modelName = this.config.modelName ?? 'Xenova/all-mpnet-base-v2';
 
       // Measure cold index build with peak memory tracking
-      const { peakRssMB: buildPeakRss } = await monitorPeakMemory(
-        async () => {
-          const start = performance.now();
-          await this.svc.buildIndex(true);
-          const end = performance.now();
-          return end - start;
-        }
-      );
+      const { peakRssMB: buildPeakRss } = await monitorPeakMemory(async () => {
+        const start = performance.now();
+        await this.svc.buildIndex(true);
+        const end = performance.now();
+        return end - start;
+      });
 
       // Calculate index size
       const modules = await this.parser.parseInstructionModules();
@@ -118,7 +144,7 @@ export class SemanticSearchBenchmark {
         name: 'Semantic Search',
         timestamp: new Date().toISOString(),
         success: false,
-        metrics: {},
+        metrics: {} as SemanticSearchMetrics,
         error: (error as Error).message,
       };
     }
@@ -126,8 +152,7 @@ export class SemanticSearchBenchmark {
 
   private async evaluateRelevance(): Promise<Record<string, unknown> | null> {
     const relevancePath =
-      this.config.relevanceFile ??
-      join(process.cwd(), 'bench', 'relevance.json');
+      this.config.relevanceFile ?? join(process.cwd(), 'bench', 'relevance.json');
 
     if (!existsSync(relevancePath)) {
       return null;
@@ -170,25 +195,25 @@ export class SemanticSearchBenchmark {
     }
   }
 
-  printReport(result: BenchmarkResult): void {
+  printReport(result: BenchmarkResult<SemanticSearchMetrics>): void {
     if (!result.success) {
-      console.error(`❌ ${result.name} failed: ${result.error}`);
+      console.error(`❌ ${result.name} failed: ${result.error ?? 'Unknown error'}`);
       return;
     }
 
-    const m = result.metrics as any; // Type assertion for metrics access
+    const m = result.metrics;
     console.log('');
     console.log('━'.repeat(80));
     console.log(`📊 ${result.name} Benchmark Results`);
     console.log('━'.repeat(80));
-    console.log(`Model: ${m.model} (dims=${m.dimensions})`);
-    console.log(`Indexed items: ${m.itemsIndexed}`);
-    console.log(`Index size (vectors): ${m.indexSizeMB} MB`);
+    console.log(`Model: ${m.model} (dims=${String(m.dimensions)})`);
+    console.log(`Indexed items: ${String(m.itemsIndexed)}`);
+    console.log(`Index size (vectors): ${String(m.indexSizeMB)} MB`);
     console.log('');
     console.log('Cold Build:');
-    console.log(`  Peak RSS: ${m.coldBuild.peakRssMB} MB`);
+    console.log(`  Peak RSS: ${String(m.coldBuild.peakRssMB)} MB`);
     console.log('');
-    console.log(`Warm Queries (N=${m.warmQueries.iterations}):`);
+    console.log(`Warm Queries (N=${String(m.warmQueries.iterations)}):`);
     console.log(`  p50:  ${formatMs(m.warmQueries.p50ms)}`);
     console.log(`  p95:  ${formatMs(m.warmQueries.p95ms)}`);
     console.log(`  p99:  ${formatMs(m.warmQueries.p99ms)}`);
@@ -202,9 +227,11 @@ export class SemanticSearchBenchmark {
       if (m.relevance.error) {
         console.log(`  ${m.relevance.error}`);
       } else {
-        console.log(`  Queries: ${m.relevance.queries}`);
-        console.log(`  Hits@${m.relevance.k}: ${m.relevance.hitsAtK}`);
-        console.log(`  Precision@${m.relevance.k}: ${m.relevance.precisionAtK}`);
+        console.log(`  Queries: ${String(m.relevance.queries)}`);
+        console.log(`  Hits@${String(m.relevance.k)}: ${String(m.relevance.hitsAtK)}`);
+        console.log(
+          `  Precision@${String(m.relevance.k)}: ${String(m.relevance.precisionAtK)}`
+        );
       }
     } else {
       console.log('');

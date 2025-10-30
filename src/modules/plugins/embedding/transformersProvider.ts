@@ -151,9 +151,9 @@ export class TransformersEmbeddingProvider
       }
 
       this._model = config.model;
-      this._dimensions = config.dimensions || 384; // Default for all-MiniLM-L6-v2
-      this._batchSize = config.batchSize || 32;
-      this._maxContentLength = config.maxContentLength || 1536;
+      this._dimensions = config.dimensions ?? 384; // Default for all-MiniLM-L6-v2
+      this._batchSize = config.batchSize ?? 32;
+      this._maxContentLength = config.maxContentLength ?? 1536;
 
       // Handle provider-specific options
       if (config.providerOptions) {
