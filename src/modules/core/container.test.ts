@@ -161,6 +161,10 @@ describe('Container', () => {
           dimensions: 384,
           cacheEnabled: true,
         },
+        vectorStore: {
+          type: 'file' as const,
+          enableIntegrityCheck: true,
+        },
         searchProvider: {
           name: 'default',
         },
@@ -188,6 +192,10 @@ describe('Container', () => {
           dimensions: 768,
           cacheEnabled: true,
         },
+        vectorStore: {
+          type: 'file' as const,
+          enableIntegrityCheck: true,
+        },
         searchProvider: {
           name: 'default',
         },
@@ -210,6 +218,10 @@ describe('Container', () => {
           apiKey: 'test-key',
           cacheEnabled: true,
         },
+        vectorStore: {
+          type: 'file' as const,
+          enableIntegrityCheck: true,
+        },
         searchProvider: {
           name: 'default',
         },
@@ -230,6 +242,10 @@ describe('Container', () => {
           model: 'embed-english-v3.0',
           apiKey: 'test-key',
           cacheEnabled: true,
+        },
+        vectorStore: {
+          type: 'file' as const,
+          enableIntegrityCheck: true,
         },
         searchProvider: {
           name: 'default',
@@ -256,6 +272,10 @@ describe('Container', () => {
           dimensions: 384,
           cacheEnabled: true,
         },
+        vectorStore: {
+          type: 'file' as const,
+          enableIntegrityCheck: true,
+        },
         searchProvider: {
           name: 'default',
         },
@@ -279,6 +299,10 @@ describe('Container', () => {
           dimensions: 384,
           cacheEnabled: true,
         },
+        vectorStore: {
+          type: 'file' as const,
+          enableIntegrityCheck: true,
+        },
         searchProvider: {
           name: 'default',
         },
@@ -301,6 +325,10 @@ describe('Container', () => {
           baseUrl: 'http://localhost:11434',
           dimensions: 768,
           cacheEnabled: true,
+        },
+        vectorStore: {
+          type: 'file' as const,
+          enableIntegrityCheck: true,
         },
         searchProvider: {
           name: 'default',
@@ -331,6 +359,10 @@ describe('Container', () => {
           dimensions: 384,
           cacheEnabled: true,
         },
+        vectorStore: {
+          type: 'file' as const,
+          enableIntegrityCheck: true,
+        },
         searchProvider: {
           name: 'default',
         },
@@ -352,6 +384,10 @@ describe('Container', () => {
           model: 'Xenova/all-MiniLM-L6-v2',
           dimensions: 384,
           cacheEnabled: true,
+        },
+        vectorStore: {
+          type: 'file' as const,
+          enableIntegrityCheck: true,
         },
         searchProvider: {
           name: 'default',
@@ -380,6 +416,10 @@ describe('Container', () => {
           dimensions: 384,
           cacheEnabled: true,
         },
+        vectorStore: {
+          type: 'file' as const,
+          enableIntegrityCheck: true,
+        },
         searchProvider: {
           name: 'default',
         },
@@ -399,6 +439,10 @@ describe('Container', () => {
           model: 'custom-model',
           dimensions: 512,
           cacheEnabled: false,
+        },
+        vectorStore: {
+          type: 'file' as const,
+          enableIntegrityCheck: true,
         },
         searchProvider: {
           name: 'default',
@@ -427,6 +471,10 @@ describe('Container', () => {
           type: 'transformers',
           model: 'test-model',
           cacheEnabled: true,
+        },
+        vectorStore: {
+          type: 'file' as const,
+          enableIntegrityCheck: true,
         },
         searchProvider: {
           name: 'default',
@@ -647,6 +695,10 @@ describe('Container', () => {
           model: 'test-model',
           cacheEnabled: true,
         },
+        vectorStore: {
+          type: 'file' as const,
+          enableIntegrityCheck: true,
+        },
         searchProvider: {
           name: 'default',
         },
@@ -678,6 +730,10 @@ describe('Container', () => {
           type: 'ollama',
           model: 'nomic-embed-text',
           cacheEnabled: true,
+        },
+        vectorStore: {
+          type: 'file' as const,
+          enableIntegrityCheck: true,
         },
         searchProvider: {
           name: 'default',

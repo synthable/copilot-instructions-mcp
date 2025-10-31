@@ -38,6 +38,7 @@ describe('config.migration', () => {
       const config = {
         embeddingProvider: { name: 'transformers' },
         searchProvider: { name: 'fuzzy' },
+        vectorStore: { type: 'file' as const, enableIntegrityCheck: true },
       };
 
       expect(isLegacyConfig(config)).toBe(true);
@@ -47,6 +48,7 @@ describe('config.migration', () => {
       const config = {
         embeddingProvider: { type: 'transformers' },
         searchProvider: { name: 'fuzzy' },
+        vectorStore: { type: 'file' as const, enableIntegrityCheck: true },
       };
 
       expect(isLegacyConfig(config)).toBe(false);
@@ -56,6 +58,7 @@ describe('config.migration', () => {
       const config = {
         embeddingProvider: { name: 'transformers', type: 'ollama' },
         searchProvider: { name: 'fuzzy' },
+        vectorStore: { type: 'file' as const, enableIntegrityCheck: true },
       };
 
       expect(isLegacyConfig(config)).toBe(false);
@@ -72,6 +75,7 @@ describe('config.migration', () => {
     it('should return false for config without embeddingProvider', () => {
       const config = {
         searchProvider: { name: 'fuzzy' },
+        vectorStore: { type: 'file' as const, enableIntegrityCheck: true },
       };
 
       expect(isLegacyConfig(config)).toBe(false);
@@ -149,6 +153,7 @@ describe('config.migration', () => {
       const oldConfig = {
         embeddingProvider: { name: 'transformers' },
         searchProvider: { name: 'fuzzy' },
+        vectorStore: { type: 'file' as const, enableIntegrityCheck: true },
       };
 
       const migrated = migrateConfig(oldConfig);
@@ -165,6 +170,7 @@ describe('config.migration', () => {
       const oldConfig = {
         embeddingProvider: { name: 'ollama', model: 'llama3' },
         searchProvider: { name: 'semantic' },
+        vectorStore: { type: 'file' as const, enableIntegrityCheck: true },
       };
 
       const migrated = migrateConfig(oldConfig);
@@ -186,6 +192,7 @@ describe('config.migration', () => {
           maxCacheSize: 1000,
         },
         searchProvider: { name: 'hybrid' },
+        vectorStore: { type: 'file' as const, enableIntegrityCheck: true },
         moduleDirectory: 'custom-modules',
       };
 
@@ -203,6 +210,7 @@ describe('config.migration', () => {
     it('should handle config without embeddingProvider', () => {
       const oldConfig = {
         searchProvider: { name: 'fuzzy' },
+        vectorStore: { type: 'file' as const, enableIntegrityCheck: true },
       };
 
       const migrated = migrateConfig(oldConfig);
@@ -218,6 +226,7 @@ describe('config.migration', () => {
           model: 'nomic-embed-text',
         },
         searchProvider: { name: 'fuzzy' },
+        vectorStore: { type: 'file' as const, enableIntegrityCheck: true },
       };
 
       const migrated = migrateConfig(newConfig);
@@ -248,6 +257,7 @@ describe('config.migration', () => {
         const migrated = migrateConfig({
           ...config,
           searchProvider: { name: 'fuzzy' },
+          vectorStore: { type: 'file' as const, enableIntegrityCheck: true },
         });
         expect(migrated.embeddingProvider.type).toBe(expectedTypes[index]);
       });
@@ -257,6 +267,7 @@ describe('config.migration', () => {
       const oldConfig = {
         embeddingProvider: { name: 'unknown-provider' },
         searchProvider: { name: 'fuzzy' },
+        vectorStore: { type: 'file' as const, enableIntegrityCheck: true },
       };
 
       const migrated = migrateConfig(oldConfig);
@@ -268,6 +279,7 @@ describe('config.migration', () => {
       const oldConfig = {
         embeddingProvider: { name: 'ollama' },
         searchProvider: { name: 'fuzzy' },
+        vectorStore: { type: 'file' as const, enableIntegrityCheck: true },
       };
 
       const migrated = migrateConfig(oldConfig);
@@ -288,6 +300,7 @@ describe('config.migration', () => {
           cacheEnabled: true,
         },
         searchProvider: { name: 'fuzzy' },
+        vectorStore: { type: 'file' as const, enableIntegrityCheck: true },
         moduleDirectory: 'instructions-modules',
       };
 
@@ -304,6 +317,7 @@ describe('config.migration', () => {
           cacheEnabled: true,
         },
         searchProvider: { name: 'fuzzy' },
+        vectorStore: { type: 'file' as const, enableIntegrityCheck: true },
         moduleDirectory: 'instructions-modules',
       };
 
@@ -322,6 +336,7 @@ describe('config.migration', () => {
           cacheEnabled: true,
         },
         searchProvider: { name: 'fuzzy' },
+        vectorStore: { type: 'file' as const, enableIntegrityCheck: true },
         moduleDirectory: 'instructions-modules',
       };
 
@@ -338,6 +353,7 @@ describe('config.migration', () => {
           cacheEnabled: true,
         },
         searchProvider: { name: 'fuzzy' },
+        vectorStore: { type: 'file' as const, enableIntegrityCheck: true },
         moduleDirectory: 'instructions-modules',
       };
 
@@ -356,6 +372,7 @@ describe('config.migration', () => {
           cacheEnabled: true,
         },
         searchProvider: { name: 'fuzzy' },
+        vectorStore: { type: 'file' as const, enableIntegrityCheck: true },
         moduleDirectory: 'instructions-modules',
       };
 
@@ -372,6 +389,7 @@ describe('config.migration', () => {
           cacheEnabled: true,
         },
         searchProvider: { name: 'fuzzy' },
+        vectorStore: { type: 'file' as const, enableIntegrityCheck: true },
         moduleDirectory: 'instructions-modules',
       };
 
@@ -390,6 +408,7 @@ describe('config.migration', () => {
           cacheEnabled: true,
         },
         searchProvider: { name: 'fuzzy' },
+        vectorStore: { type: 'file' as const, enableIntegrityCheck: true },
         moduleDirectory: 'instructions-modules',
       };
 
@@ -406,6 +425,7 @@ describe('config.migration', () => {
           cacheEnabled: true,
         },
         searchProvider: { name: 'fuzzy' },
+        vectorStore: { type: 'file' as const, enableIntegrityCheck: true },
         moduleDirectory: 'instructions-modules',
       };
 
@@ -424,6 +444,7 @@ describe('config.migration', () => {
           cacheEnabled: true,
         },
         searchProvider: { name: 'fuzzy' },
+        vectorStore: { type: 'file' as const, enableIntegrityCheck: true },
         moduleDirectory: 'instructions-modules',
       };
 
@@ -442,6 +463,7 @@ describe('config.migration', () => {
           cacheEnabled: true,
         },
         searchProvider: { name: 'fuzzy' },
+        vectorStore: { type: 'file' as const, enableIntegrityCheck: true },
         moduleDirectory: 'instructions-modules',
       };
 
@@ -460,6 +482,7 @@ describe('config.migration', () => {
           cacheEnabled: true,
         },
         searchProvider: { name: 'fuzzy' },
+        vectorStore: { type: 'file' as const, enableIntegrityCheck: true },
         moduleDirectory: 'instructions-modules',
       };
 
@@ -479,6 +502,7 @@ describe('config.migration', () => {
           cacheEnabled: true,
         },
         searchProvider: { name: 'fuzzy' },
+        vectorStore: { type: 'file' as const, enableIntegrityCheck: true },
         moduleDirectory: 'instructions-modules',
       };
 

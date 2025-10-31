@@ -201,6 +201,7 @@ export function getProviderDefaults(type: string): Partial<EmbeddingProviderConf
  * //     cacheEnabled: true
  * //   },
  * //   searchProvider: { name: 'fuzzy' },
+      vectorStore: { type: 'file' as const, enableIntegrityCheck: true },
  * //   moduleDirectory: 'instructions-modules'
  * // }
  * ```
@@ -223,6 +224,10 @@ export function migrateConfig(oldConfig: unknown): ServerConfig {
       embeddingProvider: {
         ...PROVIDER_DEFAULTS.transformers,
       } as EmbeddingProviderConfig,
+      vectorStore: {
+        type: 'file' as const,
+        enableIntegrityCheck: true,
+      },
       searchProvider: searchProvider ?? {
         name: 'fuzzy',
       },
@@ -247,6 +252,10 @@ export function migrateConfig(oldConfig: unknown): ServerConfig {
         ...embeddingProvider,
         type: providerType,
       } as EmbeddingProviderConfig,
+      vectorStore: {
+        type: 'file' as const,
+        enableIntegrityCheck: true,
+      },
       searchProvider: searchProvider ?? {
         name: 'fuzzy',
       },
@@ -311,6 +320,10 @@ export function migrateConfig(oldConfig: unknown): ServerConfig {
 
   return {
     embeddingProvider: migratedProvider,
+    vectorStore: {
+      type: 'file' as const,
+      enableIntegrityCheck: true,
+    },
     searchProvider: searchProvider ?? { name: 'fuzzy' },
     moduleDirectory: moduleDirectory ?? 'instructions-modules',
   };

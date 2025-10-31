@@ -41,6 +41,12 @@ import { TransformersEmbeddingProvider } from '../plugins/embedding/transformers
 import { OllamaEmbeddingProvider } from '../plugins/embedding/ollamaProvider.js';
 import type { ServerConfig } from '../../config/config.schema.js';
 import type { EmbeddingProviderConfig } from '../plugins/embedding/embeddingProvider.interface.js';
+import type {
+  IVectorStorePlugin,
+  VectorStoreConfig,
+} from '../plugins/vectorStore/vectorStore.interface.js';
+import { FileVectorStore } from '../plugins/vectorStore/fileVectorStore.js';
+import { SqliteVectorStore } from '../plugins/vectorStore/sqliteVectorStore.js';
 
 /**
  * Production implementation of file system operations.
@@ -132,6 +138,7 @@ export class Container {
   private embeddingProvider?: IEmbeddingProvider;
   private semanticConfig?: ISemanticConfig;
   private vectorStore?: IVectorStore;
+  private vectorStorePlugin?: IVectorStorePlugin;
   private resourceService?: IResourceService;
   private moduleDirectory: string;
   private config?: ServerConfig;
@@ -228,6 +235,35 @@ export class Container {
   }
 
   /**
+   * Creates a vector store plugin based on configuration.
+   */
+  private createVectorStorePlugin(config: ServerConfig): IVectorStorePlugin {
+    const storeConfig = config.vectorStore;
+
+    switch (storeConfig.type) {
+      case 'file':
+        return new FileVectorStore(this.dependencies.logger);
+      case 'sqlite':
+        return new SqliteVectorStore(this.dependencies.logger);
+      default:
+        throw new Error(`Unknown vector store type: ${storeConfig.type as string}`);
+    }
+  }
+
+  /**
+   * Gets or creates the vector store plugin (if config is available).
+   */
+  private getVectorStorePlugin(): IVectorStorePlugin | null {
+    if (!this.config) {
+      return null;
+    }
+
+    this.vectorStorePlugin ??= this.createVectorStorePlugin(this.config);
+
+    return this.vectorStorePlugin;
+  }
+
+  /**
    * Gets or creates the embedding provider (if config is available).
    */
   private getEmbeddingProvider(): IEmbeddingProvider | null {
@@ -290,9 +326,42 @@ export class Container {
 
   /**
    * Gets or creates the vector store.
+   * If a config is provided and supports plugins, uses the plugin-based approach.
+   * Otherwise, creates a default file-based vector store for backward compatibility.
    */
   getVectorStore(): IVectorStore {
-    this.vectorStore ??= new VectorStore(this.dependencies, this.dependencies.logger);
+    if (!this.vectorStore) {
+      // Try to use plugin-based approach if config is available
+      const plugin = this.getVectorStorePlugin();
+
+      if (plugin && this.config) {
+        // Initialize the plugin with config
+        const storeConfig: VectorStoreConfig = {
+          type: this.config.vectorStore.type,
+          path: this.config.vectorStore.path,
+          dimensions: this.config.vectorStore.dimensions,
+          enableIntegrityCheck: this.config.vectorStore.enableIntegrityCheck,
+        };
+        plugin.initialize(storeConfig).catch((error: unknown) => {
+          this.dependencies.logger.error(
+            'Failed to initialize vector store plugin',
+            error instanceof Error ? error : undefined
+          );
+        });
+
+        // Wrap plugin in legacy VectorStore interface adapter
+        // For now, we use the old VectorStore class as a fallback
+        // TODO: Create an adapter that wraps IVectorStorePlugin to IVectorStore
+        this.vectorStore = new VectorStore(this.dependencies, this.dependencies.logger);
+      } else {
+        // No config, use default file-based vector store for backward compatibility
+        this.dependencies.logger.debug(
+          'No config provided, creating default VectorStore'
+        );
+        this.vectorStore = new VectorStore(this.dependencies, this.dependencies.logger);
+      }
+    }
+
     return this.vectorStore;
   }
 

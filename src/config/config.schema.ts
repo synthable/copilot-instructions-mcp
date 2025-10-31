@@ -18,6 +18,14 @@ export const configSchema = z.object({
       maxCacheSize: z.number().positive().optional(),
     })
     .default({}),
+  vectorStore: z
+    .object({
+      type: z.enum(['file', 'sqlite']).default('file'),
+      path: z.string().optional(),
+      dimensions: z.number().positive().optional(),
+      enableIntegrityCheck: z.boolean().default(true),
+    })
+    .default({}),
   searchProvider: z.object({
     name: z.string(),
   }),
