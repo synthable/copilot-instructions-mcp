@@ -77,14 +77,23 @@ error instanceof Error ? error : new Error(String(error))
 **Recommendation:**
 - Create error utility functions in `src/modules/utils/errorUtils.ts`:
   ```typescript
+  /**
+   * Safely extracts error message from unknown error value
+   */
   export function getErrorMessage(error: unknown, defaultMessage = 'Unknown error'): string {
     return error instanceof Error ? error.message : defaultMessage;
   }
   
+  /**
+   * Converts unknown value to Error instance
+   */
   export function toError(error: unknown): Error {
     return error instanceof Error ? error : new Error(String(error));
   }
   
+  /**
+   * Returns error if it's an Error instance, undefined otherwise
+   */
   export function getErrorOrUndefined(error: unknown): Error | undefined {
     return error instanceof Error ? error : undefined;
   }
@@ -123,8 +132,14 @@ const parsedUnknown = parseYaml(content);
 **Recommendation:**
 - Create unified YAML parsing utility in `src/modules/utils/yamlUtils.ts`:
   ```typescript
+  import { parse as yamlParseFn } from 'yaml';
+
+  /**
+   * Unified YAML parsing wrapper
+   * Returns unknown type - caller is responsible for type validation
+   */
   export function parseYamlSafe(content: string): unknown {
-    // Unified type-safe parsing logic
+    return yamlParseFn(content);
   }
   ```
 - Both files should use the same utility

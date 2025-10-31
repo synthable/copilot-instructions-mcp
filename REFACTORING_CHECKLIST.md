@@ -125,7 +125,8 @@ This checklist provides step-by-step instructions for eliminating the identified
   import { parse as yamlParseFn } from 'yaml';
 
   /**
-   * Type-safe YAML parsing
+   * Unified YAML parsing wrapper
+   * Returns unknown type - caller is responsible for type validation
    */
   export function parseYamlSafe(content: string): unknown {
     return yamlParseFn(content);
@@ -520,10 +521,10 @@ This checklist provides step-by-step instructions for eliminating the identified
 
 | Phase | Estimated | Actual | Notes |
 |-------|-----------|--------|-------|
-| Phase 1 | 1 week | | |
-| Phase 2 | 1 week | | |
-| Phase 3 | 1 week | | |
-| **Total** | **3 weeks** | | |
+| Phase 1 | 1 week | TBD | High priority duplications |
+| Phase 2 | 1 week | TBD | Medium priority duplications |
+| Phase 3 | 1 week | TBD | Testing and documentation |
+| **Total** | **3 weeks** | **TBD** | To be updated during implementation |
 
 ---
 
