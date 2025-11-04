@@ -71,7 +71,7 @@ export class VectorGenerator {
   ) {
     this.outputDir = outputDir;
     this.progressCallback = progressCallback;
-    this.providerName = providerName ?? undefined;
+    this.providerName = providerName;
   }
 
   /**

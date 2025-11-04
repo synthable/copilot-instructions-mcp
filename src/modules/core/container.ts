@@ -298,7 +298,7 @@ export class Container {
           model: 'Xenova/all-mpnet-base-v2',
         };
       } else {
-        // If provider exists, config must exist (see getEmbeddingProvider line 231)
+        // If provider exists, config must exist (see getEmbeddingProvider() method)
         if (!this.config) {
           throw new Error('Config unexpectedly undefined despite provider existence');
         }
@@ -453,10 +453,11 @@ export class Container {
       await this.embeddingService.dispose();
     }
 
-    // Reset services by deleting them (TypeScript will recreate them as undefined)
-    // Use type assertion to allow delete on private properties
-    delete (this as Record<string, unknown>).embeddingService;
-    delete (this as Record<string, unknown>).embeddingProvider;
+    // Reset services (required with exactOptionalPropertyTypes)
+    // TypeScript optional properties (?) cannot be set to undefined with strict settings,
+    // so we use delete to restore them to their initial uninitialized state
+    delete this.embeddingService;
+    delete this.embeddingProvider;
 
     this.dependencies.logger.info('Container disposed');
   }

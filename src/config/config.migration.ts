@@ -201,7 +201,7 @@ export function getProviderDefaults(type: string): Partial<EmbeddingProviderConf
  * //     cacheEnabled: true
  * //   },
  * //   searchProvider: { name: 'fuzzy' },
-      vectorStore: { type: 'file' as const, enableIntegrityCheck: true },
+ * //   vectorStore: { type: 'file', enableIntegrityCheck: true },
  * //   moduleDirectory: 'instructions-modules'
  * // }
  * ```
