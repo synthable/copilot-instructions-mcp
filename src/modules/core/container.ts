@@ -109,11 +109,8 @@ class ProcessUtils implements IProcessUtils {
 function extractEmbeddingProviderConfig(
   serverConfig: ServerConfig
 ): EmbeddingProviderConfig {
-  const {
-    cacheEnabled,
-    maxCacheSize,
-    ...providerConfig
-  } = serverConfig.embeddingProvider;
+  const { cacheEnabled, maxCacheSize, ...providerConfig } =
+    serverConfig.embeddingProvider;
 
   // Build config object explicitly to handle exactOptionalPropertyTypes
   const config: EmbeddingProviderConfig = {
@@ -196,7 +193,9 @@ export class Container {
    */
   private async initializePluginsInternal(): Promise<void> {
     if (!this.config) {
-      this.dependencies.logger.debug('No config provided, skipping plugin initialization');
+      this.dependencies.logger.debug(
+        'No config provided, skipping plugin initialization'
+      );
       return;
     }
 
@@ -214,7 +213,10 @@ export class Container {
         this.dependencies.logger.info('Vector store plugin initialized successfully');
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        this.dependencies.logger.error('Vector store plugin initialization failed', error instanceof Error ? error : undefined);
+        this.dependencies.logger.error(
+          'Vector store plugin initialization failed',
+          error instanceof Error ? error : undefined
+        );
         throw new Error(`Failed to initialize vector store plugin: ${errorMessage}`);
       }
     }
