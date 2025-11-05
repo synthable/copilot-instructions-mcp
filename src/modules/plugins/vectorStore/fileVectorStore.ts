@@ -13,7 +13,7 @@
 
 import { createHash } from 'node:crypto';
 import { promises as fs, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve, relative, isAbsolute } from 'node:path';
 import { decode as msgpackDecode } from '@msgpack/msgpack';
 
 import type { ILogger } from '../../core/interfaces.js';
@@ -49,6 +49,50 @@ export class FileVectorStore implements IVectorStorePlugin {
   constructor(private logger: ILogger) {}
 
   /**
+   * Validates and normalizes a file path to prevent directory traversal attacks.
+   * Ensures the path is within the application directory.
+   * @param configPath - The path from configuration
+   * @returns Validated and resolved absolute path
+   * @throws {Error} If path attempts to escape application directory
+   * @private
+   */
+  private validateAndNormalizePath(configPath: string): string {
+    // Get the base application directory (current working directory)
+    const appBase = process.cwd();
+
+    // Resolve the config path to an absolute path
+    const resolvedPath = resolve(appBase, configPath);
+
+    // Calculate relative path from app base to resolved path
+    const relativePath = relative(appBase, resolvedPath);
+
+    // Check if path tries to escape (starts with '..' or is absolute when it shouldn't be)
+    if (relativePath.startsWith('..') || isAbsolute(relativePath)) {
+      throw new Error(
+        `Invalid vector store path: "${configPath}". ` +
+          `Path must be within the application directory. ` +
+          `Attempted to access: ${resolvedPath}`
+      );
+    }
+
+    // Additional check: ensure the normalized path is under app base
+    if (!resolvedPath.startsWith(appBase)) {
+      throw new Error(
+        `Security violation: Vector store path "${configPath}" resolves outside application directory. ` +
+          `This is not allowed for security reasons.`
+      );
+    }
+
+    this.logger.debug('Vector store path validated', {
+      configPath,
+      resolvedPath,
+      relativePath,
+    });
+
+    return resolvedPath;
+  }
+
+  /**
    * Initialize the file vector store with configuration.
    */
   async initialize(config: VectorStoreConfig): Promise<void> {
@@ -57,8 +101,14 @@ export class FileVectorStore implements IVectorStorePlugin {
       return;
     }
 
-    // Determine vectors directory
-    this.vectorsDir = config.path ?? join(process.cwd(), 'dist/vectors');
+    // Determine vectors directory with path validation for user-provided paths
+    if (config.path) {
+      // User provided a path - validate it to prevent directory traversal
+      this.vectorsDir = this.validateAndNormalizePath(config.path);
+    } else {
+      // Use safe default
+      this.vectorsDir = join(process.cwd(), 'dist/vectors');
+    }
 
     this.logger.info('Initializing FileVectorStore', {
       vectorsDir: this.vectorsDir,

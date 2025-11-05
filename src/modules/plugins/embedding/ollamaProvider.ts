@@ -114,6 +114,10 @@ export class OllamaEmbeddingProvider implements IEmbeddingProvider {
 
     // Set configuration
     this._baseUrl = config.baseUrl ?? DEFAULTS.BASE_URL;
+
+    // Validate baseUrl to prevent SSRF attacks
+    this.validateBaseUrl(this._baseUrl);
+
     this._model = config.model;
 
     // Determine dimensions
@@ -325,6 +329,75 @@ export class OllamaEmbeddingProvider implements IEmbeddingProvider {
       throw new EmbeddingConfigError(
         this.name,
         `Invalid dimensions: must be positive, got ${String(config.dimensions)}`
+      );
+    }
+  }
+
+  /**
+   * Validates the baseUrl to prevent SSRF attacks.
+   * Blocks access to private IP ranges and cloud metadata endpoints.
+   * @param url - The URL to validate
+   * @throws {EmbeddingConfigError} If URL is invalid or blocked
+   * @private
+   */
+  private validateBaseUrl(url: string): void {
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch (error) {
+      throw new EmbeddingConfigError(
+        this.name,
+        `Invalid baseUrl format: ${url}. Must be a valid HTTP/HTTPS URL.`
+      );
+    }
+
+    // Whitelist allowed protocols
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      throw new EmbeddingConfigError(
+        this.name,
+        `Invalid protocol: ${parsed.protocol}. Only http:// and https:// are allowed.`
+      );
+    }
+
+    const hostname = parsed.hostname.toLowerCase();
+
+    // Allow localhost explicitly (common for Ollama)
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+      return; // Localhost is safe
+    }
+
+    // Block private IP ranges (RFC 1918)
+    const privateIPPatterns = [
+      /^10\./,                          // 10.0.0.0/8
+      /^172\.(1[6-9]|2\d|3[01])\./,    // 172.16.0.0/12
+      /^192\.168\./,                    // 192.168.0.0/16
+      /^169\.254\./,                    // Link-local (AWS metadata)
+      /^fd[0-9a-f]{2}:/i,              // IPv6 private
+      /^fe80:/i,                        // IPv6 link-local
+    ];
+
+    for (const pattern of privateIPPatterns) {
+      if (pattern.test(hostname)) {
+        throw new EmbeddingConfigError(
+          this.name,
+          `Access to private IP ranges is not allowed for security reasons. ` +
+          `Hostname: ${hostname}. ` +
+          `For local Ollama, use "localhost" or "127.0.0.1" instead.`
+        );
+      }
+    }
+
+    // Block common cloud metadata endpoints
+    const blockedHostnames = [
+      'metadata.google.internal',           // GCP
+      'metadata.azure.com',                 // Azure
+      '100.100.100.200',                    // Alibaba Cloud
+    ];
+
+    if (blockedHostnames.includes(hostname)) {
+      throw new EmbeddingConfigError(
+        this.name,
+        `Access to cloud metadata endpoints is not allowed: ${hostname}`
       );
     }
   }

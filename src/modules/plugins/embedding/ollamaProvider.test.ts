@@ -86,6 +86,124 @@ describe('OllamaEmbeddingProvider', () => {
       expect(mockList).toHaveBeenCalledTimes(1);
     });
 
+    it('should allow localhost URLs', async () => {
+      const config: EmbeddingProviderConfig = {
+        type: 'ollama',
+        model: 'nomic-embed-text',
+        baseUrl: 'http://localhost:11434',
+      };
+
+      mockList.mockResolvedValueOnce({
+        models: [{ name: 'nomic-embed-text', modified_at: '', size: 0, digest: '' }],
+      });
+
+      await expect(provider.initialize(config)).resolves.not.toThrow();
+      expect(provider.isInitialized()).toBe(true);
+    });
+
+    it('should allow 127.0.0.1 URLs', async () => {
+      const config: EmbeddingProviderConfig = {
+        type: 'ollama',
+        model: 'nomic-embed-text',
+        baseUrl: 'http://127.0.0.1:11434',
+      };
+
+      mockList.mockResolvedValueOnce({
+        models: [{ name: 'nomic-embed-text', modified_at: '', size: 0, digest: '' }],
+      });
+
+      await expect(provider.initialize(config)).resolves.not.toThrow();
+      expect(provider.isInitialized()).toBe(true);
+    });
+
+    it('should block AWS metadata endpoint (169.254.169.254)', async () => {
+      const config: EmbeddingProviderConfig = {
+        type: 'ollama',
+        model: 'nomic-embed-text',
+        baseUrl: 'http://169.254.169.254/latest/meta-data/',
+      };
+
+      await expect(provider.initialize(config)).rejects.toThrow(EmbeddingConfigError);
+      await expect(provider.initialize(config)).rejects.toThrow(/private IP ranges/i);
+    });
+
+    it('should block private IP ranges (10.x.x.x)', async () => {
+      const config: EmbeddingProviderConfig = {
+        type: 'ollama',
+        model: 'nomic-embed-text',
+        baseUrl: 'http://10.0.0.1:8080',
+      };
+
+      await expect(provider.initialize(config)).rejects.toThrow(EmbeddingConfigError);
+      await expect(provider.initialize(config)).rejects.toThrow(/private IP ranges/i);
+    });
+
+    it('should block private IP ranges (192.168.x.x)', async () => {
+      const config: EmbeddingProviderConfig = {
+        type: 'ollama',
+        model: 'nomic-embed-text',
+        baseUrl: 'http://192.168.1.1:8080',
+      };
+
+      await expect(provider.initialize(config)).rejects.toThrow(EmbeddingConfigError);
+      await expect(provider.initialize(config)).rejects.toThrow(/private IP ranges/i);
+    });
+
+    it('should block private IP ranges (172.16-31.x.x)', async () => {
+      const config: EmbeddingProviderConfig = {
+        type: 'ollama',
+        model: 'nomic-embed-text',
+        baseUrl: 'http://172.20.0.1:8080',
+      };
+
+      await expect(provider.initialize(config)).rejects.toThrow(EmbeddingConfigError);
+      await expect(provider.initialize(config)).rejects.toThrow(/private IP ranges/i);
+    });
+
+    it('should block GCP metadata endpoint', async () => {
+      const config: EmbeddingProviderConfig = {
+        type: 'ollama',
+        model: 'nomic-embed-text',
+        baseUrl: 'http://metadata.google.internal/computeMetadata/v1/',
+      };
+
+      await expect(provider.initialize(config)).rejects.toThrow(EmbeddingConfigError);
+      await expect(provider.initialize(config)).rejects.toThrow(/cloud metadata/i);
+    });
+
+    it('should block Azure metadata endpoint', async () => {
+      const config: EmbeddingProviderConfig = {
+        type: 'ollama',
+        model: 'nomic-embed-text',
+        baseUrl: 'http://metadata.azure.com/metadata/instance',
+      };
+
+      await expect(provider.initialize(config)).rejects.toThrow(EmbeddingConfigError);
+      await expect(provider.initialize(config)).rejects.toThrow(/cloud metadata/i);
+    });
+
+    it('should block invalid protocols (ftp)', async () => {
+      const config: EmbeddingProviderConfig = {
+        type: 'ollama',
+        model: 'nomic-embed-text',
+        baseUrl: 'ftp://localhost:11434',
+      };
+
+      await expect(provider.initialize(config)).rejects.toThrow(EmbeddingConfigError);
+      await expect(provider.initialize(config)).rejects.toThrow(/Invalid protocol/i);
+    });
+
+    it('should block malformed URLs', async () => {
+      const config: EmbeddingProviderConfig = {
+        type: 'ollama',
+        model: 'nomic-embed-text',
+        baseUrl: 'not-a-valid-url',
+      };
+
+      await expect(provider.initialize(config)).rejects.toThrow(EmbeddingConfigError);
+      await expect(provider.initialize(config)).rejects.toThrow(/Invalid baseUrl format/i);
+    });
+
     it('should throw error for invalid provider type', async () => {
       const config = {
         type: 'invalid',

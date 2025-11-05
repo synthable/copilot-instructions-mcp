@@ -781,15 +781,172 @@ describe('Container', () => {
     });
   });
 
-  describe('Container Initialization', () => {
-    it('should initialize successfully with vector store plugin config', async () => {
-      const mockPlugin = {
-        initialize: vi.fn().mockResolvedValue(undefined),
-        addVector: vi.fn(),
-        search: vi.fn(),
-        clear: vi.fn(),
+  describe('Configuration Validation', () => {
+    it('should validate config successfully during initialization', async () => {
+      const config: ServerConfig = {
+        embeddingProvider: {
+          type: 'transformers',
+          model: 'test-model',
+          cacheEnabled: true,
+        },
+        vectorStore: {
+          type: 'file' as const,
+          enableIntegrityCheck: true,
+        },
+        searchProvider: {
+          name: 'default',
+        },
+        moduleDirectory: 'instructions-modules',
       };
 
+      const container = new Container(mockDependencies, 'test-modules', config);
+
+      await expect(container.initialize()).resolves.not.toThrow();
+      expect(mockDependencies.logger.debug).toHaveBeenCalledWith(
+        'Configuration validated successfully',
+        expect.objectContaining({
+          provider: 'transformers',
+          vectorStore: 'file',
+        })
+      );
+    });
+
+    it('should throw error for invalid embedding provider type (typo)', async () => {
+      const config = {
+        embeddingProvider: {
+          type: 'olama', // Typo: should be 'ollama'
+          model: 'test-model',
+          cacheEnabled: true,
+        },
+        vectorStore: {
+          type: 'file' as const,
+          enableIntegrityCheck: true,
+        },
+        searchProvider: {
+          name: 'default',
+        },
+        moduleDirectory: 'instructions-modules',
+      } as unknown as ServerConfig;
+
+      const container = new Container(mockDependencies, 'test-modules', config);
+
+      await expect(container.initialize()).rejects.toThrow(
+        'Invalid embedding provider type: "olama"'
+      );
+      await expect(container.initialize()).rejects.toThrow(
+        'Check your config.json for typos'
+      );
+    });
+
+    it('should throw error for unimplemented provider (openai)', async () => {
+      const config: ServerConfig = {
+        embeddingProvider: {
+          type: 'openai',
+          model: 'text-embedding-3-small',
+          apiKey: 'test-key',
+          cacheEnabled: true,
+        },
+        vectorStore: {
+          type: 'file' as const,
+          enableIntegrityCheck: true,
+        },
+        searchProvider: {
+          name: 'default',
+        },
+        moduleDirectory: 'instructions-modules',
+      };
+
+      const container = new Container(mockDependencies, 'test-modules', config);
+
+      await expect(container.initialize()).rejects.toThrow(
+        'Embedding provider "openai" is not yet implemented'
+      );
+      await expect(container.initialize()).rejects.toThrow(
+        'Available providers: transformers, ollama'
+      );
+    });
+
+    it('should throw error for unimplemented provider (cohere)', async () => {
+      const config: ServerConfig = {
+        embeddingProvider: {
+          type: 'cohere',
+          model: 'embed-english-v3.0',
+          apiKey: 'test-key',
+          cacheEnabled: true,
+        },
+        vectorStore: {
+          type: 'file' as const,
+          enableIntegrityCheck: true,
+        },
+        searchProvider: {
+          name: 'default',
+        },
+        moduleDirectory: 'instructions-modules',
+      };
+
+      const container = new Container(mockDependencies, 'test-modules', config);
+
+      await expect(container.initialize()).rejects.toThrow(
+        'Embedding provider "cohere" is not yet implemented'
+      );
+    });
+
+    it('should throw error when ollama config is missing baseUrl', async () => {
+      const config = {
+        embeddingProvider: {
+          type: 'ollama',
+          model: 'nomic-embed-text',
+          cacheEnabled: true,
+          // Missing baseUrl
+        },
+        vectorStore: {
+          type: 'file' as const,
+          enableIntegrityCheck: true,
+        },
+        searchProvider: {
+          name: 'default',
+        },
+        moduleDirectory: 'instructions-modules',
+      } as unknown as ServerConfig;
+
+      const container = new Container(mockDependencies, 'test-modules', config);
+
+      await expect(container.initialize()).rejects.toThrow(
+        'Ollama provider requires "baseUrl" in configuration'
+      );
+      await expect(container.initialize()).rejects.toThrow(
+        'Example: "baseUrl": "http://localhost:11434"'
+      );
+    });
+
+    it('should throw error for invalid vector store type', async () => {
+      const config = {
+        embeddingProvider: {
+          type: 'transformers',
+          model: 'test-model',
+          cacheEnabled: true,
+        },
+        vectorStore: {
+          type: 'invalid-type', // Invalid type
+          enableIntegrityCheck: true,
+        },
+        searchProvider: {
+          name: 'default',
+        },
+        moduleDirectory: 'instructions-modules',
+      } as unknown as ServerConfig;
+
+      const container = new Container(mockDependencies, 'test-modules', config);
+
+      await expect(container.initialize()).rejects.toThrow(
+        'Invalid vector store type: "invalid-type"'
+      );
+      await expect(container.initialize()).rejects.toThrow(
+        'Valid options: file, sqlite'
+      );
+    });
+
+    it('should throw error for unimplemented vector store (sqlite)', async () => {
       const config: ServerConfig = {
         embeddingProvider: {
           type: 'transformers',
@@ -810,14 +967,81 @@ describe('Container', () => {
 
       const container = new Container(mockDependencies, 'test-modules', config);
 
+      await expect(container.initialize()).rejects.toThrow(
+        'SQLite vector store is not yet implemented'
+      );
+      await expect(container.initialize()).rejects.toThrow(
+        'Please use "file" type in your configuration'
+      );
+    });
+
+    it('should validate successfully with ollama provider and baseUrl', async () => {
+      const config: ServerConfig = {
+        embeddingProvider: {
+          type: 'ollama',
+          model: 'nomic-embed-text',
+          baseUrl: 'http://localhost:11434',
+          cacheEnabled: true,
+        },
+        vectorStore: {
+          type: 'file' as const,
+          enableIntegrityCheck: true,
+        },
+        searchProvider: {
+          name: 'default',
+        },
+        moduleDirectory: 'instructions-modules',
+      };
+
+      const container = new Container(mockDependencies, 'test-modules', config);
+
+      await expect(container.initialize()).resolves.not.toThrow();
+      expect(mockDependencies.logger.debug).toHaveBeenCalledWith(
+        'Configuration validated successfully',
+        expect.objectContaining({
+          provider: 'ollama',
+        })
+      );
+    });
+  });
+
+  describe('Container Initialization', () => {
+    it('should initialize successfully with vector store plugin config', async () => {
+      const mockPlugin = {
+        initialize: vi.fn().mockResolvedValue(undefined),
+        addVector: vi.fn(),
+        search: vi.fn(),
+        clear: vi.fn(),
+      };
+
+      const config: ServerConfig = {
+        embeddingProvider: {
+          type: 'transformers',
+          model: 'test-model',
+          cacheEnabled: true,
+        },
+        vectorStore: {
+          type: 'file' as const,
+          path: 'test-vectors',
+          dimensions: 384,
+          enableIntegrityCheck: true,
+        },
+        searchProvider: {
+          name: 'default',
+        },
+        moduleDirectory: 'instructions-modules',
+      };
+
+      const container = new Container(mockDependencies, 'test-modules', config);
+
       // Mock the getVectorStorePlugin to return our mock
       vi.spyOn(container as any, 'getVectorStorePlugin').mockReturnValue(mockPlugin);
 
       await container.initialize();
 
       expect(mockPlugin.initialize).toHaveBeenCalledWith({
-        type: 'sqlite',
-        path: 'test.db',
+        type: 'file',
+        path: 'test-vectors',
         dimensions: 384,
         enableIntegrityCheck: true,
       });
@@ -851,8 +1075,8 @@ describe('Container', () => {
           cacheEnabled: true,
         },
         vectorStore: {
-          type: 'sqlite' as const,
-          path: 'test.db',
+          type: 'file' as const,
+          path: 'test-vectors',
           dimensions: 384,
           enableIntegrityCheck: true,
         },

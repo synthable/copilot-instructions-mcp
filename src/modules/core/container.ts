@@ -188,10 +188,80 @@ export class Container {
   }
 
   /**
+   * Validates the container configuration for common errors.
+   * Throws descriptive errors for invalid configurations.
+   * @private
+   */
+  private validateConfiguration(): void {
+    if (!this.config) {
+      return; // No config is valid - will use defaults
+    }
+
+    // Validate embedding provider type
+    const validProviders: readonly string[] = ['transformers', 'ollama'];
+    const providerType = this.config.embeddingProvider.type;
+
+    if (!validProviders.includes(providerType)) {
+      // Check if it's a known but unimplemented provider
+      if (providerType === 'openai' || providerType === 'cohere') {
+        throw new Error(
+          `Embedding provider "${providerType}" is not yet implemented. ` +
+            `Available providers: ${validProviders.join(', ')}. ` +
+            `Please use "transformers" (local, offline) or "ollama" (requires Ollama server).`
+        );
+      }
+
+      // Unknown provider type
+      throw new Error(
+        `Invalid embedding provider type: "${providerType}". ` +
+          `Valid options: ${validProviders.join(', ')}. ` +
+          `Check your config.json for typos.`
+      );
+    }
+
+    // Validate provider-specific requirements
+    if (providerType === 'ollama') {
+      const baseUrl = this.config.embeddingProvider.baseUrl;
+      if (!baseUrl) {
+        throw new Error(
+          'Ollama provider requires "baseUrl" in configuration. ' +
+            'Example: "baseUrl": "http://localhost:11434"'
+        );
+      }
+    }
+
+    // Validate vector store type
+    const validStoreTypes: readonly string[] = ['file', 'sqlite'];
+    const storeType = this.config.vectorStore?.type;
+
+    if (storeType && !validStoreTypes.includes(storeType)) {
+      throw new Error(
+        `Invalid vector store type: "${storeType}". ` +
+          `Valid options: ${validStoreTypes.join(', ')}.`
+      );
+    }
+
+    if (storeType === 'sqlite') {
+      throw new Error(
+        'SQLite vector store is not yet implemented. ' +
+          'Please use "file" type in your configuration.'
+      );
+    }
+
+    this.dependencies.logger.debug('Configuration validated successfully', {
+      provider: providerType,
+      vectorStore: storeType || 'file',
+    });
+  }
+
+  /**
    * Internal method to initialize all plugins.
    * Handles vector store plugin initialization with proper error handling.
    */
   private async initializePluginsInternal(): Promise<void> {
+    // Validate configuration before initializing plugins
+    this.validateConfiguration();
+
     if (!this.config) {
       this.dependencies.logger.debug(
         'No config provided, skipping plugin initialization'
@@ -492,11 +562,24 @@ export class Container {
       await this.embeddingService.dispose();
     }
 
+    // Dispose vector store plugin if it exists
+    if (this.vectorStorePlugin) {
+      try {
+        await this.vectorStorePlugin.close();
+      } catch (error) {
+        this.dependencies.logger.error(
+          'Error closing vector store plugin during disposal',
+          error instanceof Error ? error : undefined
+        );
+      }
+    }
+
     // Reset services (required with exactOptionalPropertyTypes)
     // TypeScript optional properties (?) cannot be set to undefined with strict settings,
     // so we use delete to restore them to their initial uninitialized state
     delete this.embeddingService;
     delete this.embeddingProvider;
+    delete this.vectorStorePlugin;
 
     this.dependencies.logger.info('Container disposed');
   }
