@@ -151,7 +151,26 @@ export class TransformersEmbeddingProvider
       }
 
       this._model = config.model;
-      this._dimensions = config.dimensions ?? 768; // Default for all-mpnet-base-v2
+
+      // Set dimensions with model-specific defaults or validation
+      if (config.dimensions !== undefined) {
+        this._dimensions = config.dimensions;
+      } else {
+        // Try to infer dimensions from known model patterns
+        if (config.model.includes('all-MiniLM')) {
+          this._dimensions = 384; // all-MiniLM models
+        } else if (config.model.includes('all-mpnet-base-v2')) {
+          this._dimensions = 768; // all-mpnet-base-v2
+        } else {
+          // Unknown model - default to 768 with warning
+          this._dimensions = 768;
+          this.logger.warn(
+            `Using default dimensions (768) with model '${config.model}'. ` +
+            `Consider explicitly specifying 'dimensions' in config to match your model's output.`
+          );
+        }
+      }
+
       this._batchSize = config.batchSize ?? 32;
       this._maxContentLength = config.maxContentLength ?? 1536;
 

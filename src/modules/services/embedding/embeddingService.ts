@@ -144,6 +144,10 @@ export class EmbeddingService implements IEmbeddingService {
       }
 
       // At this point config is guaranteed to be defined (all branches either set it or throw)
+      // Runtime assertion for TypeScript's benefit
+      if (!config) {
+        throw new Error('Unreachable: config should be defined');
+      }
 
       this.logger.debug('Initializing embedding service', {
         provider: this.provider.name,

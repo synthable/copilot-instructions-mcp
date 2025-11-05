@@ -96,8 +96,8 @@ export class MemoryProfileBenchmark {
 
       // Force GC if available (run with --expose-gc)
       // Type guard to safely check for gc function on global
-      // Note: gc() actually accepts optional parameters for specific GC types,
-      // but simplified signature is sufficient for basic GC triggering used here
+      // Note: gc() is used here with its basic signature for triggering garbage collection
+      // The type guard matches the usage in this benchmark
       const hasGC = (obj: typeof global): obj is typeof global & { gc: () => void } => {
         return 'gc' in obj && typeof (obj as { gc?: unknown }).gc === 'function';
       };

@@ -109,31 +109,15 @@ class ProcessUtils implements IProcessUtils {
 function extractEmbeddingProviderConfig(
   serverConfig: ServerConfig
 ): EmbeddingProviderConfig {
-  const { cacheEnabled, maxCacheSize, ...providerConfig } =
-    serverConfig.embeddingProvider;
+  const { cacheEnabled, maxCacheSize, ...rest } = serverConfig.embeddingProvider;
 
-  // Build config object explicitly to handle exactOptionalPropertyTypes
-  const config: EmbeddingProviderConfig = {
-    type: providerConfig.type,
-    model: providerConfig.model,
+  return {
+    ...rest,
     providerOptions: {
       cacheEnabled,
       maxCacheSize,
     },
-  };
-
-  // Only add optional properties if they are defined
-  if (providerConfig.baseUrl !== undefined) {
-    config.baseUrl = providerConfig.baseUrl;
-  }
-  if (providerConfig.apiKey !== undefined) {
-    config.apiKey = providerConfig.apiKey;
-  }
-  if (providerConfig.dimensions !== undefined) {
-    config.dimensions = providerConfig.dimensions;
-  }
-
-  return config;
+  } as EmbeddingProviderConfig;
 }
 
 /**
@@ -146,11 +130,11 @@ export class Container {
   private searchService?: ISearchService;
   private contentService?: IContentService;
   private semanticSearchService?: ISemanticSearchService;
-  private embeddingService?: IEmbeddingService;
-  private embeddingProvider?: IEmbeddingProvider;
+  private embeddingService: IEmbeddingService | undefined;
+  private embeddingProvider: IEmbeddingProvider | undefined;
   private semanticConfig?: ISemanticConfig;
   private vectorStore?: IVectorStore;
-  private vectorStorePlugin?: IVectorStorePlugin;
+  private vectorStorePlugin: IVectorStorePlugin | undefined;
   private resourceService?: IResourceService;
   private moduleDirectory: string;
   private config?: ServerConfig;
@@ -574,12 +558,10 @@ export class Container {
       }
     }
 
-    // Reset services (required with exactOptionalPropertyTypes)
-    // TypeScript optional properties (?) cannot be set to undefined with strict settings,
-    // so we use delete to restore them to their initial uninitialized state
-    delete this.embeddingService;
-    delete this.embeddingProvider;
-    delete this.vectorStorePlugin;
+    // Reset services to undefined to allow re-initialization
+    this.embeddingService = undefined;
+    this.embeddingProvider = undefined;
+    this.vectorStorePlugin = undefined;
 
     this.dependencies.logger.info('Container disposed');
   }

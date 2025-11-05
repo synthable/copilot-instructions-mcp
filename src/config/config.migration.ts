@@ -193,6 +193,7 @@ export function getProviderDefaults(type: string): Partial<EmbeddingProviderConf
  * };
  *
  * const newConfig = migrateConfig(oldConfig);
+ * // Migration adds provider-specific defaults and missing fields:
  * // {
  * //   embeddingProvider: {
  * //     type: 'transformers',
@@ -201,8 +202,8 @@ export function getProviderDefaults(type: string): Partial<EmbeddingProviderConf
  * //     cacheEnabled: true
  * //   },
  * //   searchProvider: { name: 'fuzzy' },
- * //   vectorStore: { type: 'file', enableIntegrityCheck: true },
- * //   moduleDirectory: 'instructions-modules'
+ * //   vectorStore: { type: 'file', enableIntegrityCheck: true }, // Added as default
+ * //   moduleDirectory: 'instructions-modules' // Added as default
  * // }
  * ```
  *
