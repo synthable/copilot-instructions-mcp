@@ -15,14 +15,7 @@
  */
 
 import { performance } from 'node:perf_hooks';
-// Note: IEmbeddingProvider interface is not yet exported from core
-// This benchmark will be enabled once the interface is available
-interface IEmbeddingProvider {
-  initialize(): Promise<void>;
-  embed(text: string): Promise<number[]>;
-  embedBatch(texts: string[]): Promise<number[][]>;
-  dispose?(): Promise<void>;
-}
+import type { IEmbeddingProvider } from '../../modules/plugins/embedding/embeddingProvider.interface.js';
 import {
   calcPercentiles,
   formatMs,

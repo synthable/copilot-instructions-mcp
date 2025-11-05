@@ -1,4 +1,5 @@
 {
+  "_comment": "Copy this file to config.json and customize it for your local environment. config.json is gitignored and will not be committed to the repository.",
   "embeddingProvider": {
     "type": "ollama",
     "model": "qwen3-embedding:0.6b",

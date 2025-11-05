@@ -91,8 +91,8 @@ interface EmbeddingCacheEntry {
  * const provider = new TransformersEmbeddingProvider();
  * await provider.initialize({
  *   type: 'transformers',
- *   model: 'Xenova/all-MiniLM-L6-v2',
- *   dimensions: 384,
+ *   model: 'Xenova/all-mpnet-base-v2',
+ *   dimensions: 768,
  *   batchSize: 32
  * });
  *
@@ -151,7 +151,7 @@ export class TransformersEmbeddingProvider
       }
 
       this._model = config.model;
-      this._dimensions = config.dimensions ?? 384; // Default for all-MiniLM-L6-v2
+      this._dimensions = config.dimensions ?? 768; // Default for all-mpnet-base-v2
       this._batchSize = config.batchSize ?? 32;
       this._maxContentLength = config.maxContentLength ?? 1536;
 

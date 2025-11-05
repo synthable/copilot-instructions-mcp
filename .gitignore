@@ -165,3 +165,6 @@ instructions-modules/foundation/robustness/error-handling-and-fail-safes.module.
 instructions-modules/principle/testing/testing-pyramid.module.yml
 instructions-modules/technology/testing/jest/mocking.module.yml
 *.bak
+
+# User-specific configuration
+config.json

@@ -100,28 +100,43 @@ class ProcessUtils implements IProcessUtils {
 
 /**
  * Converts ServerConfig.embeddingProvider to EmbeddingProviderConfig.
- * Removes ServerConfig-specific fields (cacheEnabled, maxCacheSize) that are not
- * part of the EmbeddingProviderConfig interface.
+ * Extracts cacheEnabled and maxCacheSize into providerOptions so they are
+ * available to embedding providers that support caching.
  *
  * @param serverConfig - The server configuration object containing embedding provider config
- * @returns A properly typed EmbeddingProviderConfig
+ * @returns A properly typed EmbeddingProviderConfig with cache settings in providerOptions
  */
 function extractEmbeddingProviderConfig(
   serverConfig: ServerConfig
 ): EmbeddingProviderConfig {
   const {
-    cacheEnabled: _cacheEnabled,
-    maxCacheSize: _maxCacheSize,
+    cacheEnabled,
+    maxCacheSize,
     ...providerConfig
   } = serverConfig.embeddingProvider;
-  // Ensure all required fields are present in the returned config
-  return {
+
+  // Build config object explicitly to handle exactOptionalPropertyTypes
+  const config: EmbeddingProviderConfig = {
     type: providerConfig.type,
     model: providerConfig.model,
-    ...(providerConfig.baseUrl && { baseUrl: providerConfig.baseUrl }),
-    ...(providerConfig.apiKey && { apiKey: providerConfig.apiKey }),
-    ...(providerConfig.dimensions && { dimensions: providerConfig.dimensions }),
+    providerOptions: {
+      cacheEnabled,
+      maxCacheSize,
+    },
   };
+
+  // Only add optional properties if they are defined
+  if (providerConfig.baseUrl !== undefined) {
+    config.baseUrl = providerConfig.baseUrl;
+  }
+  if (providerConfig.apiKey !== undefined) {
+    config.apiKey = providerConfig.apiKey;
+  }
+  if (providerConfig.dimensions !== undefined) {
+    config.dimensions = providerConfig.dimensions;
+  }
+
+  return config;
 }
 
 /**
