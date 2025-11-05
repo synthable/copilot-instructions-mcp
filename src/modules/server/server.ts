@@ -370,6 +370,9 @@ export function createServer(container: Container): Server {
  * Creates and initializes an MCP server with vector store initialization.
  */
 export async function createInitializedServer(container: Container): Promise<Server> {
+  // Initialize container plugins first
+  await container.initialize();
+
   // Initialize server components including vector store
   await initializeServer(
     container.getDependencies().logger,

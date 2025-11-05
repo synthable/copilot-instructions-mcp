@@ -142,6 +142,7 @@ export class Container {
   private resourceService?: IResourceService;
   private moduleDirectory: string;
   private config?: ServerConfig;
+  private initPromise?: Promise<void>;
 
   constructor(
     dependencies?: Partial<IDependencies>,
@@ -157,6 +158,50 @@ export class Container {
     this.moduleDirectory = moduleDirectory;
     if (config) {
       this.config = config;
+    }
+  }
+
+  /**
+   * Initialize plugins and resources.
+   * Call this once after container creation, before accessing services that depend on plugins.
+   *
+   * @returns Promise that resolves when all plugins are initialized
+   * @throws Error if plugin initialization fails
+   */
+  async initialize(): Promise<void> {
+    if (!this.initPromise) {
+      this.initPromise = this.initializePluginsInternal();
+    }
+    return this.initPromise;
+  }
+
+  /**
+   * Internal method to initialize all plugins.
+   * Handles vector store plugin initialization with proper error handling.
+   */
+  private async initializePluginsInternal(): Promise<void> {
+    if (!this.config) {
+      this.dependencies.logger.debug('No config provided, skipping plugin initialization');
+      return;
+    }
+
+    const plugin = this.getVectorStorePlugin();
+    if (plugin) {
+      const storeConfig: VectorStoreConfig = {
+        type: this.config.vectorStore.type,
+        path: this.config.vectorStore.path,
+        dimensions: this.config.vectorStore.dimensions,
+        enableIntegrityCheck: this.config.vectorStore.enableIntegrityCheck,
+      };
+
+      try {
+        await plugin.initialize(storeConfig);
+        this.dependencies.logger.info('Vector store plugin initialized successfully');
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.dependencies.logger.error('Vector store plugin initialization failed', error instanceof Error ? error : undefined);
+        throw new Error(`Failed to initialize vector store plugin: ${errorMessage}`);
+      }
     }
   }
 
@@ -326,40 +371,17 @@ export class Container {
 
   /**
    * Gets or creates the vector store.
-   * If a config is provided and supports plugins, uses the plugin-based approach.
-   * Otherwise, creates a default file-based vector store for backward compatibility.
+   *
+   * Note: If using plugins, call container.initialize() before calling this method
+   * to ensure plugins are properly initialized.
+   *
+   * @returns The vector store instance
    */
   getVectorStore(): IVectorStore {
     if (!this.vectorStore) {
-      // Try to use plugin-based approach if config is available
-      const plugin = this.getVectorStorePlugin();
-
-      if (plugin && this.config) {
-        // Initialize the plugin with config
-        const storeConfig: VectorStoreConfig = {
-          type: this.config.vectorStore.type,
-          path: this.config.vectorStore.path,
-          dimensions: this.config.vectorStore.dimensions,
-          enableIntegrityCheck: this.config.vectorStore.enableIntegrityCheck,
-        };
-        plugin.initialize(storeConfig).catch((error: unknown) => {
-          this.dependencies.logger.error(
-            'Failed to initialize vector store plugin',
-            error instanceof Error ? error : undefined
-          );
-        });
-
-        // Wrap plugin in legacy VectorStore interface adapter
-        // For now, we use the old VectorStore class as a fallback
-        // TODO: Create an adapter that wraps IVectorStorePlugin to IVectorStore
-        this.vectorStore = new VectorStore(this.dependencies, this.dependencies.logger);
-      } else {
-        // No config, use default file-based vector store for backward compatibility
-        this.dependencies.logger.debug(
-          'No config provided, creating default VectorStore'
-        );
-        this.vectorStore = new VectorStore(this.dependencies, this.dependencies.logger);
-      }
+      // Plugin initialization is handled by container.initialize()
+      // Here we just create the vector store instance
+      this.vectorStore = new VectorStore(this.dependencies, this.dependencies.logger);
     }
 
     return this.vectorStore;

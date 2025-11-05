@@ -780,4 +780,157 @@ describe('Container', () => {
       expect(parser).toBeDefined();
     });
   });
+
+  describe('Container Initialization', () => {
+    it('should initialize successfully with vector store plugin config', async () => {
+      const mockPlugin = {
+        initialize: vi.fn().mockResolvedValue(undefined),
+        addVector: vi.fn(),
+        search: vi.fn(),
+        clear: vi.fn(),
+      };
+
+      const config: ServerConfig = {
+        embeddingProvider: {
+          type: 'transformers',
+          model: 'test-model',
+          cacheEnabled: true,
+        },
+        vectorStore: {
+          type: 'sqlite' as const,
+          path: 'test.db',
+          dimensions: 384,
+          enableIntegrityCheck: true,
+        },
+        searchProvider: {
+          name: 'default',
+        },
+        moduleDirectory: 'instructions-modules',
+      };
+
+      const container = new Container(mockDependencies, 'test-modules', config);
+
+      // Mock the getVectorStorePlugin to return our mock
+      vi.spyOn(container as any, 'getVectorStorePlugin').mockReturnValue(mockPlugin);
+
+      await container.initialize();
+
+      expect(mockPlugin.initialize).toHaveBeenCalledWith({
+        type: 'sqlite',
+        path: 'test.db',
+        dimensions: 384,
+        enableIntegrityCheck: true,
+      });
+      expect(mockDependencies.logger.info).toHaveBeenCalledWith(
+        'Vector store plugin initialized successfully'
+      );
+    });
+
+    it('should skip plugin initialization when no config provided', async () => {
+      const container = new Container(mockDependencies, 'test-modules');
+
+      await container.initialize();
+
+      expect(mockDependencies.logger.debug).toHaveBeenCalledWith(
+        'No config provided, skipping plugin initialization'
+      );
+    });
+
+    it('should throw error when plugin initialization fails', async () => {
+      const mockPlugin = {
+        initialize: vi.fn().mockRejectedValue(new Error('Plugin init failed')),
+        addVector: vi.fn(),
+        search: vi.fn(),
+        clear: vi.fn(),
+      };
+
+      const config: ServerConfig = {
+        embeddingProvider: {
+          type: 'transformers',
+          model: 'test-model',
+          cacheEnabled: true,
+        },
+        vectorStore: {
+          type: 'sqlite' as const,
+          path: 'test.db',
+          dimensions: 384,
+          enableIntegrityCheck: true,
+        },
+        searchProvider: {
+          name: 'default',
+        },
+        moduleDirectory: 'instructions-modules',
+      };
+
+      const container = new Container(mockDependencies, 'test-modules', config);
+      vi.spyOn(container as any, 'getVectorStorePlugin').mockReturnValue(mockPlugin);
+
+      await expect(container.initialize()).rejects.toThrow(
+        'Failed to initialize vector store plugin: Plugin init failed'
+      );
+      expect(mockDependencies.logger.error).toHaveBeenCalledWith(
+        'Vector store plugin initialization failed',
+        expect.any(Error)
+      );
+    });
+
+    it('should be idempotent (safe to call multiple times)', async () => {
+      const mockPlugin = {
+        initialize: vi.fn().mockResolvedValue(undefined),
+        addVector: vi.fn(),
+        search: vi.fn(),
+        clear: vi.fn(),
+      };
+
+      const config: ServerConfig = {
+        embeddingProvider: {
+          type: 'transformers',
+          model: 'test-model',
+          cacheEnabled: true,
+        },
+        vectorStore: {
+          type: 'file' as const,
+          enableIntegrityCheck: true,
+        },
+        searchProvider: {
+          name: 'default',
+        },
+        moduleDirectory: 'instructions-modules',
+      };
+
+      const container = new Container(mockDependencies, 'test-modules', config);
+      vi.spyOn(container as any, 'getVectorStorePlugin').mockReturnValue(mockPlugin);
+
+      await container.initialize();
+      await container.initialize();
+      await container.initialize();
+
+      // Plugin initialize should only be called once
+      expect(mockPlugin.initialize).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle config without vector store plugin', async () => {
+      const config: ServerConfig = {
+        embeddingProvider: {
+          type: 'transformers',
+          model: 'test-model',
+          cacheEnabled: true,
+        },
+        vectorStore: {
+          type: 'file' as const,
+          enableIntegrityCheck: true,
+        },
+        searchProvider: {
+          name: 'default',
+        },
+        moduleDirectory: 'instructions-modules',
+      };
+
+      const container = new Container(mockDependencies, 'test-modules', config);
+      vi.spyOn(container as any, 'getVectorStorePlugin').mockReturnValue(null);
+
+      // Should complete without error
+      await expect(container.initialize()).resolves.not.toThrow();
+    });
+  });
 });
