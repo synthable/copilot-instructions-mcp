@@ -21,6 +21,10 @@ import type {
 import type { SemanticSearchOptions } from '../services/embedding/semanticSearch.js';
 import type { RelevanceThresholds } from '../services/embedding/semanticConfig.js';
 import type { ResourceContent } from '../services/resources/resourceTypes.js';
+import type {
+  EmbeddingProgressCallback as EmbeddingProgressCallbackPlugin,
+  EmbeddingProviderConfig,
+} from '../plugins/embedding/embeddingProvider.interface.js';
 
 /**
  * Interface for file system operations.
@@ -180,12 +184,11 @@ export interface IContentService {
 /**
  * Progress callback for embedding operations.
  * Called during model initialization and batch processing.
+ *
+ * @remarks
+ * Re-exported from the plugin interface for backward compatibility.
  */
-export type EmbeddingProgressCallback = (
-  stage: 'initialization' | 'download' | 'loading' | 'processing',
-  progress: number, // 0-1
-  message?: string
-) => void;
+export type EmbeddingProgressCallback = EmbeddingProgressCallbackPlugin;
 
 /**
  * Cache entry for embeddings with MD5-based invalidation.
@@ -205,7 +208,21 @@ export interface EmbeddingCacheEntry {
  */
 export interface IEmbeddingService {
   /**
-   * Initializes the embedding pipeline with the configured model.
+   * Initializes the embedding pipeline with the given configuration.
+   *
+   * @param config - Provider configuration
+   * @param progressCallback - Optional callback for initialization progress
+   */
+  initialize(
+    config: EmbeddingProviderConfig,
+    progressCallback?: EmbeddingProgressCallback
+  ): Promise<void>;
+
+  /**
+   * Initializes the embedding pipeline with stored configuration.
+   * Only works if initialize(config) was called previously.
+   *
+   * @param progressCallback - Optional callback for initialization progress
    */
   initialize(progressCallback?: EmbeddingProgressCallback): Promise<void>;
 
@@ -240,7 +257,7 @@ export interface IEmbeddingService {
   /**
    * Disposes of the embedding model to free memory.
    */
-  dispose(): void;
+  dispose(): Promise<void>;
 }
 
 /**

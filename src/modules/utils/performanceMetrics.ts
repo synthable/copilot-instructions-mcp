@@ -182,7 +182,8 @@ export class PerformanceCollector {
     const peakMemories = operationMetrics.map(m => m.memoryPeak / 1024 / 1024);
 
     const totalDuration = durations.reduce((sum, d) => sum + d, 0);
-    const percentile = (p: number) => durations[Math.floor((durations.length - 1) * p)];
+    const percentile = (p: number): number =>
+      durations[Math.floor((durations.length - 1) * p)];
 
     return {
       operation,

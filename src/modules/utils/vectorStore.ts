@@ -5,6 +5,10 @@
  * with support for MessagePack (production) and JSON (development) formats.
  * Includes integrity validation, indexing by ID and tier, and fallback mechanisms.
  *
+ * @deprecated This class is deprecated in favor of the plugin-based vector store system.
+ * Use FileVectorStore from src/modules/plugins/vectorStore/fileVectorStore.ts instead.
+ * This class will be removed in v2.0.0.
+ *
  * @author MCP Server Team
  * @version 1.0.0
  * @since 1.0.0
@@ -20,6 +24,9 @@ import type { VectorIndex, VectorIndexMetadata, ModuleVector } from '../core/typ
 
 /**
  * Vector store implementation that handles loading and managing pre-computed vectors.
+ *
+ * @deprecated Use FileVectorStore from src/modules/plugins/vectorStore/fileVectorStore.ts instead.
+ * This class will be removed in v2.0.0.
  */
 export class VectorStore implements IVectorStore {
   private vectorIndex: VectorIndex | null = null;
@@ -36,6 +43,12 @@ export class VectorStore implements IVectorStore {
     this.vectorsDir = this.dependencies.pathUtils.resolve(
       this.dependencies.processUtils.cwd(),
       vectorsDir
+    );
+
+    // Log deprecation warning
+    this.logger.warn(
+      'VectorStore class is deprecated. Use FileVectorStore from the plugin system instead. ' +
+        'This class will be removed in v2.0.0.'
     );
   }
 

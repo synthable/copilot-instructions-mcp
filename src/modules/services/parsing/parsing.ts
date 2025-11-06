@@ -424,7 +424,7 @@ export class InstructionModuleParser implements IInstructionModuleParser {
       );
       // First pass: collect all YAML file paths
       const yamlFiles: { rel: string; abs: string }[] = [];
-      const walkForPaths = (dir: string) => {
+      const walkForPaths = (dir: string): void => {
         const entries = this.dependencies.fileSystem.readdirSync(dir);
         for (const name of entries) {
           const abs = this.dependencies.pathUtils.join(dir, name);

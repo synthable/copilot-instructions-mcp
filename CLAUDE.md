@@ -1,3 +1,6 @@
+@.claude/AGENTS.md
+@.claude/COMMANDS.md
+
 # Vitest Implementation and Testing Strategy
 
 ## Overview
@@ -234,6 +237,49 @@ it('should catch and format errors properly', async () => {
 ### File System Abstraction Testing
 Mock file system operations consistently across all tests to ensure reliable, fast test execution without actual file I/O.
 
+## Plugin Architecture Patterns
+
+### Embedding Provider Architecture
+
+The system uses a plugin architecture for embedding providers enabling runtime provider selection:
+
+**Interface-Based Design**:
+- `IEmbeddingProvider` interface for all providers (embed, embedBatch, initialize, dispose)
+- Factory pattern in DI container for provider instantiation
+- Runtime provider selection via `config.json`
+- Backward compatible with pre-computed embeddings (defaults to Transformers.js)
+
+**Available Providers**:
+- **TransformersEmbeddingProvider** - Wraps `@xenova/transformers` for local offline embeddings
+- **OllamaEmbeddingProvider** - HTTP client for Ollama API with health checking
+- **OpenAI/Cohere** - Planned for future cloud-based providers
+
+**Configuration-Driven Behavior**:
+```json
+{
+  "embeddingProvider": {
+    "type": "ollama",
+    "model": "nomic-embed-text",
+    "baseUrl": "http://localhost:11434"
+  }
+}
+```
+
+**Key Design Principles**:
+- Single interface for all providers ensures consistent behavior
+- Factory pattern encapsulates provider creation logic
+- Configuration validation at startup prevents runtime errors
+- Sensible defaults (Transformers.js) ensure zero-config operation
+- Optional interfaces (IEmbeddingProviderCache, IEmbeddingProviderInfo) for extended capabilities
+
+**Provider Testing Strategy**:
+- Mock external dependencies (`@xenova/transformers`, fetch API)
+- Test provider factory in container for correct instantiation
+- Test provider selection via config (type switching)
+- Coverage target: 70-75% for essential paths (init, embed, error handling)
+- Mock HTTP responses for Ollama provider testing
+- Test automatic config migration from legacy format
+
 ## Key Learnings
 
 1. **Mock Typing**: Always properly type mocks to catch TypeScript errors early
@@ -242,6 +288,7 @@ Mock file system operations consistently across all tests to ensure reliable, fa
 4. **Console Mocking**: Mock console methods to verify CLI output formatting
 5. **Async Patterns**: Use proper async/await patterns in tests for reliable execution
 6. **Coverage Focus**: Prioritize testing business logic over infrastructure code
+7. **Plugin Architecture**: Use interface-based design for swappable implementations with configuration-driven behavior
 
 ## Transfer Checklist
 

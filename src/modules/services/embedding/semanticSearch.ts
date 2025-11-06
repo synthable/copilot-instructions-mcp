@@ -545,7 +545,7 @@ export class SemanticSearchService {
         const lex = lexicalResults.map(r => r.score);
         const min = Math.min(...lex);
         const max = Math.max(...lex);
-        const norm = (x: number) => (max === min ? 0 : (x - min) / (max - min));
+        const norm = (x: number): number => (max === min ? 0 : (x - min) / (max - min));
 
         const merged = lexicalResults
           .map(r => {

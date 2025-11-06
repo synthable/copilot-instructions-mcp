@@ -19,7 +19,7 @@ import {
   validateSearchLimit,
   validateModuleIds,
 } from '../services/validation/validation.js';
-import type { ToolArgs } from '../core/types.js';
+import type { ToolArgs, InstructionModule, SearchResult } from '../core/types.js';
 import type { SemanticSearchOptions } from '../services/embedding/semanticSearch.js';
 import type {
   IInstructionModuleParser,
@@ -44,7 +44,7 @@ export function createToolErrorResponse(
   error: Error,
   fallbackData: Record<string, unknown>,
   logger?: ILogger
-) {
+): Record<string, unknown> {
   const errorMessage = error.message;
   logger?.error(`Failed to handle ${toolName}`, error);
   return {
@@ -85,7 +85,11 @@ export class ToolHandlers {
   /**
    * Handles the list_instruction_modules tool request
    */
-  async handleListInstructionModules(args: ToolArgs | undefined) {
+  async handleListInstructionModules(args: ToolArgs | undefined): Promise<{
+    totalModules: number;
+    filteredModules: number;
+    modules: InstructionModule[];
+  }> {
     const categoryFilter = validateCategoryFilter(args?.category);
     const modules = await this.parser.parseInstructionModules();
 
@@ -106,7 +110,13 @@ export class ToolHandlers {
   /**
    * Handles the get_modules_content tool request
    */
-  async handleGetModulesContent(args: ToolArgs | undefined) {
+  async handleGetModulesContent(args: ToolArgs | undefined): Promise<{
+    success: boolean;
+    content?: string;
+    errors?: string[];
+    requestedModules: number;
+    processedModules: number;
+  }> {
     if (!args) {
       throw new Error(
         "Missing arguments for get_modules_content. 'moduleIds' is required."
@@ -133,7 +143,15 @@ export class ToolHandlers {
    * Handles the unified search tool request.
    * Supports three modes: fuzzy (lexical), semantic (embedding), hybrid (combined).
    */
-  async handleSearch(args: ToolArgs | undefined) {
+  async handleSearch(args: ToolArgs | undefined): Promise<{
+    query: string;
+    mode: 'fuzzy' | 'semantic' | 'hybrid';
+    totalResults: number;
+    returnedResults: number;
+    results: SearchResult[];
+    alpha?: number;
+    filters?: { tiers: string[] } | undefined;
+  }> {
     if (!args) {
       throw new Error("Missing arguments for search. 'query' is required.");
     }
@@ -189,7 +207,16 @@ export class ToolHandlers {
   /**
    * Performs fuzzy (lexical) search
    */
-  private async performFuzzySearch(query: string, limit: number) {
+  private async performFuzzySearch(
+    query: string,
+    limit: number
+  ): Promise<{
+    query: string;
+    mode: 'fuzzy';
+    totalResults: number;
+    returnedResults: number;
+    results: SearchResult[];
+  }> {
     const searchTerms = splitSearchQuery(query);
     this.logger.debug(`Fuzzy search for terms: ${searchTerms.join(', ')}`);
 
@@ -209,7 +236,18 @@ export class ToolHandlers {
   /**
    * Performs semantic (embedding-based) search
    */
-  private async performSemanticSearch(query: string, limit: number, args: ToolArgs) {
+  private async performSemanticSearch(
+    query: string,
+    limit: number,
+    args: ToolArgs
+  ): Promise<{
+    query: string;
+    mode: 'semantic';
+    totalResults: number;
+    returnedResults: number;
+    results: SearchResult[];
+    filters?: { tiers: string[] } | undefined;
+  }> {
     const options = this.parseSemanticOptions(args);
 
     const results = await this.semanticSearchService.semanticSearch(
@@ -231,7 +269,19 @@ export class ToolHandlers {
   /**
    * Performs hybrid search (re-ranked fuzzy + semantic)
    */
-  private async performHybridSearch(query: string, limit: number, args: ToolArgs) {
+  private async performHybridSearch(
+    query: string,
+    limit: number,
+    args: ToolArgs
+  ): Promise<{
+    query: string;
+    mode: 'hybrid';
+    alpha: number;
+    totalResults: number;
+    returnedResults: number;
+    results: SearchResult[];
+    filters?: { tiers: string[] } | undefined;
+  }> {
     const alpha =
       typeof args.alpha === 'number' && args.alpha >= 0 && args.alpha <= 1
         ? args.alpha
@@ -299,7 +349,7 @@ export class ToolHandlers {
     toolName: string,
     error: Error,
     fallbackData: Record<string, unknown>
-  ) {
+  ): Record<string, unknown> {
     const errorMessage = error.message;
     this.logger.error(`Failed to handle ${toolName}`, error);
     return {

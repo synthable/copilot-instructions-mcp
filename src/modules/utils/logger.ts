@@ -154,7 +154,12 @@ class Logger {
    *
    * @since 1.0.0
    */
-  createModuleLogger(moduleName: string) {
+  createModuleLogger(moduleName: string): {
+    debug: (message: string, data?: unknown) => void;
+    info: (message: string, data?: unknown) => void;
+    warn: (message: string, data?: unknown) => void;
+    error: (message: string, error?: Error, data?: unknown) => void;
+  } {
     return {
       debug: (message: string, data?: unknown) => {
         this.log(LogLevel.DEBUG, moduleName, message, data);
@@ -328,7 +333,12 @@ export function setDebugLogging(enabled: boolean): void {
  *
  * @since 1.0.0
  */
-export function createLogger(moduleName: string) {
+export function createLogger(moduleName: string): {
+  debug: (message: string, data?: unknown) => void;
+  info: (message: string, data?: unknown) => void;
+  warn: (message: string, data?: unknown) => void;
+  error: (message: string, error?: Error, data?: unknown) => void;
+} {
   return globalLogger.createModuleLogger(moduleName);
 }
 

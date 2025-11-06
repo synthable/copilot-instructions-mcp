@@ -153,12 +153,64 @@ Step-by-step playbooks for common development tasks:
 }
 ```
 
+## Embedding Providers
+
+The server supports multiple embedding providers for semantic search through a pluggable architecture:
+
+- **Transformers.js** (default) - Local, offline embeddings with HuggingFace models
+- **Ollama** - High-performance local server with custom model support
+- **OpenAI** (planned) - Cloud-based embeddings with best quality
+- **Cohere** (planned) - Multilingual cloud embeddings
+
+### Configuration
+
+Configure the provider in `config.json`:
+
+```json
+{
+  "embeddingProvider": {
+    "type": "ollama",
+    "model": "nomic-embed-text",
+    "baseUrl": "http://localhost:11434",
+    "dimensions": 768
+  }
+}
+```
+
+**Quick Start Examples**:
+
+**Development** (offline, no setup):
+```json
+{
+  "embeddingProvider": {
+    "type": "transformers",
+    "model": "all-MiniLM-L6-v2"
+  }
+}
+```
+
+**Production** (high performance):
+```bash
+ollama pull nomic-embed-text
+```
+```json
+{
+  "embeddingProvider": {
+    "type": "ollama",
+    "model": "nomic-embed-text"
+  }
+}
+```
+
+See [docs/embedding-providers.md](/docs/embedding-providers.md) for complete configuration guide, provider comparison, and troubleshooting.
+
 ## Vector Search System
 
 The server includes an advanced semantic search system that combines keyword and embedding-based search for superior result quality.
 
 ### Features
-- **Local embeddings**: Uses `@xenova/transformers` with all-mpnet-base-v2 model
+- **Pluggable providers**: Switch between Transformers.js, Ollama, OpenAI, and Cohere
+- **Local embeddings**: Default Transformers.js with all-mpnet-base-v2 model
 - **Pre-computed vectors**: Build-time generation for fast startup
 - **Hybrid search**: Combines keyword and semantic similarity
 - **Intelligent caching**: Automatic model disposal and embedding cache
@@ -181,6 +233,7 @@ npm start
 - **Hybrid mode**: Combined re-ranking with configurable alpha weighting
 
 ### Documentation
+- [Embedding Providers](docs/embedding-providers.md) - Provider configuration and comparison
 - [Architecture Overview](docs/ARCHITECTURE.md) - Comprehensive system design
 - [Migration Guide](docs/MIGRATION.md) - Upgrade from keyword-only search
 - [Troubleshooting Guide](docs/TROUBLESHOOTING.md) - Performance optimization and debugging

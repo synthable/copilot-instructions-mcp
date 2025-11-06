@@ -28,7 +28,9 @@ import { initializeServer } from './serverInitializer.js';
 /**
  * Helper function to create JSON response format
  */
-function createJsonResponse(data: unknown) {
+function createJsonResponse(data: unknown): {
+  content: { type: string; text: string }[];
+} {
   return {
     content: [
       {
@@ -368,6 +370,9 @@ export function createServer(container: Container): Server {
  * Creates and initializes an MCP server with vector store initialization.
  */
 export async function createInitializedServer(container: Container): Promise<Server> {
+  // Initialize container plugins first
+  await container.initialize();
+
   // Initialize server components including vector store
   await initializeServer(
     container.getDependencies().logger,

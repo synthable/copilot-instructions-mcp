@@ -145,3 +145,26 @@ instructions-modules/.DS_Store
 .claude/TESTING.md
 docs/planning/
 tmp/
+instructions-modules/README.md
+instructions-modules/foundation/accessibility-and-inclusivity.module.yml
+instructions-modules/foundation/auditability-and-logging.module.yml
+instructions-modules/foundation/explainability-and-interpretability.module.yml
+instructions-modules/foundation/privacy-preserving.module.yml
+instructions-modules/foundation/robustness-and-reliability.module.yml
+instructions-modules/foundation/communication/concise-and-clear-communication.module.yml
+instructions-modules/foundation/decision-making/probabilistic-reasoning.module.yml
+instructions-modules/foundation/ethics/bias-awareness.module.yml
+instructions-modules/foundation/ethics/harm-prevention.module.yml
+instructions-modules/foundation/ethics/intellectual-honesty.module.yml
+instructions-modules/foundation/ethics/respecting-user-autonomy.module.yml
+instructions-modules/foundation/ethics/responsible-recommendations.module.yml
+instructions-modules/foundation/ethics/transparency-and-disclosure.module.yml
+instructions-modules/foundation/reasoning/first-principles-thinking.module.yml
+instructions-modules/foundation/reasoning/systems-thinking.module.yml
+instructions-modules/foundation/robustness/error-handling-and-fail-safes.module.yml
+instructions-modules/principle/testing/testing-pyramid.module.yml
+instructions-modules/technology/testing/jest/mocking.module.yml
+*.bak
+
+# User-specific configuration
+config.json
