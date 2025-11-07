@@ -200,7 +200,27 @@ export class FileVectorStore implements IVectorStorePlugin {
 
     for (const moduleVector of candidateVectors) {
       try {
+        // Check for NaN values in vector BEFORE calculating similarity
+        if (this.hasNaNValues(moduleVector.vector)) {
+          this.logger.warn(
+            'Skipping vector with NaN values during search',
+            undefined,
+            { moduleId: moduleVector.id }
+          );
+          continue;
+        }
+
         const similarity = cosineSimilarity(query.vector, moduleVector.vector);
+
+        // Check if similarity is NaN (additional safety)
+        if (isNaN(similarity)) {
+          this.logger.warn(
+            'Similarity calculation returned NaN',
+            undefined,
+            { moduleId: moduleVector.id }
+          );
+          continue;
+        }
 
         // Apply threshold filter
         if (query.threshold !== undefined && similarity < query.threshold) {
@@ -608,5 +628,12 @@ export class FileVectorStore implements IVectorStorePlugin {
       typeof obj.timestamp === 'number' &&
       typeof obj.tier === 'string'
     );
+  }
+
+  /**
+   * Checks if a vector contains NaN values.
+   */
+  private hasNaNValues(vector: number[]): boolean {
+    return vector.some(value => isNaN(value));
   }
 }
