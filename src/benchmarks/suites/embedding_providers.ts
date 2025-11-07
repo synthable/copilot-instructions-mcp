@@ -98,10 +98,16 @@ export class EmbeddingProviderBenchmark {
 
         try {
           // Measure initialization
+          // TODO: Pass proper provider config from benchmark setup
+          const providerConfig = {
+            type: 'transformers' as const,
+            model: 'test-model',
+            dimensions: 384,
+          };
           const { result: initTime, peakRssMB: initPeakRss } = await monitorPeakMemory(
             async () => {
               const start = performance.now();
-              await provider.initialize();
+              await provider.initialize(providerConfig);
               const end = performance.now();
               return end - start;
             }
