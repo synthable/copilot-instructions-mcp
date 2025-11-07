@@ -88,6 +88,8 @@ export default tseslint.config(
 
       // Allow long test functions
       'max-lines-per-function': 'off',
+      'max-lines': 'off',
+      'complexity': 'off',
 
       // Keep type safety for string operations
       '@typescript-eslint/restrict-plus-operands': 'error',
