@@ -359,33 +359,27 @@ export class OllamaEmbeddingProvider implements IEmbeddingProvider {
       );
     }
 
+    // Check for embedded credentials (catches both user:pass@host and user@host patterns)
+    if (parsed.username || parsed.password) {
+      throw new EmbeddingConfigError(
+        this.name,
+        'URLs with embedded credentials are not allowed for security reasons'
+      );
+    }
+
     const hostname = parsed.hostname.toLowerCase();
 
     // Allow localhost explicitly (common for Ollama)
-    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+    // Note: URL parser keeps brackets for IPv6, so check both with and without
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]') {
       return; // Localhost is safe
     }
 
-    // Block private IP ranges (RFC 1918)
-    const privateIPPatterns = [
-      /^10\./,                          // 10.0.0.0/8
-      /^172\.(1[6-9]|2\d|3[01])\./,    // 172.16.0.0/12
-      /^192\.168\./,                    // 192.168.0.0/16
-      /^169\.254\./,                    // Link-local (AWS metadata)
-      /^fd[0-9a-f]{2}:/i,              // IPv6 private
-      /^fe80:/i,                        // IPv6 link-local
-    ];
+    // Validate IPv4 addresses
+    this.validateIPv4(hostname);
 
-    for (const pattern of privateIPPatterns) {
-      if (pattern.test(hostname)) {
-        throw new EmbeddingConfigError(
-          this.name,
-          `Access to private IP ranges is not allowed for security reasons. ` +
-          `Hostname: ${hostname}. ` +
-          `For local Ollama, use "localhost" or "127.0.0.1" instead.`
-        );
-      }
-    }
+    // Validate IPv6 addresses
+    this.validateIPv6(hostname);
 
     // Block common cloud metadata endpoints
     const blockedHostnames = [
@@ -399,6 +393,130 @@ export class OllamaEmbeddingProvider implements IEmbeddingProvider {
         this.name,
         `Access to cloud metadata endpoints is not allowed: ${hostname}`
       );
+    }
+  }
+
+  /**
+   * Validates IPv4 addresses to block private ranges.
+   * @param hostname - The hostname to validate
+   * @throws {EmbeddingConfigError} If hostname is a private IPv4 address
+   * @private
+   */
+  private validateIPv4(hostname: string): void {
+    // Block private IP ranges (RFC 1918)
+    const privateIPPatterns = [
+      /^10\./,                          // 10.0.0.0/8
+      /^172\.(1[6-9]|2\d|3[01])\./,    // 172.16.0.0/12
+      /^192\.168\./,                    // 192.168.0.0/16
+      /^169\.254\./,                    // Link-local (AWS metadata)
+    ];
+
+    for (const pattern of privateIPPatterns) {
+      if (pattern.test(hostname)) {
+        throw new EmbeddingConfigError(
+          this.name,
+          `Access to private IP ranges is not allowed for security reasons. ` +
+          `Hostname: ${hostname}. ` +
+          `For local Ollama, use "localhost" or "127.0.0.1" instead.`
+        );
+      }
+    }
+  }
+
+  /**
+   * Validates IPv6 addresses to block private and link-local ranges.
+   * @param hostname - The hostname to validate
+   * @throws {EmbeddingConfigError} If hostname is a private or link-local IPv6 address
+   * @private
+   */
+  private validateIPv6(hostname: string): void {
+    // URL parser keeps brackets around IPv6 addresses, so we need to strip them
+    let ipv6 = hostname.toLowerCase();
+    if (ipv6.startsWith('[') && ipv6.endsWith(']')) {
+      ipv6 = ipv6.slice(1, -1);
+    }
+
+    // Skip if not IPv6 (no colons indicates it's a regular hostname or IPv4)
+    if (!ipv6.includes(':')) {
+      return;
+    }
+
+    // If there are colons, it's likely IPv6 (URL parser extracts port separately)
+    // Count colons - IPv6 addresses have multiple colons
+    const colonCount = (ipv6.match(/:/g) || []).length;
+
+    // Skip if it looks like IPv4 with port notation (only one colon before first dot)
+    // This shouldn't happen as URL parser extracts port, but be defensive
+    if (colonCount === 1 && ipv6.includes('.')) {
+      return;
+    }
+
+    // Block localhost variations (::1 and expanded form)
+    // These are already allowed in main validation, so we return early
+    if (ipv6 === '::1' || ipv6 === '0:0:0:0:0:0:0:1') {
+      return;
+    }
+
+    // Block link-local (fe80::/10)
+    if (ipv6.startsWith('fe80:')) {
+      throw new EmbeddingConfigError(
+        this.name,
+        `Cannot use link-local IPv6 addresses. Hostname: ${hostname}. ` +
+        `For local Ollama, use "localhost" instead.`
+      );
+    }
+
+    // Block unique local (fc00::/7 - includes both fc00::/8 and fd00::/8)
+    if (ipv6.startsWith('fc') || ipv6.startsWith('fd')) {
+      throw new EmbeddingConfigError(
+        this.name,
+        `Cannot use private IPv6 addresses. Hostname: ${hostname}. ` +
+        `For local Ollama, use "localhost" instead.`
+      );
+    }
+
+    // Block IPv6-mapped IPv4 private addresses (::ffff:x.x.x.x)
+    // Note: URL parser may convert dotted-decimal to hex (e.g., 127.0.0.1 -> 7f00:1)
+    if (ipv6.includes('::ffff:')) {
+      const ipv4Part = ipv6.split('::ffff:')[1];
+      if (ipv4Part) {
+        let first = 0;
+        let second = 0;
+
+        if (ipv4Part.includes('.')) {
+          // Dotted-decimal notation (::ffff:127.0.0.1)
+          const octets = ipv4Part.split('.');
+          if (octets.length === 4) {
+            first = parseInt(octets[0], 10);
+            second = parseInt(octets[1], 10);
+          }
+        } else {
+          // Hex notation (::ffff:7f00:1 for 127.0.0.1)
+          // Parse hex groups: first 2 bytes are first 2 octets
+          const hexParts = ipv4Part.split(':');
+          if (hexParts.length >= 1) {
+            const firstGroup = parseInt(hexParts[0], 16);
+            // First group is 2 octets: high byte and low byte
+            first = (firstGroup >> 8) & 0xff; // High byte (first octet)
+            second = firstGroup & 0xff; // Low byte (second octet)
+          }
+        }
+
+        // Block private ranges
+        if (
+          first === 10 ||
+          first === 127 ||
+          (first === 169 && second === 254) ||
+          (first === 192 && second === 168) ||
+          (first === 172 && second >= 16 && second <= 31)
+        ) {
+          throw new EmbeddingConfigError(
+            this.name,
+            `Cannot use IPv6-mapped private IPv4 addresses. Hostname: ${hostname}. ` +
+            `For local Ollama, use "localhost" instead.`
+          );
+        }
+      }
     }
   }
 

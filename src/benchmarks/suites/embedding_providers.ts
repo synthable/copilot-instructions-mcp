@@ -101,7 +101,12 @@ export class EmbeddingProviderBenchmark {
           const { result: initTime, peakRssMB: initPeakRss } = await monitorPeakMemory(
             async () => {
               const start = performance.now();
-              await provider.initialize();
+              // Provider needs a config - use a default config for benchmarking
+              await provider.initialize({
+                type: 'transformers',
+                model: 'Xenova/all-MiniLM-L6-v2',
+                dimensions: 384,
+              });
               const end = performance.now();
               return end - start;
             }

@@ -279,6 +279,7 @@ export class TransformersEmbeddingProvider
 
   /**
    * Generates embeddings for multiple texts in a batch.
+   * Processes items individually to handle partial failures gracefully.
    */
   async embedBatch(
     texts: string[],
@@ -288,99 +289,107 @@ export class TransformersEmbeddingProvider
       throw new EmbeddingProviderNotInitializedError(this.name);
     }
 
-    const truncatedTexts = this.validateAndTruncateBatch(texts);
-
-    // Check cache for existing embeddings
-    const results: number[][] = [];
-    const uncachedTexts: string[] = [];
-    const uncachedIndices: number[] = [];
-
-    progressCallback?.('processing', 0.1, 'Checking cache for batch');
-
-    if (this._cacheEnabled) {
-      truncatedTexts.forEach((text, index) => {
-        const hash = this.computeTextHash(text);
-        const cached = this.embeddingCache.get(hash);
-
-        if (cached) {
-          results[index] = cached.embedding;
-          this.cacheStats.hits++;
-        } else {
-          uncachedTexts.push(text);
-          uncachedIndices.push(index);
-          this.cacheStats.misses++;
-        }
-      });
-
-      this.logger.debug('Batch cache analysis', {
-        totalTexts: truncatedTexts.length,
-        cachedCount: truncatedTexts.length - uncachedTexts.length,
-        uncachedCount: uncachedTexts.length,
-      });
-    } else {
-      uncachedTexts.push(...truncatedTexts);
-      uncachedIndices.push(...truncatedTexts.map((_, i) => i));
+    if (texts.length === 0) {
+      return [];
     }
 
-    // Process uncached texts
-    if (uncachedTexts.length > 0) {
+    // Enforce batch size limit
+    if (texts.length > this._batchSize) {
+      throw new EmbeddingGenerationError(
+        this.name,
+        `Batch size ${texts.length} exceeds limit of ${this._batchSize}`
+      );
+    }
+
+    progressCallback?.('processing', 0.0, 'Processing batch');
+
+    const results: number[][] = [];
+    const errors: Map<number, Error> = new Map();
+
+    // Process each text individually to handle failures
+    for (let i = 0; i < texts.length; i++) {
       try {
-        progressCallback?.(
-          'processing',
-          0.3,
-          `Computing ${uncachedTexts.length.toString()} new embeddings`
-        );
+        const text = texts[i];
 
-        this.logger.debug('Generating batch embeddings', {
-          batchSize: uncachedTexts.length.toString(),
-          totalChars: uncachedTexts.reduce((sum, text) => sum + text.length, 0),
-        });
+        // Validate and truncate text
+        const truncated = this.validateAndTruncateText(text);
 
-        const result = await this.pipeline(uncachedTexts, {
-          pooling: 'mean',
-          normalize: true,
-        });
+        // Check cache first
+        let embedding: number[] | undefined;
+        if (this._cacheEnabled) {
+          const hash = this.computeTextHash(truncated);
+          const cached = this.embeddingCache.get(hash);
 
-        progressCallback?.('processing', 0.8, 'Extracting embeddings');
-        const embeddings = this.validateAndExtractEmbeddings(
-          result,
-          uncachedTexts.length
-        );
+          if (cached) {
+            this.cacheStats.hits++;
+            embedding = cached.embedding;
+            this.logger.debug('Cache hit for embedding in batch', {
+              hash,
+              textLength: truncated.length,
+              index: i,
+            });
+          } else {
+            this.cacheStats.misses++;
+          }
+        }
 
-        // Cache new embeddings and fill results
-        embeddings.forEach((embedding, embeddingIndex) => {
-          const originalIndex = uncachedIndices[embeddingIndex];
-          const text = uncachedTexts[embeddingIndex];
-          const hash = this.computeTextHash(text);
+        // Generate embedding if not cached
+        if (!embedding) {
+          const result = await this.pipeline([truncated], {
+            pooling: 'mean',
+            normalize: true,
+          });
+
+          const embeddings = this.validateAndExtractEmbeddings(result, 1);
+          embedding = embeddings[0];
 
           // Cache the result
           if (this._cacheEnabled) {
+            const hash = this.computeTextHash(truncated);
             this.embeddingCache.set(hash, {
               hash,
               embedding,
               timestamp: Date.now(),
             });
           }
+        }
 
-          results[originalIndex] = embedding;
-        });
-
-        progressCallback?.('processing', 1.0, 'Batch processing complete');
-
-        this.logger.debug('Successfully generated batch embeddings', {
-          count: embeddings.length.toString(),
-          dimensions: (embeddings[0]?.length || 0).toString(),
-        });
+        results.push(embedding);
+        progressCallback?.('processing', (i + 1) / texts.length, `Processed ${i + 1}/${texts.length}`);
       } catch (error) {
-        throw new EmbeddingGenerationError(
-          this.name,
-          `Failed to generate batch embeddings: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          error instanceof Error ? error : undefined
+        // Log error but continue processing
+        const err = error instanceof Error ? error : new Error(String(error));
+        errors.set(i, err);
+
+        this.logger.error(
+          `Failed to generate embedding for item ${i} in batch`,
+          err,
+          { index: i, text: texts[i].slice(0, 50) }
         );
+
+        // Add empty array as placeholder to maintain order
+        results.push([]);
       }
-    } else {
-      progressCallback?.('processing', 1.0, 'All embeddings retrieved from cache');
     }
+
+    // If ALL items failed, throw error
+    if (errors.size === texts.length) {
+      throw new EmbeddingGenerationError(
+        this.name,
+        `All ${texts.length} items in batch failed to generate embeddings`
+      );
+    }
+
+    // If SOME items failed, log warning
+    if (errors.size > 0) {
+      this.logger.warn(
+        `Partial batch failure: ${errors.size}/${texts.length} items failed`,
+        undefined,
+        { failedIndices: Array.from(errors.keys()) }
+      );
+    }
+
+    progressCallback?.('processing', 1.0, 'Batch complete');
 
     this.resetDisposeTimer();
     return results;
@@ -574,41 +583,6 @@ export class TransformersEmbeddingProvider
     return text;
   }
 
-  /**
-   * Validates batch input.
-   */
-  private validateBatchInput(texts: string[]): void {
-    if (!Array.isArray(texts)) {
-      throw new Error('Batch input must be an array of strings');
-    }
-
-    if (texts.length === 0) {
-      throw new Error('Batch input cannot be empty');
-    }
-
-    if (texts.length > this._batchSize) {
-      throw new Error(
-        `Batch size too large: ${texts.length.toString()} > ${this._batchSize.toString()}`
-      );
-    }
-  }
-
-  /**
-   * Validates and truncates batch input.
-   */
-  private validateAndTruncateBatch(texts: string[]): string[] {
-    this.validateBatchInput(texts);
-
-    return texts.map((text, index) => {
-      try {
-        return this.validateAndTruncateText(text);
-      } catch (error) {
-        throw new Error(
-          `Invalid text at index ${index.toString()}: ${error instanceof Error ? error.message : 'Unknown error'}`
-        );
-      }
-    });
-  }
 
   /**
    * Validates and extracts embeddings from transformer output.
