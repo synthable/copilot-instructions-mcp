@@ -315,7 +315,9 @@ describe('OllamaEmbeddingProvider', () => {
       };
 
       await expect(provider.initialize(config)).rejects.toThrow(EmbeddingConfigError);
-      await expect(provider.initialize(config)).rejects.toThrow(/Invalid baseUrl format/i);
+      await expect(provider.initialize(config)).rejects.toThrow(
+        /Invalid baseUrl format/i
+      );
     });
 
     it('should throw error for invalid provider type', async () => {

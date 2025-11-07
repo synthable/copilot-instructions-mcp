@@ -4,7 +4,7 @@ export const configSchema = z.object({
   embeddingProvider: z
     .object({
       type: z
-        .enum(['transformers', 'ollama', 'openai', 'cohere'])
+        .enum(['transformers', 'ollama', 'lmstudio', 'openai', 'cohere'])
         .default('transformers'),
       model: z.string().min(1).default('all-mpnet-base-v2'),
       baseUrl: z

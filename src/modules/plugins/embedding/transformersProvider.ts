@@ -166,7 +166,7 @@ export class TransformersEmbeddingProvider
           this._dimensions = 768;
           this.logger.warn(
             `Using default dimensions (768) with model '${config.model}'. ` +
-            `Consider explicitly specifying 'dimensions' in config to match your model's output.`
+              `Consider explicitly specifying 'dimensions' in config to match your model's output.`
           );
         }
       }
