@@ -804,6 +804,7 @@ describe('FileVectorStore', () => {
         update: vi.fn().mockReturnThis(),
         digest: vi.fn().mockReturnValue('expected-hash'),
       };
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
       mockCreateHash.mockReturnValue(mockHash as any);
 
       const isValid = await store.validateIntegrity();
@@ -840,6 +841,7 @@ describe('FileVectorStore', () => {
         update: vi.fn().mockReturnThis(),
         digest: vi.fn().mockReturnValue('different-hash'),
       };
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
       mockCreateHash.mockReturnValue(mockHash as any);
 
       const isValid = await store.validateIntegrity();

@@ -437,6 +437,7 @@ describe('OllamaEmbeddingProvider', () => {
 
     it('should handle network timeout gracefully', async () => {
       // Mock embed to never resolve (simulates timeout/hang)
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
       mockEmbed.mockImplementation(() => new Promise(() => {}));
 
       // Note: This test verifies the timeout behavior exists
