@@ -9,6 +9,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { VectorStoreConfig, VectorQuery } from './vectorStore.interface.js';
 import type { VectorIndex, ModuleVector } from '../../core/types.js';
 import type { ILogger } from '../../core/interfaces.js';
+import { VectorFixtures, FIXED_TEST_TIMESTAMP } from '../../../../test/fixtures/index.js';
 
 // Mock node:fs (includes both promises and existsSync)
 vi.mock('node:fs', () => ({
@@ -45,36 +46,8 @@ describe('FileVectorStore', () => {
   let store: FileVectorStore;
   let mockLogger: ILogger;
 
-  // Sample test data
-  const sampleVectorIndex: VectorIndex = {
-    metadata: {
-      count: 2,
-      model: 'test-model',
-      dimensions: 3,
-      timestamp: Date.now(),
-      version: '1.0.0',
-      modules: [
-        { id: 'module1', tier: 'foundation', contentHash: 'hash1', timestamp: Date.now() },
-        { id: 'module2', tier: 'advanced', contentHash: 'hash2', timestamp: Date.now() },
-      ],
-    },
-    vectors: [
-      {
-        id: 'module1',
-        vector: [0.1, 0.2, 0.3],
-        contentHash: 'hash1',
-        timestamp: Date.now(),
-        tier: 'foundation',
-      },
-      {
-        id: 'module2',
-        vector: [0.4, 0.5, 0.6],
-        contentHash: 'hash2',
-        timestamp: Date.now(),
-        tier: 'advanced',
-      },
-    ],
-  };
+  // Sample test data using fixtures for consistent, deterministic tests
+  const sampleVectorIndex: VectorIndex = VectorFixtures.createVectorIndex();
 
   beforeEach(() => {
     mockLogger = {
@@ -287,7 +260,8 @@ describe('FileVectorStore', () => {
       const result = await store.loadVectors();
 
       expect(result).toEqual(sampleVectorIndex);
-      expect(JSON.parse).toBeDefined();
+      expect(result?.metadata).toBeDefined();
+      expect(result?.vectors).toHaveLength(2);
     });
 
     it('should return null if no vector files exist', async () => {
@@ -339,6 +313,136 @@ describe('FileVectorStore', () => {
 
       // Invalid structure should return null
       expect(result).toBeNull();
+    });
+  });
+
+  describe('File System Error Handling', () => {
+    beforeEach(async () => {
+      const config: VectorStoreConfig = {
+        type: 'file',
+        path: 'dist/vectors',
+        enableIntegrityCheck: false,
+      };
+      await store.initialize(config);
+    });
+
+    it('should handle permission denied errors (EACCES)', async () => {
+      mockExistsSync.mockReturnValue(true);
+      const permissionError = Object.assign(
+        new Error('Permission denied'),
+        { code: 'EACCES' }
+      );
+      mockReadFile.mockRejectedValue(permissionError);
+
+      const result = await store.loadVectors();
+
+      expect(result).toBeNull();
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to load vectors'),
+        permissionError,
+        expect.any(Object)
+      );
+    });
+
+    it('should handle disk full errors (ENOSPC)', async () => {
+      mockExistsSync.mockReturnValue(true);
+      const diskFullError = Object.assign(
+        new Error('No space left on device'),
+        { code: 'ENOSPC' }
+      );
+      mockReadFile.mockRejectedValue(diskFullError);
+
+      const result = await store.loadVectors();
+
+      expect(result).toBeNull();
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to load vectors'),
+        diskFullError,
+        expect.any(Object)
+      );
+    });
+
+    it('should handle file not found errors (ENOENT)', async () => {
+      mockExistsSync.mockReturnValue(false);
+      const notFoundError = Object.assign(
+        new Error('File not found'),
+        { code: 'ENOENT' }
+      );
+      mockReadFile.mockRejectedValue(notFoundError);
+
+      const result = await store.loadVectors();
+
+      expect(result).toBeNull();
+    });
+
+    it('should handle directory instead of file errors (EISDIR)', async () => {
+      mockExistsSync.mockReturnValue(true);
+      const isDirError = Object.assign(
+        new Error('Illegal operation on a directory'),
+        { code: 'EISDIR' }
+      );
+      mockReadFile.mockRejectedValue(isDirError);
+
+      const result = await store.loadVectors();
+
+      expect(result).toBeNull();
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to load vectors'),
+        isDirError,
+        expect.any(Object)
+      );
+    });
+
+    it('should handle corrupt file data', async () => {
+      mockExistsSync.mockReturnValue(true);
+      // Return truncated/corrupt data
+      mockReadFile.mockResolvedValue(Buffer.from('{"incomplete": '));
+
+      const result = await store.loadVectors();
+
+      expect(result).toBeNull();
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to load vectors'),
+        expect.any(Error),
+        expect.any(Object)
+      );
+    });
+
+    it('should handle empty file', async () => {
+      mockExistsSync.mockReturnValue(true);
+      mockReadFile.mockResolvedValue(Buffer.from(''));
+
+      const result = await store.loadVectors();
+
+      expect(result).toBeNull();
+    });
+
+    it('should handle file read timeout', async () => {
+      mockExistsSync.mockReturnValue(true);
+      const timeoutError = Object.assign(
+        new Error('Operation timed out'),
+        { code: 'ETIMEDOUT' }
+      );
+      mockReadFile.mockRejectedValue(timeoutError);
+
+      const result = await store.loadVectors();
+
+      expect(result).toBeNull();
+      expect(mockLogger.error).toHaveBeenCalled();
+    });
+
+    it('should handle concurrent access errors', async () => {
+      mockExistsSync.mockReturnValue(true);
+      const lockError = Object.assign(
+        new Error('Resource temporarily unavailable'),
+        { code: 'EAGAIN' }
+      );
+      mockReadFile.mockRejectedValue(lockError);
+
+      const result = await store.loadVectors();
+
+      expect(result).toBeNull();
+      expect(mockLogger.error).toHaveBeenCalled();
     });
   });
 
@@ -417,6 +521,47 @@ describe('FileVectorStore', () => {
       const results = await store.search(query);
 
       expect(results.length).toBeLessThan(2); // Should filter out low similarity
+    });
+
+    it('should log errors for malformed vectors during search and exclude them from results', async () => {
+      const config: VectorStoreConfig = {
+        type: 'file',
+        path: 'dist/vectors',
+        enableIntegrityCheck: false,
+      };
+      await store.initialize(config);
+
+      // Create index with one good vector and one malformed vector using fixtures
+      const malformedIndex: VectorIndex = VectorFixtures.createMalformedVectorIndex();
+
+      mockExistsSync.mockReturnValue(true);
+      mockReadFile.mockResolvedValue(Buffer.from('msgpack-data'));
+      mockMsgpackDecode.mockReturnValue(malformedIndex);
+
+      const query: VectorQuery = {
+        vector: [0.1, 0.2, 0.3],
+        limit: 10,
+      };
+
+      const results = await store.search(query);
+
+      // Should only return valid vectors (malformed vector with NaN excluded)
+      expect(results.length).toBe(2);
+
+      // The malformed vector should NOT be in results
+      const malformedResult = results.find(r => r.vector.id === 'malformed');
+      expect(malformedResult).toBeUndefined();
+
+      // Only valid vectors should be present (fixtures use 'valid1' and 'valid2')
+      expect(results[0].vector.id).toMatch(/valid1|valid2/);
+      expect(results[1].vector.id).toMatch(/valid1|valid2/);
+
+      // Verify logger was called with warning
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Skipping vector with NaN values during search',
+        undefined,
+        expect.objectContaining({ moduleId: 'malformed' })
+      );
     });
 
     it('should return empty array when no vectors loaded', async () => {
