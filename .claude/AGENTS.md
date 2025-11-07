@@ -129,6 +129,168 @@ Assistant: [Uses Task tool with architect-reviewer]
 
 **Color**: Gray (in UI)
 
+---
+
+## Advisory Agents
+
+These agents provide specialized advisory perspectives when the primary assistant needs to confer on important technical decisions. They offer multi-perspective analysis to support better decision-making.
+
+### technical-counsel
+
+**Purpose**: Multi-perspective technical analysis for complex decisions with comprehensive trade-off evaluation.
+
+**When to use**:
+- Complex technical decisions with multiple viable approaches
+- Technology or framework selection decisions
+- Architecture pattern choices (microservices vs. monolith, event-driven vs. request-response)
+- Algorithm or data structure selection
+- Evaluating conflicting design approaches
+
+**Example usage**:
+```
+Assistant: "I need to evaluate whether to use PostgreSQL or MongoDB for this feature. Let me consult technical-counsel."
+[Uses Task tool with technical-counsel]
+
+User: "Should we refactor this to use dependency injection?"
+Assistant: [Uses Task tool with technical-counsel]
+```
+
+**Key features**:
+- ✅ Multi-perspective analysis (performance, maintainability, complexity, ecosystem)
+- ✅ Systematic trade-off evaluation across key dimensions
+- ✅ Evidence-based recommendations grounded in CS principles
+- ✅ Comparative analysis of multiple options
+- ✅ Confidence-rated recommendations (high/medium/low)
+- ✅ Identifies scenarios where each approach excels
+
+**Analysis Framework**:
+1. Context clarification and constraint identification
+2. Enumeration of all viable options
+3. Systematic evaluation across technical dimensions
+4. Comparative analysis with critical differentiators
+5. Clear recommendation with confidence level
+
+**Model**: Uses Opus for deep multi-perspective analysis
+
+**Tools**: Read, Grep, Glob, Bash
+
+**Color**: Blue (in UI)
+
+### risk-advisor
+
+**Purpose**: Identifies technical risks, edge cases, security implications, and failure modes with mitigation strategies.
+
+**When to use**:
+- Security-sensitive implementations (authentication, payment processing, data handling)
+- High-stakes deployments or migrations
+- Complex integrations with external systems
+- Performance-critical code paths
+- Evaluating architectural decisions for failure modes
+
+**Example usage**:
+```
+Assistant: "This authentication implementation needs risk assessment before proceeding."
+[Uses Task tool with risk-advisor]
+
+User: "We're planning to migrate to a new database. What could go wrong?"
+Assistant: [Uses Task tool with risk-advisor]
+```
+
+**Key features**:
+- ✅ Systematic risk identification across security, reliability, performance, operational concerns
+- ✅ Severity and likelihood assessment (Critical/High/Medium/Low)
+- ✅ Edge case and boundary condition enumeration
+- ✅ Failure mode and attack surface analysis
+- ✅ Specific mitigation strategies (preventive, detective, corrective)
+- ✅ Monitoring and alerting recommendations
+
+**Risk Categories**:
+- Security risks (injection, auth bypass, data exposure)
+- Reliability risks (single points of failure, data corruption, race conditions)
+- Performance risks (memory leaks, resource exhaustion, inefficient algorithms)
+- Operational risks (deployment failures, configuration errors, monitoring gaps)
+- Maintenance risks (technical debt, deprecated dependencies, breaking changes)
+
+**Model**: Uses Sonnet for efficient risk analysis
+
+**Tools**: Read, Grep, Glob, Bash
+
+**Color**: Red (in UI)
+
+### pragmatist
+
+**Purpose**: Balances ideal solutions with practical constraints, shipping priorities, and real-world delivery considerations.
+
+**When to use**:
+- Time-constrained delivery situations
+- Evaluating scope and MVP definitions
+- Balancing technical debt vs. shipping velocity
+- Team capacity and skill level considerations
+- "Should we build this or use an existing solution?" decisions
+
+**Example usage**:
+```
+Assistant: "We have a 2-week deadline. Let me consult pragmatist to evaluate the minimal viable approach."
+[Uses Task tool with pragmatist]
+
+User: "Should we implement our own authentication or use Auth0?"
+Assistant: [Uses Task tool with pragmatist]
+```
+
+**Key features**:
+- ✅ Reality check against time, team, and resource constraints
+- ✅ Minimal Viable Implementation (MVI) identification
+- ✅ Incremental delivery and phased rollout strategies
+- ✅ Technical debt assessment with paydown timelines
+- ✅ Build vs. buy vs. adapt analysis
+- ✅ Team skill level and maintenance burden evaluation
+
+**Pragmatic Patterns**:
+- The 3-Iteration Rule (make it work → make it right → make it fast)
+- When to go simple vs. when to invest in quality
+- Identifying over-engineering and analysis paralysis
+- Evolution paths from pragmatic to ideal solutions
+
+**Model**: Uses Sonnet for practical analysis
+
+**Tools**: Read, Grep, Glob, Bash
+
+**Color**: Green (in UI)
+
+---
+
+## Using Advisory Agents
+
+The primary assistant can consult these agents when facing important technical decisions:
+
+1. **Consult technical-counsel** for comprehensive technical trade-off analysis
+2. **Consult risk-advisor** to identify risks, edge cases, and failure modes
+3. **Consult pragmatist** to ground decisions in practical delivery constraints
+
+**Typical Consultation Flow**:
+```
+Assistant thinks: "This decision has significant technical implications. I should consult advisory agents."
+
+1. Consults technical-counsel for multi-perspective analysis
+2. Consults risk-advisor for risk assessment
+3. Consults pragmatist for practical reality check
+4. Synthesizes perspectives and makes recommendation to user
+```
+
+**When to consult**:
+- Architectural decisions affecting system design
+- Technology selection with long-term implications
+- Complex refactoring with multiple approaches
+- Security-sensitive implementations
+- High-stakes deployments or migrations
+- Scope and delivery timeline decisions
+
+**When not to consult**:
+- Trivial decisions with clear answers
+- Straightforward bug fixes
+- Simple code changes with no architectural impact
+- User has explicitly chosen an approach (just implement it)
+
 ## Agent Structure
 
 Each agent is defined in a Markdown file with frontmatter:
@@ -183,4 +345,4 @@ You are an expert in [domain]...
 
 ---
 
-Last updated: 2025-10-09
+Last updated: 2025-11-07
