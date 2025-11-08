@@ -367,7 +367,7 @@ export class LMStudioEmbeddingProvider implements IEmbeddingProvider {
     } catch {
       throw new EmbeddingConfigError(
         this.name,
-        `Invalid baseUrl format: ${url}. Must be a valid WebSocket URL (ws:// or wss://).`
+        `Invalid baseUrl format: ${url}. Must be a valid URL (e.g., ws://localhost:1234 or http://localhost:1234).`
       );
     }
 
@@ -394,7 +394,7 @@ export class LMStudioEmbeddingProvider implements IEmbeddingProvider {
       /^192\.168\./, // 192.168.0.0/16
       /^169\.254\./, // Link-local (AWS metadata)
       /^127\./, // Loopback (but hostname wasn't "localhost")
-      /^fd[0-9a-f]{2}:/i, // IPv6 private (ULA)
+      /^f[cd][0-9a-f]{2}:/i, // IPv6 private (ULA fc00::/7 - covers both fc00::/8 and fd00::/8)
       /^fe80:/i, // IPv6 link-local
       /^::1$/, // IPv6 loopback (but hostname wasn't "::1")
     ];
@@ -420,13 +420,24 @@ export class LMStudioEmbeddingProvider implements IEmbeddingProvider {
 
     // Check if hostname is already an IP address (IPv4 or IPv6)
     const isIPv4 = /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname);
-    const isIPv6 = hostname.includes(':') && !hostname.startsWith('[');
+    const isIPv6Literal = hostname.startsWith('[') && hostname.endsWith(']');
 
     let resolvedIPs: string[] = [];
 
-    if (isIPv4 || isIPv6) {
-      // Hostname is an IP address - validate it directly
+    if (isIPv4) {
+      // Hostname is an IPv4 address - validate it directly
       resolvedIPs = [hostname];
+    } else if (isIPv6Literal) {
+      // Hostname is an IPv6 literal with brackets - strip and validate
+      const ipv6Address = hostname.slice(1, -1);
+
+      // Re-check localhost after stripping brackets
+      if (localhostVariants.includes(ipv6Address)) {
+        return; // Safe localhost IPv6 literal like [::1]
+      }
+
+      // Validate the unwrapped IPv6 address
+      resolvedIPs = [ipv6Address];
     } else {
       // Hostname is a domain name - resolve to IPs to prevent DNS rebinding attacks
       try {

@@ -215,16 +215,6 @@ export class Container {
       }
     }
 
-    if (providerType === 'lmstudio') {
-      const baseUrl = this.config.embeddingProvider.baseUrl;
-      if (!baseUrl) {
-        throw new Error(
-          'LM Studio provider requires "baseUrl" in configuration. ' +
-            'Example: "baseUrl": "http://localhost:1234"'
-        );
-      }
-    }
-
     // Validate vector store type
     const validStoreTypes: readonly string[] = ['file', 'sqlite'];
     const storeType = this.config.vectorStore?.type;

@@ -301,6 +301,52 @@ describe('LMStudioEmbeddingProvider', () => {
       );
     });
 
+    it('should allow IPv6 localhost literal with brackets [::1]', async () => {
+      const config: EmbeddingProviderConfig = {
+        type: 'lmstudio',
+        model: 'nomic-embed-text',
+        baseUrl: 'ws://[::1]:1234',
+      };
+
+      mockEmbeddingModel.mockResolvedValueOnce(mockModelInstance);
+
+      await expect(provider.initialize(config)).resolves.not.toThrow();
+      expect(provider.isInitialized()).toBe(true);
+    });
+
+    it('should block IPv6 link-local address with brackets [fe80::1]', async () => {
+      const config: EmbeddingProviderConfig = {
+        type: 'lmstudio',
+        model: 'nomic-embed-text',
+        baseUrl: 'ws://[fe80::1]:1234',
+      };
+
+      await expect(provider.initialize(config)).rejects.toThrow(EmbeddingConfigError);
+      await expect(provider.initialize(config)).rejects.toThrow(/private IP ranges/i);
+    });
+
+    it('should block IPv6 ULA address with brackets [fc00::1]', async () => {
+      const config: EmbeddingProviderConfig = {
+        type: 'lmstudio',
+        model: 'nomic-embed-text',
+        baseUrl: 'ws://[fc00::1]:1234',
+      };
+
+      await expect(provider.initialize(config)).rejects.toThrow(EmbeddingConfigError);
+      await expect(provider.initialize(config)).rejects.toThrow(/private IP ranges/i);
+    });
+
+    it('should block IPv6 ULA address with brackets [fd00::1]', async () => {
+      const config: EmbeddingProviderConfig = {
+        type: 'lmstudio',
+        model: 'nomic-embed-text',
+        baseUrl: 'ws://[fd00::1]:1234',
+      };
+
+      await expect(provider.initialize(config)).rejects.toThrow(EmbeddingConfigError);
+      await expect(provider.initialize(config)).rejects.toThrow(/private IP ranges/i);
+    });
+
     it('should throw error for invalid provider type', async () => {
       const config = {
         type: 'invalid',
