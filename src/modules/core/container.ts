@@ -39,6 +39,7 @@ import { ToolHandlers } from '../server/toolHandlers.js';
 import type { IEmbeddingProvider } from '../plugins/embedding/embeddingProvider.interface.js';
 import { TransformersEmbeddingProvider } from '../plugins/embedding/transformersProvider.js';
 import { OllamaEmbeddingProvider } from '../plugins/embedding/ollamaProvider.js';
+import { LMStudioEmbeddingProvider } from '../plugins/embedding/lmstudioProvider.js';
 import type { ServerConfig } from '../../config/config.schema.js';
 import type { EmbeddingProviderConfig } from '../plugins/embedding/embeddingProvider.interface.js';
 import type {
@@ -182,7 +183,7 @@ export class Container {
     }
 
     // Validate embedding provider type
-    const validProviders: readonly string[] = ['transformers', 'ollama'];
+    const validProviders: readonly string[] = ['transformers', 'ollama', 'lmstudio'];
     const providerType = this.config.embeddingProvider.type;
 
     if (!validProviders.includes(providerType)) {
@@ -191,7 +192,7 @@ export class Container {
         throw new Error(
           `Embedding provider "${providerType}" is not yet implemented. ` +
             `Available providers: ${validProviders.join(', ')}. ` +
-            `Please use "transformers" (local, offline) or "ollama" (requires Ollama server).`
+            `Please use "transformers" (local, offline), "ollama" (requires Ollama server), or "lmstudio" (requires LM Studio).`
         );
       }
 
@@ -341,6 +342,8 @@ export class Container {
         return new TransformersEmbeddingProvider();
       case 'ollama':
         return new OllamaEmbeddingProvider();
+      case 'lmstudio':
+        return new LMStudioEmbeddingProvider();
       case 'openai':
         throw new Error('OpenAI provider not yet implemented');
       case 'cohere':

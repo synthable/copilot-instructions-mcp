@@ -178,7 +178,7 @@ describe('EmbeddingService', () => {
     });
 
     it('should generate embedding for single text', async () => {
-      const expectedEmbedding = new Array(384).fill(0.5);
+      const expectedEmbedding = new Array(384).fill(0.5) as number[];
       vi.mocked(mockProvider.embed).mockResolvedValue(expectedEmbedding);
 
       const result = await service.embed('test text');
@@ -193,7 +193,7 @@ describe('EmbeddingService', () => {
 
     it('should support progress callback for single embedding', async () => {
       const progressCallback: EmbeddingProgressCallback = vi.fn();
-      const expectedEmbedding = new Array(384).fill(0.5);
+      const expectedEmbedding = new Array(384).fill(0.5) as number[];
       vi.mocked(mockProvider.embed).mockResolvedValue(expectedEmbedding);
 
       await service.embed('test text', progressCallback);
@@ -232,7 +232,7 @@ describe('EmbeddingService', () => {
         new Array(384).fill(0.5),
         new Array(384).fill(0.6),
         new Array(384).fill(0.7),
-      ];
+      ] as number[][];
       vi.mocked(mockProvider.embedBatch).mockResolvedValue(expectedEmbeddings);
 
       const result = await service.embedBatch(texts);
@@ -248,7 +248,10 @@ describe('EmbeddingService', () => {
     it('should support progress callback for batch embedding', async () => {
       const progressCallback: EmbeddingProgressCallback = vi.fn();
       const texts = ['text1', 'text2'];
-      const expectedEmbeddings = [new Array(384).fill(0.5), new Array(384).fill(0.6)];
+      const expectedEmbeddings = [
+        new Array(384).fill(0.5),
+        new Array(384).fill(0.6),
+      ] as number[][];
       vi.mocked(mockProvider.embedBatch).mockResolvedValue(expectedEmbeddings);
 
       await service.embedBatch(texts, progressCallback);
@@ -398,7 +401,7 @@ describe('EmbeddingService', () => {
     });
 
     it('should delegate all calls to underlying provider', async () => {
-      const embedding = new Array(384).fill(0.5);
+      const embedding = new Array(384).fill(0.5) as number[];
       vi.mocked(mockProvider.embed).mockResolvedValue(embedding);
 
       await service.embed('test');
@@ -408,7 +411,7 @@ describe('EmbeddingService', () => {
 
     it('should pass progress callbacks to provider', async () => {
       const progressCallback: EmbeddingProgressCallback = vi.fn();
-      const embedding = new Array(384).fill(0.5);
+      const embedding = new Array(384).fill(0.5) as number[];
       vi.mocked(mockProvider.embed).mockResolvedValue(embedding);
 
       await service.embed('test', progressCallback);

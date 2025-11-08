@@ -383,9 +383,9 @@ export class OllamaEmbeddingProvider implements IEmbeddingProvider {
 
     // Block common cloud metadata endpoints
     const blockedHostnames = [
-      'metadata.google.internal',           // GCP
-      'metadata.azure.com',                 // Azure
-      '100.100.100.200',                    // Alibaba Cloud
+      'metadata.google.internal', // GCP
+      'metadata.azure.com', // Azure
+      '100.100.100.200', // Alibaba Cloud
     ];
 
     if (blockedHostnames.includes(hostname)) {
