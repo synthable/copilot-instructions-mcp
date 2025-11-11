@@ -238,7 +238,7 @@ export class ToolHandlers {
     // Add enhancement info to response if available
     return {
       ...searchResult,
-      ...(enhancementInfo !== undefined ? { enhanced: enhancementInfo } : {}),
+      ...(enhancementInfo && { enhanced: enhancementInfo }),
     };
   }
 
