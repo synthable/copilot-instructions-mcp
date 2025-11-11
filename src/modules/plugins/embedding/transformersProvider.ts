@@ -166,7 +166,7 @@ export class TransformersEmbeddingProvider
           this._dimensions = 768;
           this.logger.warn(
             `Using default dimensions (768) with model '${config.model}'. ` +
-            `Consider explicitly specifying 'dimensions' in config to match your model's output.`
+              `Consider explicitly specifying 'dimensions' in config to match your model's output.`
           );
         }
       }
@@ -297,14 +297,14 @@ export class TransformersEmbeddingProvider
     if (texts.length > this._batchSize) {
       throw new EmbeddingGenerationError(
         this.name,
-        `Batch size ${texts.length} exceeds limit of ${this._batchSize}`
+        `Batch size ${String(texts.length)} exceeds limit of ${String(this._batchSize)}`
       );
     }
 
     progressCallback?.('processing', 0.0, 'Processing batch');
 
     const results: number[][] = [];
-    const errors: Map<number, Error> = new Map();
+    const errors = new Map<number, Error>();
 
     // Process each text individually to handle failures
     for (let i = 0; i < texts.length; i++) {
@@ -355,14 +355,18 @@ export class TransformersEmbeddingProvider
         }
 
         results.push(embedding);
-        progressCallback?.('processing', (i + 1) / texts.length, `Processed ${i + 1}/${texts.length}`);
+        progressCallback?.(
+          'processing',
+          (i + 1) / texts.length,
+          `Processed ${String(i + 1)}/${String(texts.length)}`
+        );
       } catch (error) {
         // Log error but continue processing
         const err = error instanceof Error ? error : new Error(String(error));
         errors.set(i, err);
 
         this.logger.error(
-          `Failed to generate embedding for item ${i} in batch`,
+          `Failed to generate embedding for item ${String(i)} in batch`,
           err,
           { index: i, text: texts[i].slice(0, 50) }
         );
@@ -376,14 +380,14 @@ export class TransformersEmbeddingProvider
     if (errors.size === texts.length) {
       throw new EmbeddingGenerationError(
         this.name,
-        `All ${texts.length} items in batch failed to generate embeddings`
+        `All ${String(texts.length)} items in batch failed to generate embeddings`
       );
     }
 
     // If SOME items failed, log warning
     if (errors.size > 0) {
       this.logger.warn(
-        `Partial batch failure: ${errors.size}/${texts.length} items failed`,
+        `Partial batch failure: ${String(errors.size)}/${String(texts.length)} items failed`,
         undefined,
         { failedIndices: Array.from(errors.keys()) }
       );
@@ -582,7 +586,6 @@ export class TransformersEmbeddingProvider
 
     return text;
   }
-
 
   /**
    * Validates and extracts embeddings from transformer output.

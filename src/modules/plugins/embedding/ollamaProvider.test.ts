@@ -7,13 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { OllamaEmbeddingProvider } from './ollamaProvider.js';
-import {
-  EmbeddingProviderInitError,
-  EmbeddingGenerationError,
-  EmbeddingProviderNotInitializedError,
-  EmbeddingConfigError,
-  type EmbeddingProviderConfig,
-} from './embeddingProvider.interface.js';
+import { type EmbeddingProviderConfig } from './embeddingProvider.interface.js';
 
 // Mock the ollama module
 const mockList = vi.fn();
@@ -123,8 +117,13 @@ describe('OllamaEmbeddingProvider', () => {
         baseUrl: 'http://169.254.169.254/latest/meta-data/',
       };
 
-      await expect(provider.initialize(config)).rejects.toThrow(EmbeddingConfigError);
-      await expect(provider.initialize(config)).rejects.toThrow(/private IP ranges/i);
+      try {
+        await provider.initialize(config);
+        expect.fail('Should have thrown EmbeddingConfigError');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingConfigError');
+        expect((error as Error).message).toMatch(/private IP ranges/i);
+      }
     });
 
     it('should block private IP ranges (10.x.x.x)', async () => {
@@ -134,8 +133,13 @@ describe('OllamaEmbeddingProvider', () => {
         baseUrl: 'http://10.0.0.1:8080',
       };
 
-      await expect(provider.initialize(config)).rejects.toThrow(EmbeddingConfigError);
-      await expect(provider.initialize(config)).rejects.toThrow(/private IP ranges/i);
+      try {
+        await provider.initialize(config);
+        expect.fail('Should have thrown EmbeddingConfigError');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingConfigError');
+        expect((error as Error).message).toMatch(/private IP ranges/i);
+      }
     });
 
     it('should block private IP ranges (192.168.x.x)', async () => {
@@ -145,8 +149,13 @@ describe('OllamaEmbeddingProvider', () => {
         baseUrl: 'http://192.168.1.1:8080',
       };
 
-      await expect(provider.initialize(config)).rejects.toThrow(EmbeddingConfigError);
-      await expect(provider.initialize(config)).rejects.toThrow(/private IP ranges/i);
+      try {
+        await provider.initialize(config);
+        expect.fail('Should have thrown EmbeddingConfigError');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingConfigError');
+        expect((error as Error).message).toMatch(/private IP ranges/i);
+      }
     });
 
     it('should block private IP ranges (172.16-31.x.x)', async () => {
@@ -156,8 +165,13 @@ describe('OllamaEmbeddingProvider', () => {
         baseUrl: 'http://172.20.0.1:8080',
       };
 
-      await expect(provider.initialize(config)).rejects.toThrow(EmbeddingConfigError);
-      await expect(provider.initialize(config)).rejects.toThrow(/private IP ranges/i);
+      try {
+        await provider.initialize(config);
+        expect.fail('Should have thrown EmbeddingConfigError');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingConfigError');
+        expect((error as Error).message).toMatch(/private IP ranges/i);
+      }
     });
 
     it('should block GCP metadata endpoint', async () => {
@@ -167,8 +181,13 @@ describe('OllamaEmbeddingProvider', () => {
         baseUrl: 'http://metadata.google.internal/computeMetadata/v1/',
       };
 
-      await expect(provider.initialize(config)).rejects.toThrow(EmbeddingConfigError);
-      await expect(provider.initialize(config)).rejects.toThrow(/cloud metadata/i);
+      try {
+        await provider.initialize(config);
+        expect.fail('Should have thrown EmbeddingConfigError');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingConfigError');
+        expect((error as Error).message).toMatch(/cloud metadata/i);
+      }
     });
 
     it('should block Azure metadata endpoint', async () => {
@@ -178,8 +197,13 @@ describe('OllamaEmbeddingProvider', () => {
         baseUrl: 'http://metadata.azure.com/metadata/instance',
       };
 
-      await expect(provider.initialize(config)).rejects.toThrow(EmbeddingConfigError);
-      await expect(provider.initialize(config)).rejects.toThrow(/cloud metadata/i);
+      try {
+        await provider.initialize(config);
+        expect.fail('Should have thrown EmbeddingConfigError');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingConfigError');
+        expect((error as Error).message).toMatch(/cloud metadata/i);
+      }
     });
 
     it('should block invalid protocols (ftp)', async () => {
@@ -189,8 +213,13 @@ describe('OllamaEmbeddingProvider', () => {
         baseUrl: 'ftp://localhost:11434',
       };
 
-      await expect(provider.initialize(config)).rejects.toThrow(EmbeddingConfigError);
-      await expect(provider.initialize(config)).rejects.toThrow(/Invalid protocol/i);
+      try {
+        await provider.initialize(config);
+        expect.fail('Should have thrown EmbeddingConfigError');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingConfigError');
+        expect((error as Error).message).toMatch(/Invalid protocol/i);
+      }
     });
 
     it('should allow IPv6 localhost (::1) explicitly', async () => {
@@ -232,8 +261,13 @@ describe('OllamaEmbeddingProvider', () => {
         baseUrl: 'http://[::ffff:127.0.0.1]:11434',
       };
 
-      await expect(provider.initialize(config)).rejects.toThrow(EmbeddingConfigError);
-      await expect(provider.initialize(config)).rejects.toThrow(/IPv6-mapped private IPv4/i);
+      try {
+        await provider.initialize(config);
+        expect.fail('Should have thrown EmbeddingConfigError');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingConfigError');
+        expect((error as Error).message).toMatch(/IPv6-mapped private IPv4/i);
+      }
     });
 
     it('should block IPv6 unique local addresses (fc00::/7)', async () => {
@@ -243,8 +277,13 @@ describe('OllamaEmbeddingProvider', () => {
         baseUrl: 'http://[fc00::1]:11434',
       };
 
-      await expect(provider.initialize(config)).rejects.toThrow(EmbeddingConfigError);
-      await expect(provider.initialize(config)).rejects.toThrow(/private IPv6/i);
+      try {
+        await provider.initialize(config);
+        expect.fail('Should have thrown EmbeddingConfigError');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingConfigError');
+        expect((error as Error).message).toMatch(/private IPv6/i);
+      }
     });
 
     it('should block IPv6 link-local addresses (fe80::/10)', async () => {
@@ -254,8 +293,13 @@ describe('OllamaEmbeddingProvider', () => {
         baseUrl: 'http://[fe80::1]:11434',
       };
 
-      await expect(provider.initialize(config)).rejects.toThrow(EmbeddingConfigError);
-      await expect(provider.initialize(config)).rejects.toThrow(/link-local IPv6/i);
+      try {
+        await provider.initialize(config);
+        expect.fail('Should have thrown EmbeddingConfigError');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingConfigError');
+        expect((error as Error).message).toMatch(/link-local IPv6/i);
+      }
     });
 
     it('should block URLs with embedded credentials', async () => {
@@ -265,8 +309,13 @@ describe('OllamaEmbeddingProvider', () => {
         baseUrl: 'http://user:pass@localhost:11434',
       };
 
-      await expect(provider.initialize(config)).rejects.toThrow(EmbeddingConfigError);
-      await expect(provider.initialize(config)).rejects.toThrow(/embedded credentials/i);
+      try {
+        await provider.initialize(config);
+        expect.fail('Should have thrown EmbeddingConfigError');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingConfigError');
+        expect((error as Error).message).toMatch(/embedded credentials/i);
+      }
     });
 
     it('should block URLs with @ bypass attempts', async () => {
@@ -276,8 +325,13 @@ describe('OllamaEmbeddingProvider', () => {
         baseUrl: 'http://example.com@127.0.0.1:11434',
       };
 
-      await expect(provider.initialize(config)).rejects.toThrow(EmbeddingConfigError);
-      await expect(provider.initialize(config)).rejects.toThrow(/embedded credentials/i);
+      try {
+        await provider.initialize(config);
+        expect.fail('Should have thrown EmbeddingConfigError');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingConfigError');
+        expect((error as Error).message).toMatch(/embedded credentials/i);
+      }
     });
 
     it('should block IPv6-mapped private IPv4 addresses', async () => {
@@ -287,8 +341,13 @@ describe('OllamaEmbeddingProvider', () => {
         baseUrl: 'http://[::ffff:192.168.1.1]:11434',
       };
 
-      await expect(provider.initialize(config)).rejects.toThrow(EmbeddingConfigError);
-      await expect(provider.initialize(config)).rejects.toThrow(/IPv6-mapped private IPv4/i);
+      try {
+        await provider.initialize(config);
+        expect.fail('Should have thrown EmbeddingConfigError');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingConfigError');
+        expect((error as Error).message).toMatch(/IPv6-mapped private IPv4/i);
+      }
     });
 
     it('should allow public IPv6 addresses', async () => {
@@ -314,8 +373,13 @@ describe('OllamaEmbeddingProvider', () => {
         baseUrl: 'not-a-valid-url',
       };
 
-      await expect(provider.initialize(config)).rejects.toThrow(EmbeddingConfigError);
-      await expect(provider.initialize(config)).rejects.toThrow(/Invalid baseUrl format/i);
+      try {
+        await provider.initialize(config);
+        expect.fail('Should have thrown EmbeddingConfigError');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingConfigError');
+        expect((error as Error).message).toMatch(/Invalid baseUrl format/i);
+      }
     });
 
     it('should throw error for invalid provider type', async () => {
@@ -324,7 +388,12 @@ describe('OllamaEmbeddingProvider', () => {
         model: 'test',
       } as unknown as EmbeddingProviderConfig;
 
-      await expect(provider.initialize(config)).rejects.toThrow(EmbeddingConfigError);
+      try {
+        await provider.initialize(config);
+        expect.fail('Should have thrown EmbeddingConfigError');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingConfigError');
+      }
     });
 
     it('should throw error when model not found', async () => {
@@ -337,9 +406,12 @@ describe('OllamaEmbeddingProvider', () => {
         models: [{ name: 'other-model', modified_at: '', size: 0, digest: '' }],
       });
 
-      await expect(provider.initialize(config)).rejects.toThrow(
-        EmbeddingProviderInitError
-      );
+      try {
+        await provider.initialize(config);
+        expect.fail('Should have thrown EmbeddingProviderInitError');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingProviderInitError');
+      }
     });
   });
 
@@ -375,9 +447,12 @@ describe('OllamaEmbeddingProvider', () => {
     it('should throw error when not initialized', async () => {
       const uninitProvider = new OllamaEmbeddingProvider();
 
-      await expect(uninitProvider.embed('test')).rejects.toThrow(
-        EmbeddingProviderNotInitializedError
-      );
+      try {
+        await uninitProvider.embed('test');
+        expect.fail('Should have thrown EmbeddingProviderNotInitializedError');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingProviderNotInitializedError');
+      }
     });
 
     it('should generate embeddings for batch', async () => {
@@ -407,7 +482,12 @@ describe('OllamaEmbeddingProvider', () => {
     it('should throw error on embedding failure', async () => {
       mockEmbed.mockRejectedValueOnce(new Error('Connection failed'));
 
-      await expect(provider.embed('test')).rejects.toThrow(EmbeddingGenerationError);
+      try {
+        await provider.embed('test');
+        expect.fail('Should have thrown EmbeddingGenerationError');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingGenerationError');
+      }
     });
   });
 
@@ -435,7 +515,12 @@ describe('OllamaEmbeddingProvider', () => {
 
     it('should handle network timeout gracefully', async () => {
       // Mock embed to never resolve (simulates timeout/hang)
-      mockEmbed.mockImplementation(() => new Promise(() => {}));
+      mockEmbed.mockImplementation(
+        () =>
+          new Promise(() => {
+            // Intentionally empty - simulates a timeout/hang scenario
+          })
+      );
 
       // Note: This test verifies the timeout behavior exists
       // In a real implementation, there should be a timeout mechanism
@@ -457,44 +542,59 @@ describe('OllamaEmbeddingProvider', () => {
 
       mockEmbed.mockRejectedValue(connectionError);
 
-      await expect(provider.embed('test')).rejects.toThrow(EmbeddingGenerationError);
-      await expect(provider.embed('test')).rejects.toThrow(/ECONNREFUSED|connection/i);
+      try {
+        await provider.embed('test');
+        expect.fail('Should have thrown EmbeddingGenerationError');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingGenerationError');
+        expect((error as Error).message).toMatch(/ECONNREFUSED|connection/i);
+      }
     });
 
     it('should handle network errors during batch operations', async () => {
-      const networkError = Object.assign(
-        new Error('Network unreachable'),
-        { code: 'ENETUNREACH' }
-      );
+      const networkError = Object.assign(new Error('Network unreachable'), {
+        code: 'ENETUNREACH',
+      });
 
       mockEmbed.mockRejectedValue(networkError);
 
-      await expect(provider.embedBatch(['text1', 'text2'])).rejects.toThrow(
-        EmbeddingGenerationError
-      );
+      try {
+        await provider.embedBatch(['text1', 'text2']);
+        expect.fail('Should have thrown EmbeddingGenerationError');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingGenerationError');
+      }
     });
 
     it('should handle DNS resolution failures', async () => {
-      const dnsError = Object.assign(
-        new Error('getaddrinfo ENOTFOUND invalid-host'),
-        { code: 'ENOTFOUND' }
-      );
+      const dnsError = Object.assign(new Error('getaddrinfo ENOTFOUND invalid-host'), {
+        code: 'ENOTFOUND',
+      });
 
       mockEmbed.mockRejectedValue(dnsError);
 
-      await expect(provider.embed('test')).rejects.toThrow(EmbeddingGenerationError);
-      await expect(provider.embed('test')).rejects.toThrow(/ENOTFOUND|DNS|resolution/i);
+      try {
+        await provider.embed('test');
+        expect.fail('Should have thrown EmbeddingGenerationError');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingGenerationError');
+        expect((error as Error).message).toMatch(/ENOTFOUND|DNS|resolution/i);
+      }
     });
 
     it('should handle HTTP 503 Service Unavailable', async () => {
-      const serviceError = Object.assign(
-        new Error('HTTP 503: Service Unavailable'),
-        { statusCode: 503 }
-      );
+      const serviceError = Object.assign(new Error('HTTP 503: Service Unavailable'), {
+        statusCode: 503,
+      });
 
       mockEmbed.mockRejectedValue(serviceError);
 
-      await expect(provider.embed('test')).rejects.toThrow(EmbeddingGenerationError);
+      try {
+        await provider.embed('test');
+        expect.fail('Should have thrown EmbeddingGenerationError');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingGenerationError');
+      }
     });
   });
 
@@ -567,10 +667,7 @@ describe('OllamaEmbeddingProvider', () => {
       mockEmbed.mockReset();
       // For batch operations, return multiple embeddings (2 embeddings for batch of 2)
       mockEmbed.mockResolvedValue({
-        embeddings: [
-          Array(768).fill(0.1),
-          Array(768).fill(0.1)
-        ]
+        embeddings: [Array(768).fill(0.1), Array(768).fill(0.1)],
       });
 
       const promises = [
@@ -604,7 +701,7 @@ describe('OllamaEmbeddingProvider', () => {
       results.forEach(result => {
         expect(result.status).toBe('rejected');
         if (result.status === 'rejected') {
-          expect(result.reason).toBeInstanceOf(EmbeddingGenerationError);
+          expect(result.reason.name).toBe('EmbeddingGenerationError');
         }
       });
     });
@@ -614,9 +711,9 @@ describe('OllamaEmbeddingProvider', () => {
       mockEmbed.mockResolvedValue({ embeddings: [Array(768).fill(0.1)] });
 
       // Simulate 20 concurrent requests to Ollama
-      const promises = Array(20).fill(null).map((_, i) =>
-        provider.embed(`text-${i}`)
-      );
+      const promises = Array(20)
+        .fill(null)
+        .map((_, i) => provider.embed(`text-${i}`));
 
       const results = await Promise.all(promises);
 

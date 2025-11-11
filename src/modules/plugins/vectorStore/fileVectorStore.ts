@@ -202,11 +202,9 @@ export class FileVectorStore implements IVectorStorePlugin {
       try {
         // Check for NaN values in vector BEFORE calculating similarity
         if (this.hasNaNValues(moduleVector.vector)) {
-          this.logger.warn(
-            'Skipping vector with NaN values during search',
-            undefined,
-            { moduleId: moduleVector.id }
-          );
+          this.logger.warn('Skipping vector with NaN values during search', undefined, {
+            moduleId: moduleVector.id,
+          });
           continue;
         }
 
@@ -214,11 +212,9 @@ export class FileVectorStore implements IVectorStorePlugin {
 
         // Check if similarity is NaN (additional safety)
         if (isNaN(similarity)) {
-          this.logger.warn(
-            'Similarity calculation returned NaN',
-            undefined,
-            { moduleId: moduleVector.id }
-          );
+          this.logger.warn('Similarity calculation returned NaN', undefined, {
+            moduleId: moduleVector.id,
+          });
           continue;
         }
 

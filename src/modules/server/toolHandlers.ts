@@ -27,6 +27,7 @@ import type {
   IContentService,
   ISemanticSearchService,
   ILogger,
+  IQueryEnhancer,
 } from '../core/interfaces.js';
 
 /**
@@ -79,7 +80,8 @@ export class ToolHandlers {
     private searchService: ISearchService,
     private contentService: IContentService,
     private semanticSearchService: ISemanticSearchService,
-    private logger: ILogger
+    private logger: ILogger,
+    private queryEnhancer: IQueryEnhancer | null = null
   ) {}
 
   /**
@@ -142,6 +144,7 @@ export class ToolHandlers {
   /**
    * Handles the unified search tool request.
    * Supports three modes: fuzzy (lexical), semantic (embedding), hybrid (combined).
+   * Optional query enhancement using LLM for query rewriting and expansion.
    */
   async handleSearch(args: ToolArgs | undefined): Promise<{
     query: string;
@@ -151,23 +154,79 @@ export class ToolHandlers {
     results: SearchResult[];
     alpha?: number;
     filters?: { tiers: string[] } | undefined;
+    enhanced?: {
+      rewritten: string;
+      intent: string;
+      variationCount: number;
+      processingTimeMs: number;
+    };
   }> {
     if (!args) {
       throw new Error("Missing arguments for search. 'query' is required.");
     }
 
-    const query = validateSearchQuery(args.query);
+    let query = validateSearchQuery(args.query);
     const limit = validateSearchLimit(args.limit);
     const mode = this.validateSearchMode(args.mode);
+    const enhanceQuery = args.enhanceQuery === true;
+
+    let enhancementInfo:
+      | {
+          rewritten: string;
+          intent: string;
+          variationCount: number;
+          processingTimeMs: number;
+        }
+      | undefined;
+
+    // Enhance query if requested and enhancer is available
+    if (enhanceQuery && this.queryEnhancer) {
+      try {
+        this.logger.debug('Enhancing query before search', { originalQuery: query });
+
+        const enhancement = await this.queryEnhancer.enhance(query, {
+          temperature: 0.3,
+          maxVariations: 5,
+        });
+
+        enhancementInfo = {
+          rewritten: enhancement.query.rewritten,
+          intent: enhancement.query.intent,
+          variationCount: enhancement.query.variations.length,
+          processingTimeMs: enhancement.processingTimeMs,
+        };
+
+        // Use the rewritten query for search
+        query = enhancement.query.rewritten;
+
+        this.logger.info('Query enhanced successfully', {
+          original: args.query,
+          rewritten: query,
+          intent: enhancement.query.intent,
+        });
+      } catch (error) {
+        this.logger.warn(
+          'Query enhancement failed, using original query',
+          error as Error
+        );
+        // Continue with original query on enhancement failure
+      }
+    } else if (enhanceQuery && !this.queryEnhancer) {
+      this.logger.debug('Query enhancement requested but enhancer unavailable');
+    }
 
     // Route to appropriate search implementation
+    let searchResult;
     switch (mode) {
       case 'fuzzy':
-        return this.performFuzzySearch(query, limit);
+        searchResult = await this.performFuzzySearch(query, limit);
+        break;
       case 'semantic':
-        return this.performSemanticSearch(query, limit, args);
+        searchResult = await this.performSemanticSearch(query, limit, args);
+        break;
       case 'hybrid':
-        return this.performHybridSearch(query, limit, args);
+        searchResult = await this.performHybridSearch(query, limit, args);
+        break;
       default: {
         // This case should be unreachable due to the validation in `validateSearchMode`.
         // Using an exhaustive check to enforce that all cases are handled.
@@ -175,6 +234,12 @@ export class ToolHandlers {
         throw new Error(`Unhandled search mode: ${String(exhaustiveCheck)}`);
       }
     }
+
+    // Add enhancement info to response if available
+    return {
+      ...searchResult,
+      ...(enhancementInfo !== undefined ? { enhanced: enhancementInfo } : {}),
+    };
   }
 
   /**

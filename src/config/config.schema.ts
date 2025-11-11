@@ -26,6 +26,30 @@ export const configSchema = z.object({
       enableIntegrityCheck: z.boolean().default(true),
     })
     .default({}),
+  llmProvider: z
+    .object({
+      type: z.enum(['ollama']),
+      model: z.string().min(1),
+      baseUrl: z
+        .string()
+        .url()
+        .optional()
+        .or(z.literal('').transform(() => undefined)),
+      apiKey: z.string().optional(),
+      timeout: z.number().positive().optional(),
+      maxRetries: z.number().int().min(0).optional(),
+      defaultOptions: z
+        .object({
+          temperature: z.number().min(0).max(2).optional(),
+          maxTokens: z.number().positive().optional(),
+          topP: z.number().min(0).max(1).optional(),
+          frequencyPenalty: z.number().min(-2).max(2).optional(),
+          presencePenalty: z.number().min(-2).max(2).optional(),
+          stop: z.array(z.string()).optional(),
+        })
+        .optional(),
+    })
+    .optional(),
   searchProvider: z.object({
     name: z.string(),
   }),

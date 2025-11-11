@@ -12,16 +12,12 @@
  * @since 2.0.0
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { TransformersEmbeddingProvider } from './transformersProvider.js';
 import type {
   EmbeddingProviderConfig,
   EmbeddingProgressCallback,
-} from './embeddingProvider.interface.js';
-import {
   EmbeddingProviderInitError,
-  EmbeddingGenerationError,
-  EmbeddingProviderNotInitializedError,
 } from './embeddingProvider.interface.js';
 
 // Mock @xenova/transformers
@@ -122,23 +118,25 @@ describe('TransformersEmbeddingProvider', () => {
     it('should throw EmbeddingProviderInitError for invalid provider type', async () => {
       const invalidConfig = { ...mockConfig, type: 'invalid' as any };
 
-      await expect(provider.initialize(invalidConfig)).rejects.toThrow(
-        EmbeddingProviderInitError
-      );
-      await expect(provider.initialize(invalidConfig)).rejects.toThrow(
-        'Invalid provider type'
-      );
+      try {
+        await provider.initialize(invalidConfig);
+        expect.fail('Should have thrown error');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingProviderInitError');
+        expect((error as Error).message).toContain('Invalid provider type');
+      }
     });
 
     it('should throw EmbeddingProviderInitError for missing model', async () => {
       const invalidConfig = { ...mockConfig, model: '' };
 
-      await expect(provider.initialize(invalidConfig)).rejects.toThrow(
-        EmbeddingProviderInitError
-      );
-      await expect(provider.initialize(invalidConfig)).rejects.toThrow(
-        'Model name is required'
-      );
+      try {
+        await provider.initialize(invalidConfig);
+        expect.fail('Should have thrown error');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingProviderInitError');
+        expect((error as Error).message).toContain('Model name is required');
+      }
     });
 
     it('should wrap initialization errors with provider context', async () => {
@@ -149,7 +147,7 @@ describe('TransformersEmbeddingProvider', () => {
         await provider.initialize(mockConfig);
         expect.fail('Should have thrown error');
       } catch (error) {
-        expect(error).toBeInstanceOf(EmbeddingProviderInitError);
+        expect((error as Error).name).toBe('EmbeddingProviderInitError');
         expect((error as EmbeddingProviderInitError).provider).toBe('Transformers.js');
         expect((error as Error).message).toContain('Failed to initialize');
       }
@@ -209,9 +207,12 @@ describe('TransformersEmbeddingProvider', () => {
     it('should throw EmbeddingProviderNotInitializedError when not initialized', async () => {
       const uninitializedProvider = new TransformersEmbeddingProvider();
 
-      await expect(uninitializedProvider.embed('test')).rejects.toThrow(
-        EmbeddingProviderNotInitializedError
-      );
+      try {
+        await uninitializedProvider.embed('test');
+        expect.fail('Should have thrown error');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingProviderNotInitializedError');
+      }
     });
 
     it('should throw error for empty text', async () => {
@@ -221,10 +222,13 @@ describe('TransformersEmbeddingProvider', () => {
     it('should throw EmbeddingGenerationError on pipeline failure', async () => {
       mockPipeline.mockRejectedValue(new Error('Pipeline failed'));
 
-      await expect(provider.embed('test')).rejects.toThrow(EmbeddingGenerationError);
-      await expect(provider.embed('test')).rejects.toThrow(
-        'Failed to generate embedding'
-      );
+      try {
+        await provider.embed('test');
+        expect.fail('Should have thrown error');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingGenerationError');
+        expect((error as Error).message).toContain('Failed to generate embedding');
+      }
     });
 
     it('should truncate long text', async () => {
@@ -290,9 +294,12 @@ describe('TransformersEmbeddingProvider', () => {
     it('should throw EmbeddingProviderNotInitializedError when not initialized', async () => {
       const uninitializedProvider = new TransformersEmbeddingProvider();
 
-      await expect(uninitializedProvider.embedBatch(['test'])).rejects.toThrow(
-        EmbeddingProviderNotInitializedError
-      );
+      try {
+        await uninitializedProvider.embedBatch(['test']);
+        expect.fail('Should have thrown error');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingProviderNotInitializedError');
+      }
     });
 
     it('should return empty array for empty batch', async () => {
@@ -306,9 +313,12 @@ describe('TransformersEmbeddingProvider', () => {
       mockPipeline.mockReset();
       mockPipeline.mockRejectedValue(new Error('Batch failed'));
 
-      await expect(provider.embedBatch(['test1', 'test2'])).rejects.toThrow(
-        EmbeddingGenerationError
-      );
+      try {
+        await provider.embedBatch(['test1', 'test2']);
+        expect.fail('Should have thrown error');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingGenerationError');
+      }
     });
 
     it('should enforce batch size limits', async () => {
@@ -316,8 +326,13 @@ describe('TransformersEmbeddingProvider', () => {
         .fill(0)
         .map((_, i) => `Text ${i}`);
 
-      await expect(provider.embedBatch(texts)).rejects.toThrow(EmbeddingGenerationError);
-      await expect(provider.embedBatch(texts)).rejects.toThrow(/exceeds limit/);
+      try {
+        await provider.embedBatch(texts);
+        expect.fail('Should have thrown error');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingGenerationError');
+        expect((error as Error).message).toMatch(/exceeds limit/);
+      }
     });
 
     it('should preserve order in batch results', async () => {
@@ -333,7 +348,6 @@ describe('TransformersEmbeddingProvider', () => {
       expect(result[1]).toEqual([0.4, 0.5, 0.6]);
     });
 
-
     it('should handle all failures in batch without crashing', async () => {
       // Reset completely to clear queued Once implementations from beforeEach
       mockPipeline.mockReset();
@@ -343,7 +357,12 @@ describe('TransformersEmbeddingProvider', () => {
 
       // Should throw EmbeddingGenerationError (already tested)
       // But verify it doesn't crash with undefined or null reference errors
-      await expect(provider.embedBatch(texts)).rejects.toThrow(EmbeddingGenerationError);
+      try {
+        await provider.embedBatch(texts);
+        expect.fail('Should have thrown error');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingGenerationError');
+      }
     });
 
     it('should maintain batch order even with failures', async () => {
@@ -365,7 +384,7 @@ describe('TransformersEmbeddingProvider', () => {
         }
       } catch (error) {
         // Implementation might throw instead of returning partial results
-        expect(error).toBeInstanceOf(EmbeddingGenerationError);
+        expect((error as Error).name).toBe('EmbeddingGenerationError');
       }
     });
   });
@@ -537,9 +556,12 @@ describe('TransformersEmbeddingProvider', () => {
       await provider.initialize(mockConfig);
       await provider.dispose();
 
-      await expect(provider.embed('test')).rejects.toThrow(
-        EmbeddingProviderNotInitializedError
-      );
+      try {
+        await provider.embed('test');
+        expect.fail('Should have thrown error');
+      } catch (error) {
+        expect((error as Error).name).toBe('EmbeddingProviderNotInitializedError');
+      }
     });
 
     it('should allow re-initialization after disposal', async () => {
@@ -575,7 +597,7 @@ describe('TransformersEmbeddingProvider', () => {
         await provider.embed('test');
         expect.fail('Should have thrown error');
       } catch (error) {
-        expect(error).toBeInstanceOf(EmbeddingGenerationError);
+        expect((error as Error).name).toBe('EmbeddingGenerationError');
         // Error is wrapped through embed -> embedBatch -> pipeline rejection
         expect((error as Error).message).toContain('Failed to generate embedding');
         expect((error as Error).message).toContain('items in batch failed');
@@ -678,11 +700,11 @@ describe('TransformersEmbeddingProvider', () => {
 
     it('should handle concurrent embed and embedBatch calls', async () => {
       // Mock implementation that returns appropriate data based on input
-      mockPipeline.mockImplementation((inputs) => {
+      mockPipeline.mockImplementation(inputs => {
         if (Array.isArray(inputs) && inputs.length > 1) {
           // Batch call - return concatenated embeddings
           return Promise.resolve({
-            data: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]  // 2 embeddings x 3 dimensions
+            data: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6], // 2 embeddings x 3 dimensions
           });
         } else {
           // Single call
@@ -708,7 +730,9 @@ describe('TransformersEmbeddingProvider', () => {
       mockPipeline.mockResolvedValue({ data: [0.1, 0.2, 0.3] });
 
       // Request same text concurrently multiple times
-      const promises = Array(10).fill(null).map(() => provider.embed('same-text'));
+      const promises = Array(10)
+        .fill(null)
+        .map(() => provider.embed('same-text'));
 
       const results = await Promise.all(promises);
 
@@ -764,9 +788,11 @@ describe('TransformersEmbeddingProvider', () => {
       mockPipeline.mockResolvedValue({ data: [0.1, 0.2, 0.3] });
 
       // 50 concurrent requests
-      const promises = Array(50).fill(null).map((_, i) =>
-        provider.embed(`text-${i % 10}`) // 10 unique texts, repeated
-      );
+      const promises = Array(50)
+        .fill(null)
+        .map(
+          (_, i) => provider.embed(`text-${i % 10}`) // 10 unique texts, repeated
+        );
 
       const results = await Promise.all(promises);
 

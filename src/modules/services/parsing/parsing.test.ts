@@ -63,15 +63,20 @@ body:
 `;
 
       // Mock complete directory structure
-      vi.mocked(mockDependencies.fileSystem.readdirSync)
-        .mockReturnValueOnce(['foundation']) // First call: base directory
-        .mockReturnValueOnce(['test.module.yml']); // Second call: foundation directory
+      vi.mocked(mockDependencies.fileSystem.readdirSync).mockImplementation(dir => {
+        const dirStr = typeof dir === 'string' ? dir : dir.toString();
+        if (dirStr.endsWith('instructions-modules')) {
+          return ['foundation'];
+        }
+        if (dirStr.includes('foundation')) {
+          return ['harm.module.yml'];
+        }
+        return [];
+      });
 
       vi.mocked(mockDependencies.fileSystem.statSync).mockImplementation(path => {
-        if (
-          path.endsWith('foundation') ||
-          path.includes('instructions-modules/foundation')
-        ) {
+        const pathStr = typeof path === 'string' ? path : path.toString();
+        if (pathStr.endsWith('foundation') && !pathStr.endsWith('.yml')) {
           return { isDirectory: () => true, isFile: () => false } as any;
         }
         return { isDirectory: () => false, isFile: () => true } as any;
@@ -303,7 +308,8 @@ body:
 
       expect(modules).toHaveLength(0);
       expect(mockDependencies.logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to parse YAML module')
+        expect.stringContaining('Failed to parse YAML module'),
+        expect.any(Error)
       );
     });
   });

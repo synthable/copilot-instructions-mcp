@@ -210,31 +210,6 @@ describe('Container', () => {
       expect(OllamaEmbeddingProvider).toHaveBeenCalled();
     });
 
-    it('should throw error for unsupported provider type (openai)', () => {
-      const config: ServerConfig = {
-        embeddingProvider: {
-          type: 'openai',
-          model: 'text-embedding-3-small',
-          apiKey: 'test-key',
-          cacheEnabled: true,
-        },
-        vectorStore: {
-          type: 'file' as const,
-          enableIntegrityCheck: true,
-        },
-        searchProvider: {
-          name: 'default',
-        },
-        moduleDirectory: 'instructions-modules',
-      };
-
-      const container = new Container(mockDependencies, 'instructions-modules', config);
-
-      expect(() => container.getEmbeddingService()).toThrow(
-        'OpenAI provider not yet implemented'
-      );
-    });
-
     it('should throw error for unsupported provider type (cohere)', () => {
       const config: ServerConfig = {
         embeddingProvider: {
@@ -835,34 +810,6 @@ describe('Container', () => {
       );
       await expect(container.initialize()).rejects.toThrow(
         'Check your config.json for typos'
-      );
-    });
-
-    it('should throw error for unimplemented provider (openai)', async () => {
-      const config: ServerConfig = {
-        embeddingProvider: {
-          type: 'openai',
-          model: 'text-embedding-3-small',
-          apiKey: 'test-key',
-          cacheEnabled: true,
-        },
-        vectorStore: {
-          type: 'file' as const,
-          enableIntegrityCheck: true,
-        },
-        searchProvider: {
-          name: 'default',
-        },
-        moduleDirectory: 'instructions-modules',
-      };
-
-      const container = new Container(mockDependencies, 'test-modules', config);
-
-      await expect(container.initialize()).rejects.toThrow(
-        'Embedding provider "openai" is not yet implemented'
-      );
-      await expect(container.initialize()).rejects.toThrow(
-        'Available providers: transformers, ollama'
       );
     });
 

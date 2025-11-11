@@ -6,10 +6,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { Hash } from 'node:crypto';
 import type { VectorStoreConfig, VectorQuery } from './vectorStore.interface.js';
-import type { VectorIndex, ModuleVector } from '../../core/types.js';
+import type { VectorIndex } from '../../core/types.js';
 import type { ILogger } from '../../core/interfaces.js';
-import { VectorFixtures, FIXED_TEST_TIMESTAMP } from '../../../../test/fixtures/index.js';
+import { VectorFixtures } from '../../../../test/fixtures/index.js';
 
 // Mock node:fs (includes both promises and existsSync)
 vi.mock('node:fs', () => ({
@@ -43,7 +44,7 @@ const mockMsgpackDecode = vi.mocked(msgpack.decode);
 const mockCreateHash = vi.mocked(crypto.createHash);
 
 describe('FileVectorStore', () => {
-  let store: FileVectorStore;
+  let store: InstanceType<typeof FileVectorStore>;
   let mockLogger: ILogger;
 
   // Sample test data using fixtures for consistent, deterministic tests
@@ -102,7 +103,9 @@ describe('FileVectorStore', () => {
       await store.initialize(config);
       await store.initialize(config);
 
-      expect(mockLogger.debug).toHaveBeenCalledWith('FileVectorStore already initialized');
+      expect(mockLogger.debug).toHaveBeenCalledWith(
+        'FileVectorStore already initialized'
+      );
     });
 
     it('should throw error for invalid dimensions configuration', async () => {
@@ -178,8 +181,8 @@ describe('FileVectorStore', () => {
 
       await store.initialize(config);
 
-      mockExistsSync.mockImplementation((path: string) => {
-        return path.includes('vectors.msgpack');
+      mockExistsSync.mockImplementation((path: unknown) => {
+        return typeof path === 'string' && path.includes('vectors.msgpack');
       });
 
       expect(store.isAvailable()).toBe(true);
@@ -194,8 +197,8 @@ describe('FileVectorStore', () => {
 
       await store.initialize(config);
 
-      mockExistsSync.mockImplementation((path: string) => {
-        return path.includes('vectors.json');
+      mockExistsSync.mockImplementation((path: unknown) => {
+        return typeof path === 'string' && path.includes('vectors.json');
       });
 
       expect(store.isAvailable()).toBe(true);
@@ -252,8 +255,8 @@ describe('FileVectorStore', () => {
     });
 
     it('should fall back to JSON format if MessagePack fails', async () => {
-      mockExistsSync.mockImplementation((path: string) => {
-        return path.includes('vectors.json');
+      mockExistsSync.mockImplementation((path: unknown) => {
+        return typeof path === 'string' && path.includes('vectors.json');
       });
       mockReadFile.mockResolvedValue(JSON.stringify(sampleVectorIndex));
 
@@ -291,8 +294,8 @@ describe('FileVectorStore', () => {
     });
 
     it('should handle JSON parse errors', async () => {
-      mockExistsSync.mockImplementation((path: string) => {
-        return path.includes('vectors.json');
+      mockExistsSync.mockImplementation((path: unknown) => {
+        return typeof path === 'string' && path.includes('vectors.json');
       });
       mockReadFile.mockResolvedValue('invalid-json{');
 
@@ -303,8 +306,8 @@ describe('FileVectorStore', () => {
     });
 
     it('should validate vector index structure', async () => {
-      mockExistsSync.mockImplementation((path: string) => {
-        return path.includes('vectors.msgpack');
+      mockExistsSync.mockImplementation((path: unknown) => {
+        return typeof path === 'string' && path.includes('vectors.msgpack');
       });
       mockReadFile.mockResolvedValue(Buffer.from('msgpack-data'));
       mockMsgpackDecode.mockReturnValue({ invalid: 'structure' });
@@ -328,10 +331,9 @@ describe('FileVectorStore', () => {
 
     it('should handle permission denied errors (EACCES)', async () => {
       mockExistsSync.mockReturnValue(true);
-      const permissionError = Object.assign(
-        new Error('Permission denied'),
-        { code: 'EACCES' }
-      );
+      const permissionError = Object.assign(new Error('Permission denied'), {
+        code: 'EACCES',
+      });
       mockReadFile.mockRejectedValue(permissionError);
 
       const result = await store.loadVectors();
@@ -346,10 +348,9 @@ describe('FileVectorStore', () => {
 
     it('should handle disk full errors (ENOSPC)', async () => {
       mockExistsSync.mockReturnValue(true);
-      const diskFullError = Object.assign(
-        new Error('No space left on device'),
-        { code: 'ENOSPC' }
-      );
+      const diskFullError = Object.assign(new Error('No space left on device'), {
+        code: 'ENOSPC',
+      });
       mockReadFile.mockRejectedValue(diskFullError);
 
       const result = await store.loadVectors();
@@ -364,10 +365,9 @@ describe('FileVectorStore', () => {
 
     it('should handle file not found errors (ENOENT)', async () => {
       mockExistsSync.mockReturnValue(false);
-      const notFoundError = Object.assign(
-        new Error('File not found'),
-        { code: 'ENOENT' }
-      );
+      const notFoundError = Object.assign(new Error('File not found'), {
+        code: 'ENOENT',
+      });
       mockReadFile.mockRejectedValue(notFoundError);
 
       const result = await store.loadVectors();
@@ -377,10 +377,9 @@ describe('FileVectorStore', () => {
 
     it('should handle directory instead of file errors (EISDIR)', async () => {
       mockExistsSync.mockReturnValue(true);
-      const isDirError = Object.assign(
-        new Error('Illegal operation on a directory'),
-        { code: 'EISDIR' }
-      );
+      const isDirError = Object.assign(new Error('Illegal operation on a directory'), {
+        code: 'EISDIR',
+      });
       mockReadFile.mockRejectedValue(isDirError);
 
       const result = await store.loadVectors();
@@ -419,10 +418,9 @@ describe('FileVectorStore', () => {
 
     it('should handle file read timeout', async () => {
       mockExistsSync.mockReturnValue(true);
-      const timeoutError = Object.assign(
-        new Error('Operation timed out'),
-        { code: 'ETIMEDOUT' }
-      );
+      const timeoutError = Object.assign(new Error('Operation timed out'), {
+        code: 'ETIMEDOUT',
+      });
       mockReadFile.mockRejectedValue(timeoutError);
 
       const result = await store.loadVectors();
@@ -433,10 +431,9 @@ describe('FileVectorStore', () => {
 
     it('should handle concurrent access errors', async () => {
       mockExistsSync.mockReturnValue(true);
-      const lockError = Object.assign(
-        new Error('Resource temporarily unavailable'),
-        { code: 'EAGAIN' }
-      );
+      const lockError = Object.assign(new Error('Resource temporarily unavailable'), {
+        code: 'EAGAIN',
+      });
       mockReadFile.mockRejectedValue(lockError);
 
       const result = await store.loadVectors();
@@ -549,7 +546,9 @@ describe('FileVectorStore', () => {
       expect(results.length).toBe(2);
 
       // The malformed vector should NOT be in results
-      const malformedResult = results.find(r => r.vector.id === 'malformed');
+      const malformedResult = results.find(
+        (r: { vector: { id: string } }) => r.vector.id === 'malformed'
+      );
       expect(malformedResult).toBeUndefined();
 
       // Only valid vectors should be present (fixtures use 'valid1' and 'valid2')
@@ -674,11 +673,12 @@ describe('FileVectorStore', () => {
       await store.initialize(config);
 
       mockExistsSync.mockReturnValue(true);
-      mockReadFile.mockImplementation((path: string) => {
-        if (path.includes('metadata.json')) {
+      mockReadFile.mockImplementation((path: unknown) => {
+        const pathStr = String(path);
+        if (pathStr.includes('metadata.json')) {
           return Promise.resolve(JSON.stringify(sampleVectorIndex.metadata));
         }
-        if (path.includes('vectors.msgpack')) {
+        if (pathStr.includes('vectors.msgpack')) {
           return Promise.resolve(Buffer.from('msgpack-data'));
         }
         return Promise.reject(new Error('File not found'));
@@ -734,8 +734,9 @@ describe('FileVectorStore', () => {
       await store.initialize(config);
 
       mockExistsSync.mockReturnValue(true);
-      mockReadFile.mockImplementation((path: string) => {
-        if (path.includes('metadata.json')) {
+      mockReadFile.mockImplementation((path: unknown) => {
+        const pathStr = String(path);
+        if (pathStr.includes('metadata.json')) {
           return Promise.resolve(JSON.stringify(sampleVectorIndex.metadata));
         }
         return Promise.reject(new Error('File not found'));
@@ -780,20 +781,24 @@ describe('FileVectorStore', () => {
     });
 
     it('should validate integrity when checksums match', async () => {
-      mockExistsSync.mockImplementation((path: string) => {
+      mockExistsSync.mockImplementation((path: unknown) => {
+        const pathStr = String(path);
         // checksums.json exists, vectors.msgpack exists
-        return path.includes('checksums.json') || path.includes('vectors.msgpack');
+        return (
+          pathStr.includes('checksums.json') || pathStr.includes('vectors.msgpack')
+        );
       });
 
-      mockReadFile.mockImplementation((path: string) => {
-        if (path.includes('checksums.json')) {
+      mockReadFile.mockImplementation((path: unknown) => {
+        const pathStr = String(path);
+        if (pathStr.includes('checksums.json')) {
           return Promise.resolve(
             JSON.stringify({
               'vectors.msgpack': 'expected-hash',
             })
           );
         }
-        if (path.includes('vectors.msgpack')) {
+        if (pathStr.includes('vectors.msgpack')) {
           return Promise.resolve(Buffer.from('msgpack-data'));
         }
         return Promise.reject(new Error('File not found'));
@@ -804,7 +809,7 @@ describe('FileVectorStore', () => {
         update: vi.fn().mockReturnThis(),
         digest: vi.fn().mockReturnValue('expected-hash'),
       };
-      mockCreateHash.mockReturnValue(mockHash as any);
+      mockCreateHash.mockReturnValue(mockHash as unknown as Hash);
 
       const isValid = await store.validateIntegrity();
 
@@ -816,20 +821,24 @@ describe('FileVectorStore', () => {
     });
 
     it('should fail validation when checksums do not match', async () => {
-      mockExistsSync.mockImplementation((path: string) => {
+      mockExistsSync.mockImplementation((path: unknown) => {
+        const pathStr = String(path);
         // checksums.json exists, vectors.msgpack exists
-        return path.includes('checksums.json') || path.includes('vectors.msgpack');
+        return (
+          pathStr.includes('checksums.json') || pathStr.includes('vectors.msgpack')
+        );
       });
 
-      mockReadFile.mockImplementation((path: string) => {
-        if (path.includes('checksums.json')) {
+      mockReadFile.mockImplementation((path: unknown) => {
+        const pathStr = String(path);
+        if (pathStr.includes('checksums.json')) {
           return Promise.resolve(
             JSON.stringify({
               'vectors.msgpack': 'expected-hash',
             })
           );
         }
-        if (path.includes('vectors.msgpack')) {
+        if (pathStr.includes('vectors.msgpack')) {
           return Promise.resolve(Buffer.from('msgpack-data'));
         }
         return Promise.reject(new Error('File not found'));
@@ -840,7 +849,7 @@ describe('FileVectorStore', () => {
         update: vi.fn().mockReturnThis(),
         digest: vi.fn().mockReturnValue('different-hash'),
       };
-      mockCreateHash.mockReturnValue(mockHash as any);
+      mockCreateHash.mockReturnValue(mockHash as unknown as Hash);
 
       const isValid = await store.validateIntegrity();
 

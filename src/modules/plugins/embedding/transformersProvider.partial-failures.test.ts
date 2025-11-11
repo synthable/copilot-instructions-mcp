@@ -94,9 +94,7 @@ describe('TransformersEmbeddingProvider - Partial Failures', () => {
     const texts = ['text1', 'text2', 'text3'];
 
     // Execute & Verify: Should throw when all items fail
-    await expect(provider.embedBatch(texts)).rejects.toThrow(
-      EmbeddingGenerationError
-    );
+    await expect(provider.embedBatch(texts)).rejects.toThrow(EmbeddingGenerationError);
     await expect(provider.embedBatch(texts)).rejects.toThrow(
       /All 3 items in batch failed/
     );
