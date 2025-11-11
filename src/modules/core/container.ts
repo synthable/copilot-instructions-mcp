@@ -541,13 +541,12 @@ export class Container {
     // Wrap provider in LLMService
     this.llmService = new LLMService(provider, this.dependencies.logger);
 
-    // Initialize provider with config (async initialization handled by service consumers)
-    provider.initialize(providerConfig).catch((error: unknown) => {
-      this.dependencies.logger.error(
-        'Failed to initialize LLM provider',
-        error instanceof Error ? error : undefined
-      );
-    });
+    // Note: Provider initialization must be handled by consumers before use.
+    // Calling provider.initialize(providerConfig) here would be problematic because:
+    // 1. It's async but this method is synchronous
+    // 2. Fire-and-forget initialization creates race conditions
+    // 3. Silent initialization failures leave the service in a broken state
+    // The provider will throw a clear error if used before initialization.
 
     return this.llmService;
   }
