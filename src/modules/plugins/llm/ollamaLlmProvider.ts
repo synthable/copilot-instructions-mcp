@@ -267,11 +267,9 @@ export class OllamaLLMProvider
       const decoder = new TextDecoder();
       let buffer = '';
 
-      let done = false;
-      while (!done) {
+      while (true) {
         const result = await reader.read();
         if (result.done) {
-          done = true;
           break;
         }
 
@@ -295,7 +293,6 @@ export class OllamaLLMProvider
               yield streamChunk;
 
               if (chunk.done) {
-                done = true;
                 return;
               }
             } catch (parseError) {
@@ -445,6 +442,17 @@ export class OllamaLLMProvider
         return (await response.json()) as T;
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
+
+        // Don't retry on client errors (4xx except 429) - these are not transient
+        if (
+          lastError instanceof LLMProviderError &&
+          lastError.statusCode &&
+          lastError.statusCode >= 400 &&
+          lastError.statusCode < 500 &&
+          lastError.statusCode !== 429
+        ) {
+          throw lastError;
+        }
 
         // Don't retry on timeout or network errors on last attempt
         if (attempt === this.maxRetries - 1) {

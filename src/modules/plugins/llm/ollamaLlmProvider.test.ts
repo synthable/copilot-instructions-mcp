@@ -352,8 +352,8 @@ describe('OllamaLLMProvider', () => {
       expect(mockFetch).toHaveBeenCalledTimes(3);
     });
 
-    it('should retry on client errors due to catch block behavior', async () => {
-      // Note: Due to the catch block in fetchWithRetry, even 4xx errors get retried
+    it('should not retry on client errors (4xx except 429)', async () => {
+      // Client errors (4xx except 429) should not be retried
       mockFetch.mockResolvedValue({
         ok: false,
         status: 400,
@@ -368,8 +368,8 @@ describe('OllamaLLMProvider', () => {
         expect((error as Error).name).toBe('LLMProviderError');
       }
 
-      // Retries all 3 attempts because catch block catches the thrown error
-      expect(mockFetch).toHaveBeenCalledTimes(3);
+      // Should only be called once (no retries for 4xx errors)
+      expect(mockFetch).toHaveBeenCalledTimes(1);
     });
   });
 

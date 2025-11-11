@@ -63,24 +63,28 @@ body:
 `;
 
       // Mock complete directory structure
-      vi.mocked(mockDependencies.fileSystem.readdirSync).mockImplementation((dir: unknown) => {
-        const dirStr = typeof dir === 'string' ? dir : String(dir);
-        if (dirStr.endsWith('instructions-modules')) {
-          return ['foundation'];
+      vi.mocked(mockDependencies.fileSystem.readdirSync).mockImplementation(
+        (dir: unknown) => {
+          const dirStr = typeof dir === 'string' ? dir : String(dir);
+          if (dirStr.endsWith('instructions-modules')) {
+            return ['foundation'];
+          }
+          if (dirStr.includes('foundation')) {
+            return ['harm.module.yml'];
+          }
+          return [];
         }
-        if (dirStr.includes('foundation')) {
-          return ['harm.module.yml'];
-        }
-        return [];
-      });
+      );
 
-      vi.mocked(mockDependencies.fileSystem.statSync).mockImplementation((path: unknown) => {
-        const pathStr = typeof path === 'string' ? path : String(path);
-        if (pathStr.endsWith('foundation') && !pathStr.endsWith('.yml')) {
-          return { isDirectory: () => true, isFile: () => false } as any;
+      vi.mocked(mockDependencies.fileSystem.statSync).mockImplementation(
+        (path: unknown) => {
+          const pathStr = typeof path === 'string' ? path : String(path);
+          if (pathStr.endsWith('foundation') && !pathStr.endsWith('.yml')) {
+            return { isDirectory: () => true, isFile: () => false } as any;
+          }
+          return { isDirectory: () => false, isFile: () => true } as any;
         }
-        return { isDirectory: () => false, isFile: () => true } as any;
-      });
+      );
 
       vi.mocked(mockDependencies.fileSystem.readFileSync).mockReturnValue(
         v11FoundationYaml
