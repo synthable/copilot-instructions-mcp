@@ -114,7 +114,13 @@ class ProcessUtils implements IProcessUtils {
 
 /**
  * Converts ServerConfig.embeddingProvider to EmbeddingProviderConfig.
- * All properties from the config schema are passed through as-is.
+ *
+ * @remarks
+ * This is a safe type assertion because:
+ * 1. ServerConfig.embeddingProvider is validated by Zod schema at load time
+ * 2. Both types share the same property structure (type, model, baseUrl, apiKey, dimensions, etc.)
+ * 3. The config schema (config.schema.ts) is designed to match EmbeddingProviderConfig exactly
+ * 4. All properties are optional or have defaults, ensuring compatibility
  *
  * @param serverConfig - The server configuration object containing embedding provider config
  * @returns A properly typed EmbeddingProviderConfig matching the config schema
