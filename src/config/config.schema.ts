@@ -7,7 +7,6 @@ import { z } from 'zod';
 export const EMBEDDING_PROVIDER_TYPES = [
   'transformers',
   'ollama',
-  'openai',
   'cohere',
 ] as const;
 

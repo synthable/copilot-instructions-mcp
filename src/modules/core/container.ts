@@ -197,7 +197,7 @@ export class Container {
     const providerType = this.config.embeddingProvider.type;
 
     // Check if it's a known but unimplemented provider (do this first!)
-    if (providerType === 'openai' || providerType === 'cohere') {
+    if (providerType === 'cohere') {
       throw new Error(
         `Embedding provider "${providerType}" is not yet implemented. ` +
           `Please use "transformers" (local, offline) or "ollama" (requires Ollama server).`
@@ -352,8 +352,6 @@ export class Container {
         return new TransformersEmbeddingProvider();
       case 'ollama':
         return new OllamaEmbeddingProvider();
-      case 'openai':
-        throw new Error('OpenAI provider not yet implemented');
       case 'cohere':
         throw new Error('Cohere provider not yet implemented');
       default:

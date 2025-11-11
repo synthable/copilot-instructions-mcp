@@ -21,7 +21,7 @@ const logger = createLogger('config-migration');
 /**
  * Type alias for embedding provider types supported by the system.
  */
-type EmbeddingProviderType = 'transformers' | 'ollama' | 'openai' | 'cohere';
+type EmbeddingProviderType = 'transformers' | 'ollama' | 'cohere';
 
 /**
  * Structure of the embedding provider configuration.
@@ -71,12 +71,6 @@ const PROVIDER_DEFAULTS: Record<
     dimensions: 768,
     cacheEnabled: true,
   },
-  openai: {
-    type: 'openai',
-    model: 'text-embedding-3-small',
-    dimensions: 1536,
-    cacheEnabled: true,
-  },
   cohere: {
     type: 'cohere',
     model: 'embed-english-v3.0',
@@ -95,8 +89,6 @@ const LEGACY_NAME_MAPPING: Record<string, EmbeddingProviderType> = {
   'huggingface-transformers': 'transformers',
   huggingface: 'transformers',
   ollama: 'ollama',
-  openai: 'openai',
-  'openai-embeddings': 'openai',
   cohere: 'cohere',
   'cohere-embed': 'cohere',
 };
@@ -144,7 +136,7 @@ export function isLegacyConfig(config: unknown): boolean {
  *
  * These defaults are production-ready and work out-of-the-box for most use cases.
  *
- * @param type - Provider type (transformers, ollama, openai, cohere)
+ * @param type - Provider type (transformers, ollama, cohere)
  * @returns Partial configuration with defaults for the provider
  *
  * @example
@@ -336,7 +328,6 @@ export function migrateConfig(oldConfig: unknown): ServerConfig {
  * Each provider has different requirements:
  * - **transformers**: No external dependencies, works out-of-the-box
  * - **ollama**: Requires baseUrl to be set
- * - **openai**: Requires apiKey to be set
  * - **cohere**: Requires apiKey to be set
  *
  * This function performs non-fatal validation and returns warning messages.
@@ -381,19 +372,6 @@ export function validateProviderConfig(config: ServerConfig): string[] {
         });
       } else {
         logger.debug(`Using Ollama provider at ${provider.baseUrl}`);
-      }
-      break;
-
-    case 'openai':
-      if (!provider.apiKey) {
-        warnings.push(
-          'OpenAI provider requires apiKey to be set. Set OPENAI_API_KEY environment variable or include in config.'
-        );
-        logger.warn('OpenAI apiKey not configured', {
-          hint: 'Set OPENAI_API_KEY environment variable',
-        });
-      } else {
-        logger.debug('Using OpenAI provider with configured API key');
       }
       break;
 
