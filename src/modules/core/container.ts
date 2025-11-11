@@ -42,6 +42,10 @@ import type { IEmbeddingProvider } from '../plugins/embedding/embeddingProvider.
 import { TransformersEmbeddingProvider } from '../plugins/embedding/transformersProvider.js';
 import { OllamaEmbeddingProvider } from '../plugins/embedding/ollamaProvider.js';
 import type { ServerConfig } from '../../config/config.schema.js';
+import {
+  EMBEDDING_PROVIDER_TYPES,
+  VECTOR_STORE_TYPES,
+} from '../../config/config.schema.js';
 import type { EmbeddingProviderConfig } from '../plugins/embedding/embeddingProvider.interface.js';
 import type {
   IVectorStorePlugin,
@@ -110,24 +114,15 @@ class ProcessUtils implements IProcessUtils {
 
 /**
  * Converts ServerConfig.embeddingProvider to EmbeddingProviderConfig.
- * Extracts cacheEnabled and maxCacheSize into providerOptions so they are
- * available to embedding providers that support caching.
+ * All properties from the config schema are passed through as-is.
  *
  * @param serverConfig - The server configuration object containing embedding provider config
- * @returns A properly typed EmbeddingProviderConfig with cache settings in providerOptions
+ * @returns A properly typed EmbeddingProviderConfig matching the config schema
  */
 function extractEmbeddingProviderConfig(
   serverConfig: ServerConfig
 ): EmbeddingProviderConfig {
-  const { cacheEnabled, maxCacheSize, ...rest } = serverConfig.embeddingProvider;
-
-  return {
-    ...rest,
-    providerOptions: {
-      cacheEnabled,
-      maxCacheSize,
-    },
-  } as EmbeddingProviderConfig;
+  return serverConfig.embeddingProvider as EmbeddingProviderConfig;
 }
 
 /**
@@ -192,24 +187,23 @@ export class Container {
       return; // No config is valid - will use defaults
     }
 
-    // Validate embedding provider type
-    const validProviders: readonly string[] = ['transformers', 'ollama'];
+    // Validate embedding provider type against config schema
     const providerType = this.config.embeddingProvider.type;
 
-    if (!validProviders.includes(providerType)) {
-      // Check if it's a known but unimplemented provider
-      if (providerType === 'openai' || providerType === 'cohere') {
-        throw new Error(
-          `Embedding provider "${providerType}" is not yet implemented. ` +
-            `Available providers: ${validProviders.join(', ')}. ` +
-            `Please use "transformers" (local, offline) or "ollama" (requires Ollama server).`
-        );
-      }
+    // Check if it's a known but unimplemented provider (do this first!)
+    if (providerType === 'openai' || providerType === 'cohere') {
+      throw new Error(
+        `Embedding provider "${providerType}" is not yet implemented. ` +
+          `Please use "transformers" (local, offline) or "ollama" (requires Ollama server).`
+      );
+    }
 
-      // Unknown provider type
+    // Check if it's a valid provider type
+    if (!EMBEDDING_PROVIDER_TYPES.includes(providerType as never)) {
+      const validOptions = [...EMBEDDING_PROVIDER_TYPES].join(', ');
       throw new Error(
         `Invalid embedding provider type: "${providerType}". ` +
-          `Valid options: ${validProviders.join(', ')}. ` +
+          `Valid options: ${validOptions}. ` +
           `Check your config.json for typos.`
       );
     }
@@ -225,14 +219,14 @@ export class Container {
       }
     }
 
-    // Validate vector store type
-    const validStoreTypes: readonly string[] = ['file', 'sqlite'];
+    // Validate vector store type against config schema
     const storeType = this.config.vectorStore.type;
 
-    if (!validStoreTypes.includes(storeType)) {
+    if (!VECTOR_STORE_TYPES.includes(storeType as never)) {
+      const validOptions = [...VECTOR_STORE_TYPES].join(', ');
       throw new Error(
         `Invalid vector store type: "${storeType}". ` +
-          `Valid options: ${validStoreTypes.join(', ')}.`
+          `Valid options: ${validOptions}.`
       );
     }
 

@@ -1,11 +1,26 @@
 import { z } from 'zod';
 
+/**
+ * Valid embedding provider types.
+ * Shared constant to ensure consistency between schema and validation.
+ */
+export const EMBEDDING_PROVIDER_TYPES = [
+  'transformers',
+  'ollama',
+  'openai',
+  'cohere',
+] as const;
+
+/**
+ * Valid vector store types.
+ * Shared constant to ensure consistency between schema and validation.
+ */
+export const VECTOR_STORE_TYPES = ['file', 'sqlite'] as const;
+
 export const configSchema = z.object({
   embeddingProvider: z
     .object({
-      type: z
-        .enum(['transformers', 'ollama', 'openai', 'cohere'])
-        .default('transformers'),
+      type: z.enum(EMBEDDING_PROVIDER_TYPES).default('transformers'),
       model: z.string().min(1).default('all-mpnet-base-v2'),
       baseUrl: z
         .string()
@@ -20,7 +35,7 @@ export const configSchema = z.object({
     .default({}),
   vectorStore: z
     .object({
-      type: z.enum(['file', 'sqlite']).default('file'),
+      type: z.enum(VECTOR_STORE_TYPES).default('file'),
       path: z.string().optional(),
       dimensions: z.number().positive().optional(),
       enableIntegrityCheck: z.boolean().default(true),

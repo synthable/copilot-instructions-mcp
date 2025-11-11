@@ -31,22 +31,6 @@ This document tracks the implementation of advanced LLM-powered features for the
 - ✅ Automatic retry with exponential backoff
 - ✅ Error handling and normalization
 
-**OpenAIProvider** (`openaiProvider.ts`):
-- ✅ Official OpenAI SDK integration
-- ✅ GPT-4, GPT-3.5, GPT-4o support
-- ✅ Function calling / tool use
-- ✅ Streaming support
-- ✅ Context window detection (by model)
-- ✅ Rate limiting and error handling
-
-**AnthropicProvider** (`anthropicProvider.ts`):
-- ✅ Official Anthropic SDK integration
-- ✅ Claude 3 (Opus, Sonnet, Haiku) support
-- ✅ Tool use (Anthropic format)
-- ✅ Streaming support
-- ✅ 200K token context windows
-- ✅ System message separation
-
 #### 3. LLM Service Wrapper (`src/modules/services/llm/llmService.ts`)
 - ✅ Unified `ILLMService` interface
 - ✅ Logging for all operations
@@ -63,8 +47,8 @@ This document tracks the implementation of advanced LLM-powered features for the
 
 #### 5. Configuration Schema (`src/config/config.schema.ts`)
 - ✅ Added `llmProvider` section with Zod validation
-- ✅ Provider type: `ollama`, `openai`, `anthropic`
-- ✅ Model, baseUrl, apiKey, timeout, maxRetries
+- ✅ Provider type: `ollama` (only)
+- ✅ Model, baseUrl, timeout, maxRetries
 - ✅ Optional `defaultOptions` for temperature, maxTokens, etc.
 - ✅ Optional (LLM features can be disabled)
 
@@ -239,8 +223,6 @@ Better results!
 
 ### Manual QA Required
 - [ ] Test with Ollama (llama3.1, mistral, etc.)
-- [ ] Test with OpenAI (gpt-4, gpt-3.5-turbo)
-- [ ] Test with Anthropic (claude-3.5-sonnet, claude-3-opus)
 - [ ] Verify query enhancement quality
 - [ ] Test fallback behavior when LLM unavailable
 - [ ] Verify cache hit rate
@@ -301,7 +283,7 @@ Better results!
 
 ## 🎉 Key Achievements
 
-1. ✅ **Production-ready LLM integration** with 3 provider implementations
+1. ✅ **Production-ready LLM integration** with Ollama provider
 2. ✅ **Comprehensive error handling** (rate limits, auth, context length)
 3. ✅ **Streaming support** for real-time responses
 4. ✅ **Intelligent query enhancement** with intent classification
@@ -347,7 +329,7 @@ When implementing remaining phases:
 2. **Add comprehensive tests**: 75%+ coverage target
 3. **Document thoroughly**: System prompts, interfaces, usage examples
 4. **Update this document**: Track progress and design decisions
-5. **Test with multiple providers**: Ollama, OpenAI, Anthropic
+5. **Test with Ollama**: Validate provider implementation
 
 ---
 

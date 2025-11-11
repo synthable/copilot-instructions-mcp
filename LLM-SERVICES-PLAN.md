@@ -44,22 +44,6 @@ Add LLM inference capabilities to the existing embedding-only system.
   - Automatic retry with exponential backoff (max 3 retries)
   - Error handling and normalization
 
-- ✅ `src/modules/plugins/llm/openaiProvider.ts` - OpenAI API client
-  - Official OpenAI SDK integration
-  - GPT-4, GPT-3.5, GPT-4o support
-  - Function calling / tool use
-  - Streaming support with delta accumulation
-  - Context window detection by model
-  - Rate limiting and error handling
-
-- ✅ `src/modules/plugins/llm/anthropicProvider.ts` - Claude API client
-  - Official Anthropic SDK integration
-  - Claude 3 (Opus, Sonnet, Haiku) support
-  - Tool use (Anthropic format with `input_json_delta`)
-  - Streaming support
-  - System message separation
-  - 200K token context windows
-
 - ✅ `src/modules/services/llm/llmService.ts` - Service wrapper
   - Unified `ILLMService` interface
   - Logging for all operations (debug, info, error)
@@ -70,9 +54,9 @@ Add LLM inference capabilities to the existing embedding-only system.
 #### ✅ 1.2 Configuration & Integration
 - ✅ Update `src/config/config.schema.ts` with LLM provider section
   - Zod schema with validation
-  - Provider type: `ollama`, `openai`, `anthropic`
+  - Provider type: `ollama` (only)
   - Required: `type`, `model`
-  - Optional: `baseUrl`, `apiKey`, `timeout`, `maxRetries`, `defaultOptions`
+  - Optional: `baseUrl`, `timeout`, `maxRetries`, `defaultOptions`
   - Entire section is optional (backward compatible)
 
 - ✅ Register in DI Container (`src/modules/core/container.ts`)
@@ -582,10 +566,8 @@ When implementing remaining phases:
    - System prompts with examples
    - Update progress tracking documents
 
-4. **Test with multiple providers**
+4. **Test with Ollama provider**
    - Ollama (local, free)
-   - OpenAI (cloud, paid)
-   - Anthropic (cloud, paid)
 
 5. **Update this plan**
    - Mark tasks as complete (✅)
