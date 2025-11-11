@@ -36,6 +36,8 @@ describe('QueryEnhancer', () => {
 
     // Mock LLM service
     mockLLMService = {
+      initialize: vi.fn().mockResolvedValue(undefined),
+      isInitialized: vi.fn(() => true),
       chat: vi.fn(),
       streamChat: vi.fn(),
       complete: vi.fn(),

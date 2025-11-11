@@ -538,15 +538,14 @@ export class Container {
       }
     }
 
-    // Wrap provider in LLMService
-    this.llmService = new LLMService(provider, this.dependencies.logger);
-
-    // Note: Provider initialization must be handled by consumers before use.
-    // Calling provider.initialize(providerConfig) here would be problematic because:
-    // 1. It's async but this method is synchronous
-    // 2. Fire-and-forget initialization creates race conditions
-    // 3. Silent initialization failures leave the service in a broken state
-    // The provider will throw a clear error if used before initialization.
+    // Wrap provider in LLMService with config
+    // Config is stored but provider is not initialized yet
+    // Consumers must call llmService.initialize() before use
+    this.llmService = new LLMService(
+      provider,
+      this.dependencies.logger,
+      providerConfig
+    );
 
     return this.llmService;
   }

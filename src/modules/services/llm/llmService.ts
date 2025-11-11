@@ -13,6 +13,8 @@ import type {
   ChatResponse,
   ChatStreamChunk,
   LLMOptions,
+  LLMProviderConfig,
+  LLMInitializeCallback,
 } from '../../plugins/llm/llmProvider.interface.js';
 import { LLMProviderError } from '../../plugins/llm/llmProvider.interface.js';
 import type { ILogger } from '../../core/interfaces.js';
@@ -23,6 +25,19 @@ import type { ILogger } from '../../core/interfaces.js';
  * Provides high-level LLM operations with logging and error handling.
  */
 export interface ILLMService {
+  /**
+   * Initialize the LLM provider with configuration
+   */
+  initialize(
+    config?: LLMProviderConfig,
+    callback?: LLMInitializeCallback
+  ): Promise<void>;
+
+  /**
+   * Check if the LLM provider is initialized
+   */
+  isInitialized(): boolean;
+
   /**
    * Chat completion with message history
    */
@@ -68,10 +83,73 @@ export interface ILLMService {
  * Wraps an ILLMProvider with logging, metrics, and error handling.
  */
 export class LLMService implements ILLMService {
+  private config: LLMProviderConfig | null = null;
+
   constructor(
     private provider: ILLMProvider,
-    private logger: ILogger
-  ) {}
+    private logger: ILogger,
+    initialConfig?: LLMProviderConfig
+  ) {
+    if (initialConfig) {
+      this.config = initialConfig;
+    }
+  }
+
+  /**
+   * Initializes the LLM provider with the given configuration.
+   *
+   * @param config - Provider configuration (will be passed to the underlying provider)
+   * @param callback - Optional callback for initialization progress
+   *
+   * @throws {Error} If provider initialization fails
+   */
+  async initialize(
+    config?: LLMProviderConfig,
+    callback?: LLMInitializeCallback
+  ): Promise<void> {
+    try {
+      // If config provided, use it and store it
+      if (config) {
+        this.config = config;
+      }
+
+      // Use stored config if no config provided
+      if (!this.config) {
+        throw new Error(
+          'No configuration available. Call initialize with configuration first.'
+        );
+      }
+
+      this.logger.debug('Initializing LLM service', {
+        provider: this.provider.name,
+        model: this.config.model,
+      });
+
+      await this.provider.initialize(this.config, callback);
+
+      this.logger.info('LLM service initialized successfully', {
+        provider: this.provider.name,
+        model: this.provider.model,
+      });
+    } catch (error) {
+      this.logger.error(
+        'Failed to initialize LLM service',
+        error instanceof Error ? error : undefined,
+        {
+          provider: this.provider.name,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Check if the LLM provider is initialized
+   */
+  isInitialized(): boolean {
+    return this.provider.isInitialized();
+  }
 
   /**
    * Chat completion with message history

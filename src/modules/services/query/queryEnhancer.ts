@@ -92,6 +92,16 @@ export class QueryEnhancer implements IQueryEnhancer {
   }
 
   /**
+   * Ensure the LLM service is initialized before use
+   */
+  private async ensureLLM(): Promise<void> {
+    if (!this.llmService.isInitialized()) {
+      this.logger.debug('Initializing LLM service for query enhancement');
+      await this.llmService.initialize();
+    }
+  }
+
+  /**
    * Enhance a user query
    */
   async enhance(
@@ -99,6 +109,9 @@ export class QueryEnhancer implements IQueryEnhancer {
     options?: QueryEnhancementOptions
   ): Promise<QueryEnhancementResult> {
     const startTime = Date.now();
+
+    // Ensure LLM service is initialized
+    await this.ensureLLM();
 
     // Normalize options
     const opts: Required<QueryEnhancementOptions> = {
