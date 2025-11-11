@@ -168,3 +168,6 @@ instructions-modules/technology/testing/jest/mocking.module.yml
 
 # User-specific configuration
 config.json
+
+# Internal planning documents (not for version control)
+LLM-SERVICES-*.md
