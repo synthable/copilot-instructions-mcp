@@ -58,6 +58,11 @@ export interface IQueryEnhancer {
 
 /**
  * Query Enhancer Implementation
+ *
+ * Caching Strategy:
+ * - 15-minute TTL (Time To Live) per entry
+ * - FIFO (First-In, First-Out) eviction when cache exceeds 1000 entries
+ * - Cache key based on query + user context hash
  */
 export class QueryEnhancer implements IQueryEnhancer {
   private systemPrompt: string;
@@ -370,7 +375,9 @@ export class QueryEnhancer implements IQueryEnhancer {
 
     this.cache.set(key, entry);
 
-    // Simple cache size limit (1000 entries)
+    // FIFO cache eviction: limit to 1000 entries
+    // When limit exceeded, removes oldest entry (first insertion)
+    // Note: This is FIFO (First-In, First-Out), not LRU (Least Recently Used)
     if (this.cache.size > 1000) {
       const firstKey = this.cache.keys().next().value;
       if (firstKey) {
