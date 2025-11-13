@@ -7,6 +7,7 @@ import { z } from 'zod';
 export const EMBEDDING_PROVIDER_TYPES = [
   'transformers',
   'ollama',
+  'lmstudio',
   'cohere',
 ] as const;
 

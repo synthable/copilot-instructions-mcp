@@ -7,7 +7,10 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { OllamaEmbeddingProvider } from './ollamaProvider.js';
-import { type EmbeddingProviderConfig } from './embeddingProvider.interface.js';
+import {
+  type EmbeddingProviderConfig,
+  EmbeddingConfigError,
+} from './embeddingProvider.interface.js';
 
 // Mock the ollama module
 const mockList = vi.fn();
@@ -373,13 +376,10 @@ describe('OllamaEmbeddingProvider', () => {
         baseUrl: 'not-a-valid-url',
       };
 
-      try {
-        await provider.initialize(config);
-        expect.fail('Should have thrown EmbeddingConfigError');
-      } catch (error) {
-        expect((error as Error).name).toBe('EmbeddingConfigError');
-        expect((error as Error).message).toMatch(/Invalid baseUrl format/i);
-      }
+      await expect(provider.initialize(config)).rejects.toThrow(EmbeddingConfigError);
+      await expect(provider.initialize(config)).rejects.toThrow(
+        /Invalid baseUrl format/i
+      );
     });
 
     it('should throw error for invalid provider type', async () => {
@@ -515,12 +515,8 @@ describe('OllamaEmbeddingProvider', () => {
 
     it('should handle network timeout gracefully', async () => {
       // Mock embed to never resolve (simulates timeout/hang)
-      mockEmbed.mockImplementation(
-        () =>
-          new Promise(() => {
-            // Intentionally empty - simulates a timeout/hang scenario
-          })
-      );
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
+      mockEmbed.mockImplementation(() => new Promise(() => {}));
 
       // Note: This test verifies the timeout behavior exists
       // In a real implementation, there should be a timeout mechanism

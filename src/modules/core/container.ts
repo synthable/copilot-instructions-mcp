@@ -41,6 +41,7 @@ import { ToolHandlers } from '../server/toolHandlers.js';
 import type { IEmbeddingProvider } from '../plugins/embedding/embeddingProvider.interface.js';
 import { TransformersEmbeddingProvider } from '../plugins/embedding/transformersProvider.js';
 import { OllamaEmbeddingProvider } from '../plugins/embedding/ollamaProvider.js';
+import { LMStudioEmbeddingProvider } from '../plugins/embedding/lmstudioProvider.js';
 import type { ServerConfig } from '../../config/config.schema.js';
 import {
   EMBEDDING_PROVIDER_TYPES,
@@ -200,7 +201,8 @@ export class Container {
     if (providerType === 'cohere') {
       throw new Error(
         `Embedding provider "${providerType}" is not yet implemented. ` +
-          `Please use "transformers" (local, offline) or "ollama" (requires Ollama server).`
+          `Available providers: ${[...EMBEDDING_PROVIDER_TYPES].join(', ')}. ` +
+          `Please use "transformers" (local, offline), "ollama" (requires Ollama server), or "lmstudio" (requires LM Studio).`
       );
     }
 
@@ -352,6 +354,8 @@ export class Container {
         return new TransformersEmbeddingProvider();
       case 'ollama':
         return new OllamaEmbeddingProvider();
+      case 'lmstudio':
+        return new LMStudioEmbeddingProvider();
       case 'cohere':
         throw new Error('Cohere provider not yet implemented');
       default:

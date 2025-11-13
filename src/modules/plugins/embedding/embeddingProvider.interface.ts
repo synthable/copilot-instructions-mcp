@@ -26,6 +26,7 @@
 export type EmbeddingProviderType =
   | 'transformers' // Transformers.js (local, browser-compatible)
   | 'ollama' // Ollama (local, self-hosted)
+  | 'lmstudio' // LM Studio (local, OpenAI-compatible)
   | 'openai' // OpenAI API
   | 'cohere' // Cohere API
   | 'voyage' // Voyage AI API
