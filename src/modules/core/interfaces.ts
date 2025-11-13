@@ -17,10 +17,10 @@ import type {
   VectorIndex,
   ModuleVector,
   VectorIndexMetadata,
+  ResourceContent,
 } from './types.js';
 import type { SemanticSearchOptions } from '../services/embedding/semanticSearch.js';
 import type { RelevanceThresholds } from '../services/embedding/semanticConfig.js';
-import type { ResourceContent } from '../services/resources/resourceTypes.js';
 import type {
   EmbeddingProgressCallback as EmbeddingProgressCallbackPlugin,
   EmbeddingProviderConfig,
@@ -371,3 +371,15 @@ export interface IResourceService {
    */
   readResource(uri: string): Promise<ResourceContent>;
 }
+
+/**
+ * Re-export ILLMService from the llm service module.
+ * Enables dependency injection for LLM operations.
+ */
+export type { ILLMService } from '../services/llm/llmService.js';
+
+/**
+ * Re-export IQueryEnhancer from the query service module.
+ * Enables dependency injection for query enhancement operations.
+ */
+export type { IQueryEnhancer } from '../services/query/queryEnhancer.js';

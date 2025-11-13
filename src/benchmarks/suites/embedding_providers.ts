@@ -151,9 +151,7 @@ export class EmbeddingProviderBenchmark {
           const mem = memorySnapshotMB();
 
           // Dispose provider
-          if (provider.dispose) {
-            await provider.dispose();
-          }
+          await provider.dispose();
 
           providerResults.push({
             providerName,

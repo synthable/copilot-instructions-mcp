@@ -106,17 +106,6 @@ describe('config.migration', () => {
       });
     });
 
-    it('should return correct defaults for openai', () => {
-      const defaults = getProviderDefaults('openai');
-
-      expect(defaults).toEqual({
-        type: 'openai',
-        model: 'text-embedding-3-small',
-        dimensions: 1536,
-        cacheEnabled: true,
-      });
-    });
-
     it('should return correct defaults for cohere', () => {
       const defaults = getProviderDefaults('cohere');
 
@@ -184,7 +173,7 @@ describe('config.migration', () => {
     it('should preserve existing values during migration', () => {
       const oldConfig = {
         embeddingProvider: {
-          name: 'openai',
+          name: 'cohere',
           model: 'custom-model',
           apiKey: 'test-key',
           dimensions: 512,
@@ -198,7 +187,7 @@ describe('config.migration', () => {
 
       const migrated = migrateConfig(oldConfig);
 
-      expect(migrated.embeddingProvider.type).toBe('openai');
+      expect(migrated.embeddingProvider.type).toBe('cohere');
       expect(migrated.embeddingProvider.model).toBe('custom-model');
       expect(migrated.embeddingProvider.apiKey).toBe('test-key');
       expect(migrated.embeddingProvider.dimensions).toBe(512);
@@ -241,7 +230,6 @@ describe('config.migration', () => {
         { embeddingProvider: { name: 'transformer' } },
         { embeddingProvider: { name: 'huggingface-transformers' } },
         { embeddingProvider: { name: 'huggingface' } },
-        { embeddingProvider: { name: 'openai-embeddings' } },
         { embeddingProvider: { name: 'cohere-embed' } },
       ];
 
@@ -249,7 +237,6 @@ describe('config.migration', () => {
         'transformers',
         'transformers',
         'transformers',
-        'openai',
         'cohere',
       ];
 
@@ -333,42 +320,6 @@ describe('config.migration', () => {
           type: 'ollama',
           model: 'nomic-embed-text',
           baseUrl: 'http://localhost:11434',
-          cacheEnabled: true,
-        },
-        searchProvider: { name: 'fuzzy' },
-        vectorStore: { type: 'file' as const, enableIntegrityCheck: true },
-        moduleDirectory: 'instructions-modules',
-      };
-
-      const warnings = validateProviderConfig(config);
-
-      expect(warnings).toEqual([]);
-    });
-
-    it('should warn about missing openai apiKey', () => {
-      const config: ServerConfig = {
-        embeddingProvider: {
-          type: 'openai',
-          model: 'text-embedding-3-small',
-          cacheEnabled: true,
-        },
-        searchProvider: { name: 'fuzzy' },
-        vectorStore: { type: 'file' as const, enableIntegrityCheck: true },
-        moduleDirectory: 'instructions-modules',
-      };
-
-      const warnings = validateProviderConfig(config);
-
-      expect(warnings).toHaveLength(1);
-      expect(warnings[0]).toContain('OpenAI provider requires apiKey');
-    });
-
-    it('should return no warnings for openai with apiKey', () => {
-      const config: ServerConfig = {
-        embeddingProvider: {
-          type: 'openai',
-          model: 'text-embedding-3-small',
-          apiKey: 'test-key',
           cacheEnabled: true,
         },
         searchProvider: { name: 'fuzzy' },
@@ -476,7 +427,7 @@ describe('config.migration', () => {
     it('should collect multiple warnings', () => {
       const config: ServerConfig = {
         embeddingProvider: {
-          type: 'openai',
+          type: 'cohere',
           model: '',
           dimensions: 0,
           cacheEnabled: true,

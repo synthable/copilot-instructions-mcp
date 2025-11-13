@@ -8,7 +8,7 @@
  * @version 2.0.0
  */
 
-import type { ServerConfig } from '../../src/config/config.interface.js';
+import type { ServerConfig } from '../../src/config/config.schema.js';
 
 /**
  * Configuration fixture factory functions
@@ -46,6 +46,7 @@ export const ConfigFixtures = {
         model: 'nomic-embed-text',
         dimensions: 768,
         baseUrl: 'http://localhost:11434',
+        cacheEnabled: true,
       },
       ...overrides,
     });
@@ -72,13 +73,16 @@ export const ConfigFixtures = {
       embeddingProvider: {
         type: 'transformers',
         model: 'test-model',
+        cacheEnabled: true,
       },
       vectorStore: {
         type: 'file',
+        enableIntegrityCheck: true,
       },
       searchProvider: {
         name: 'default',
       },
+      moduleDirectory: 'instructions-modules',
     };
   },
 };

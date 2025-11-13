@@ -371,7 +371,12 @@ export class OllamaEmbeddingProvider implements IEmbeddingProvider {
 
     // Allow localhost explicitly (common for Ollama)
     // Note: URL parser keeps brackets for IPv6, so check both with and without
-    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]') {
+    if (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '::1' ||
+      hostname === '[::1]'
+    ) {
       return; // Localhost is safe
     }
 
@@ -405,10 +410,10 @@ export class OllamaEmbeddingProvider implements IEmbeddingProvider {
   private validateIPv4(hostname: string): void {
     // Block private IP ranges (RFC 1918)
     const privateIPPatterns = [
-      /^10\./,                          // 10.0.0.0/8
-      /^172\.(1[6-9]|2\d|3[01])\./,    // 172.16.0.0/12
-      /^192\.168\./,                    // 192.168.0.0/16
-      /^169\.254\./,                    // Link-local (AWS metadata)
+      /^10\./, // 10.0.0.0/8
+      /^172\.(1[6-9]|2\d|3[01])\./, // 172.16.0.0/12
+      /^192\.168\./, // 192.168.0.0/16
+      /^169\.254\./, // Link-local (AWS metadata)
     ];
 
     for (const pattern of privateIPPatterns) {
@@ -416,8 +421,8 @@ export class OllamaEmbeddingProvider implements IEmbeddingProvider {
         throw new EmbeddingConfigError(
           this.name,
           `Access to private IP ranges is not allowed for security reasons. ` +
-          `Hostname: ${hostname}. ` +
-          `For local Ollama, use "localhost" or "127.0.0.1" instead.`
+            `Hostname: ${hostname}. ` +
+            `For local Ollama, use "localhost" or "127.0.0.1" instead.`
         );
       }
     }
@@ -443,7 +448,7 @@ export class OllamaEmbeddingProvider implements IEmbeddingProvider {
 
     // If there are colons, it's likely IPv6 (URL parser extracts port separately)
     // Count colons - IPv6 addresses have multiple colons
-    const colonCount = (ipv6.match(/:/g) || []).length;
+    const colonCount = (ipv6.match(/:/g) ?? []).length;
 
     // Skip if it looks like IPv4 with port notation (only one colon before first dot)
     // This shouldn't happen as URL parser extracts port, but be defensive
@@ -462,7 +467,7 @@ export class OllamaEmbeddingProvider implements IEmbeddingProvider {
       throw new EmbeddingConfigError(
         this.name,
         `Cannot use link-local IPv6 addresses. Hostname: ${hostname}. ` +
-        `For local Ollama, use "localhost" instead.`
+          `For local Ollama, use "localhost" instead.`
       );
     }
 
@@ -471,7 +476,7 @@ export class OllamaEmbeddingProvider implements IEmbeddingProvider {
       throw new EmbeddingConfigError(
         this.name,
         `Cannot use private IPv6 addresses. Hostname: ${hostname}. ` +
-        `For local Ollama, use "localhost" instead.`
+          `For local Ollama, use "localhost" instead.`
       );
     }
 
@@ -513,7 +518,7 @@ export class OllamaEmbeddingProvider implements IEmbeddingProvider {
           throw new EmbeddingConfigError(
             this.name,
             `Cannot use IPv6-mapped private IPv4 addresses. Hostname: ${hostname}. ` +
-            `For local Ollama, use "localhost" instead.`
+              `For local Ollama, use "localhost" instead.`
           );
         }
       }

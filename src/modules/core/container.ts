@@ -33,6 +33,8 @@ import type {
   ISemanticConfig,
   IVectorStore,
   IResourceService,
+  ILLMService,
+  IQueryEnhancer,
 } from './interfaces.js';
 import { SemanticSearchService } from '../services/embedding/semanticSearch.js';
 import { ToolHandlers } from '../server/toolHandlers.js';
@@ -41,6 +43,10 @@ import { TransformersEmbeddingProvider } from '../plugins/embedding/transformers
 import { OllamaEmbeddingProvider } from '../plugins/embedding/ollamaProvider.js';
 import { LMStudioEmbeddingProvider } from '../plugins/embedding/lmstudioProvider.js';
 import type { ServerConfig } from '../../config/config.schema.js';
+import {
+  EMBEDDING_PROVIDER_TYPES,
+  VECTOR_STORE_TYPES,
+} from '../../config/config.schema.js';
 import type { EmbeddingProviderConfig } from '../plugins/embedding/embeddingProvider.interface.js';
 import type {
   IVectorStorePlugin,
@@ -48,6 +54,14 @@ import type {
 } from '../plugins/vectorStore/vectorStore.interface.js';
 import { FileVectorStore } from '../plugins/vectorStore/fileVectorStore.js';
 import { SqliteVectorStore } from '../plugins/vectorStore/sqliteVectorStore.js';
+import type {
+  ILLMProvider,
+  LLMProviderConfig,
+  LLMOptions,
+} from '../plugins/llm/llmProvider.interface.js';
+import { OllamaLLMProvider } from '../plugins/llm/ollamaLlmProvider.js';
+import { LLMService } from '../services/llm/llmService.js';
+import { QueryEnhancer } from '../services/query/queryEnhancer.js';
 
 /**
  * Production implementation of file system operations.
@@ -101,24 +115,21 @@ class ProcessUtils implements IProcessUtils {
 
 /**
  * Converts ServerConfig.embeddingProvider to EmbeddingProviderConfig.
- * Extracts cacheEnabled and maxCacheSize into providerOptions so they are
- * available to embedding providers that support caching.
+ *
+ * @remarks
+ * This is a safe type assertion because:
+ * 1. ServerConfig.embeddingProvider is validated by Zod schema at load time
+ * 2. Both types share the same property structure (type, model, baseUrl, apiKey, dimensions, etc.)
+ * 3. The config schema (config.schema.ts) is designed to match EmbeddingProviderConfig exactly
+ * 4. All properties are optional or have defaults, ensuring compatibility
  *
  * @param serverConfig - The server configuration object containing embedding provider config
- * @returns A properly typed EmbeddingProviderConfig with cache settings in providerOptions
+ * @returns A properly typed EmbeddingProviderConfig matching the config schema
  */
 function extractEmbeddingProviderConfig(
   serverConfig: ServerConfig
 ): EmbeddingProviderConfig {
-  const { cacheEnabled, maxCacheSize, ...rest } = serverConfig.embeddingProvider;
-
-  return {
-    ...rest,
-    providerOptions: {
-      cacheEnabled,
-      maxCacheSize,
-    },
-  } as EmbeddingProviderConfig;
+  return serverConfig.embeddingProvider as EmbeddingProviderConfig;
 }
 
 /**
@@ -133,6 +144,9 @@ export class Container {
   private semanticSearchService?: ISemanticSearchService;
   private embeddingService: IEmbeddingService | undefined;
   private embeddingProvider: IEmbeddingProvider | undefined;
+  private llmService: ILLMService | undefined;
+  private llmProvider: ILLMProvider | undefined;
+  private queryEnhancer: IQueryEnhancer | undefined;
   private semanticConfig?: ISemanticConfig;
   private vectorStore?: IVectorStore;
   private vectorStorePlugin: IVectorStorePlugin | undefined;
@@ -166,9 +180,7 @@ export class Container {
    * @throws Error if plugin initialization fails
    */
   async initialize(): Promise<void> {
-    if (!this.initPromise) {
-      this.initPromise = this.initializePluginsInternal();
-    }
+    this.initPromise ??= this.initializePluginsInternal();
     return this.initPromise;
   }
 
@@ -182,24 +194,24 @@ export class Container {
       return; // No config is valid - will use defaults
     }
 
-    // Validate embedding provider type
-    const validProviders: readonly string[] = ['transformers', 'ollama', 'lmstudio'];
+    // Validate embedding provider type against config schema
     const providerType = this.config.embeddingProvider.type;
 
-    if (!validProviders.includes(providerType)) {
-      // Check if it's a known but unimplemented provider
-      if (providerType === 'openai' || providerType === 'cohere') {
-        throw new Error(
-          `Embedding provider "${providerType}" is not yet implemented. ` +
-            `Available providers: ${validProviders.join(', ')}. ` +
-            `Please use "transformers" (local, offline), "ollama" (requires Ollama server), or "lmstudio" (requires LM Studio).`
-        );
-      }
+    // Check if it's a known but unimplemented provider (do this first!)
+    if (providerType === 'cohere') {
+      throw new Error(
+        `Embedding provider "${providerType}" is not yet implemented. ` +
+          `Available providers: ${[...EMBEDDING_PROVIDER_TYPES].join(', ')}. ` +
+          `Please use "transformers" (local, offline), "ollama" (requires Ollama server), or "lmstudio" (requires LM Studio).`
+      );
+    }
 
-      // Unknown provider type
+    // Check if it's a valid provider type
+    if (!EMBEDDING_PROVIDER_TYPES.includes(providerType as never)) {
+      const validOptions = [...EMBEDDING_PROVIDER_TYPES].join(', ');
       throw new Error(
         `Invalid embedding provider type: "${providerType}". ` +
-          `Valid options: ${validProviders.join(', ')}. ` +
+          `Valid options: ${validOptions}. ` +
           `Check your config.json for typos.`
       );
     }
@@ -215,14 +227,14 @@ export class Container {
       }
     }
 
-    // Validate vector store type
-    const validStoreTypes: readonly string[] = ['file', 'sqlite'];
-    const storeType = this.config.vectorStore?.type;
+    // Validate vector store type against config schema
+    const storeType = this.config.vectorStore.type;
 
-    if (storeType && !validStoreTypes.includes(storeType)) {
+    if (!VECTOR_STORE_TYPES.includes(storeType as never)) {
+      const validOptions = [...VECTOR_STORE_TYPES].join(', ');
       throw new Error(
         `Invalid vector store type: "${storeType}". ` +
-          `Valid options: ${validStoreTypes.join(', ')}.`
+          `Valid options: ${validOptions}.`
       );
     }
 
@@ -235,7 +247,7 @@ export class Container {
 
     this.dependencies.logger.debug('Configuration validated successfully', {
       provider: providerType,
-      vectorStore: storeType || 'file',
+      vectorStore: storeType,
     });
   }
 
@@ -344,8 +356,6 @@ export class Container {
         return new OllamaEmbeddingProvider();
       case 'lmstudio':
         return new LMStudioEmbeddingProvider();
-      case 'openai':
-        throw new Error('OpenAI provider not yet implemented');
       case 'cohere':
         throw new Error('Cohere provider not yet implemented');
       default:
@@ -366,6 +376,26 @@ export class Container {
         return new SqliteVectorStore(this.dependencies.logger);
       default:
         throw new Error(`Unknown vector store type: ${storeConfig.type as string}`);
+    }
+  }
+
+  /**
+   * Creates an LLM provider based on configuration.
+   */
+  private createLLMProvider(config: ServerConfig): ILLMProvider {
+    const providerConfig = config.llmProvider;
+
+    if (!providerConfig) {
+      throw new Error('LLM provider configuration is required');
+    }
+
+    switch (providerConfig.type) {
+      case 'ollama':
+        return new OllamaLLMProvider();
+      default:
+        throw new Error(
+          `Unknown LLM provider: ${providerConfig.type as string}. Only 'ollama' is supported.`
+        );
     }
   }
 
@@ -393,6 +423,19 @@ export class Container {
     this.embeddingProvider ??= this.createEmbeddingProvider(this.config);
 
     return this.embeddingProvider;
+  }
+
+  /**
+   * Gets or creates the LLM provider (if config is available).
+   */
+  private getLLMProvider(): ILLMProvider | null {
+    if (!this.config?.llmProvider) {
+      return null;
+    }
+
+    this.llmProvider ??= this.createLLMProvider(this.config);
+
+    return this.llmProvider;
   }
 
   /**
@@ -436,6 +479,112 @@ export class Container {
   }
 
   /**
+   * Gets or creates the LLM service.
+   * If a config is provided with llmProvider configuration, uses the configured provider.
+   * Otherwise, returns null (LLM features are optional).
+   *
+   * @returns The LLM service instance or null if not configured
+   */
+  getLLMService(): ILLMService | null {
+    // If already created, return it
+    if (this.llmService) {
+      return this.llmService;
+    }
+
+    // Get provider from config
+    const provider = this.getLLMProvider();
+
+    // If no provider, LLM features are not configured
+    if (!provider || !this.config?.llmProvider) {
+      this.dependencies.logger.debug(
+        'No LLM provider configured, LLM features unavailable'
+      );
+      return null;
+    }
+
+    // Extract provider config with proper handling of optional properties
+    const providerConfig: LLMProviderConfig = {
+      type: this.config.llmProvider.type,
+      model: this.config.llmProvider.model,
+    };
+
+    // Only add optional properties if they are defined (not undefined)
+    if (this.config.llmProvider.baseUrl !== undefined) {
+      providerConfig.baseUrl = this.config.llmProvider.baseUrl;
+    }
+    if (this.config.llmProvider.apiKey !== undefined) {
+      providerConfig.apiKey = this.config.llmProvider.apiKey;
+    }
+    if (this.config.llmProvider.timeout !== undefined) {
+      providerConfig.timeout = this.config.llmProvider.timeout;
+    }
+    if (this.config.llmProvider.maxRetries !== undefined) {
+      providerConfig.maxRetries = this.config.llmProvider.maxRetries;
+    }
+    if (this.config.llmProvider.defaultOptions !== undefined) {
+      // Filter out undefined values to satisfy exactOptionalPropertyTypes
+      const defaultOptions: Partial<LLMOptions> = {};
+      const configOptions = this.config.llmProvider.defaultOptions;
+
+      if (configOptions.temperature !== undefined)
+        defaultOptions.temperature = configOptions.temperature;
+      if (configOptions.maxTokens !== undefined)
+        defaultOptions.maxTokens = configOptions.maxTokens;
+      if (configOptions.topP !== undefined) defaultOptions.topP = configOptions.topP;
+      if (configOptions.frequencyPenalty !== undefined)
+        defaultOptions.frequencyPenalty = configOptions.frequencyPenalty;
+      if (configOptions.presencePenalty !== undefined)
+        defaultOptions.presencePenalty = configOptions.presencePenalty;
+      if (configOptions.stop !== undefined) defaultOptions.stop = configOptions.stop;
+
+      if (Object.keys(defaultOptions).length > 0) {
+        providerConfig.defaultOptions = defaultOptions;
+      }
+    }
+
+    // Wrap provider in LLMService with config
+    // Config is stored but provider is not initialized yet
+    // Consumers must call llmService.initialize() before use
+    this.llmService = new LLMService(
+      provider,
+      this.dependencies.logger,
+      providerConfig
+    );
+
+    return this.llmService;
+  }
+
+  /**
+   * Gets or creates the query enhancer service.
+   * Requires LLM service to be configured.
+   *
+   * @returns The query enhancer instance or null if LLM service unavailable
+   */
+  getQueryEnhancer(): IQueryEnhancer | null {
+    // If already created, return it
+    if (this.queryEnhancer) {
+      return this.queryEnhancer;
+    }
+
+    // Query enhancer requires LLM service
+    const llmService = this.getLLMService();
+
+    if (!llmService) {
+      this.dependencies.logger.debug(
+        'Query enhancer unavailable: LLM service not configured'
+      );
+      return null;
+    }
+
+    // Create query enhancer with LLM service
+    this.queryEnhancer = new QueryEnhancer(llmService, this.dependencies.logger);
+
+    this.dependencies.logger.debug('Query enhancer service created');
+
+    return this.queryEnhancer;
+  }
+
+  /**
    * Gets or creates the semantic configuration.
    */
   getSemanticConfig(): ISemanticConfig {
@@ -452,11 +601,9 @@ export class Container {
    * @returns The vector store instance
    */
   getVectorStore(): IVectorStore {
-    if (!this.vectorStore) {
-      // Plugin initialization is handled by container.initialize()
-      // Here we just create the vector store instance
-      this.vectorStore = new VectorStore(this.dependencies, this.dependencies.logger);
-    }
+    // Plugin initialization is handled by container.initialize()
+    // Here we just create the vector store instance
+    this.vectorStore ??= new VectorStore(this.dependencies, this.dependencies.logger);
 
     return this.vectorStore;
   }
@@ -482,7 +629,8 @@ export class Container {
       this.getSearchService(),
       this.getContentService(),
       this.getSemanticSearchService(),
-      this.dependencies.logger
+      this.dependencies.logger,
+      this.getQueryEnhancer()
     );
   }
 
@@ -539,6 +687,21 @@ export class Container {
     this.embeddingProvider = provider;
   }
 
+  /** Set a custom LLM service (testing). */
+  setLLMService(service: ILLMService): void {
+    this.llmService = service;
+  }
+
+  /** Set a custom LLM provider (testing). */
+  setLLMProvider(provider: ILLMProvider): void {
+    this.llmProvider = provider;
+  }
+
+  /** Set a custom query enhancer (testing). */
+  setQueryEnhancer(enhancer: IQueryEnhancer): void {
+    this.queryEnhancer = enhancer;
+  }
+
   /**
    * Disposes all services and releases resources.
    * Call this when shutting down the container.
@@ -547,6 +710,18 @@ export class Container {
     // Dispose embedding service if it exists (which will dispose the provider internally)
     if (this.embeddingService) {
       await this.embeddingService.dispose();
+    }
+
+    // Dispose LLM provider if it exists
+    if (this.llmProvider) {
+      try {
+        await this.llmProvider.dispose();
+      } catch (error) {
+        this.dependencies.logger.error(
+          'Error disposing LLM provider during disposal',
+          error instanceof Error ? error : undefined
+        );
+      }
     }
 
     // Dispose vector store plugin if it exists
@@ -564,6 +739,9 @@ export class Container {
     // Reset services to undefined to allow re-initialization
     this.embeddingService = undefined;
     this.embeddingProvider = undefined;
+    this.llmService = undefined;
+    this.llmProvider = undefined;
+    this.queryEnhancer = undefined;
     this.vectorStorePlugin = undefined;
 
     this.dependencies.logger.info('Container disposed');

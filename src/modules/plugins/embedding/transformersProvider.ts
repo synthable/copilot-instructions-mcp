@@ -587,7 +587,6 @@ export class TransformersEmbeddingProvider
     return text;
   }
 
-
   /**
    * Validates and extracts embeddings from transformer output.
    */

@@ -13,12 +13,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ResourceService } from './resourceService.js';
 import type { IDependencies, IInstructionModuleParser } from '../../core/interfaces.js';
 import type { InstructionModule } from '../../core/types.js';
-import {
-  ModuleNotFoundError,
-  ModuleFileNotFoundError,
-  ModuleReadError,
-  InvalidUriError,
-} from './resourceErrors.js';
 
 describe('ResourceService', () => {
   let resourceService: ResourceService;
@@ -136,21 +130,30 @@ describe('ResourceService', () => {
     });
 
     it('should throw error for invalid URI scheme', async () => {
-      await expect(
-        resourceService.readResource('file://foundation/reasoning/systems-thinking')
-      ).rejects.toThrow(InvalidUriError);
+      const error = await resourceService
+        .readResource('file://foundation/reasoning/systems-thinking')
+        .catch((err: unknown) => err);
+
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).name).toBe('InvalidUriError');
     });
 
     it('should throw error for empty path', async () => {
-      await expect(resourceService.readResource('module://')).rejects.toThrow(
-        InvalidUriError
-      );
+      const error = await resourceService
+        .readResource('module://')
+        .catch((err: unknown) => err);
+
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).name).toBe('InvalidUriError');
     });
 
     it('should throw error for format-only URI', async () => {
-      await expect(resourceService.readResource('module://yaml')).rejects.toThrow(
-        InvalidUriError
-      );
+      const error = await resourceService
+        .readResource('module://yaml')
+        .catch((err: unknown) => err);
+
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).name).toBe('InvalidUriError');
     });
   });
 
@@ -166,17 +169,23 @@ describe('ResourceService', () => {
     });
 
     it('should throw error for non-existent module', async () => {
-      await expect(
-        resourceService.readResource('module://nonexistent/module/path')
-      ).rejects.toThrow(ModuleNotFoundError);
+      const error = await resourceService
+        .readResource('module://nonexistent/module/path')
+        .catch((err: unknown) => err);
+
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).name).toBe('ModuleNotFoundError');
     });
 
     it('should throw error if file does not exist', async () => {
       mockDependencies.fileSystem.existsSync = vi.fn().mockReturnValue(false);
 
-      await expect(
-        resourceService.readResource('module://foundation/reasoning/systems-thinking')
-      ).rejects.toThrow(ModuleFileNotFoundError);
+      const error = await resourceService
+        .readResource('module://foundation/reasoning/systems-thinking')
+        .catch((err: unknown) => err);
+
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).name).toBe('ModuleFileNotFoundError');
     });
   });
 
@@ -336,9 +345,12 @@ describe('ResourceService', () => {
         throw new Error('Permission denied');
       });
 
-      await expect(
-        resourceService.readResource('module://foundation/reasoning/systems-thinking')
-      ).rejects.toThrow(ModuleReadError);
+      const error = await resourceService
+        .readResource('module://foundation/reasoning/systems-thinking')
+        .catch((err: unknown) => err);
+
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).name).toBe('ModuleReadError');
     });
 
     it('should provide helpful error for non-existent modules', async () => {
@@ -346,7 +358,8 @@ describe('ResourceService', () => {
         .readResource('module://invalid/module/path')
         .catch((err: unknown) => err);
 
-      expect(error).toBeInstanceOf(ModuleNotFoundError);
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).name).toBe('ModuleNotFoundError');
       expect(error).toHaveProperty('message');
       expect((error as Error).message).toContain(
         'Available modules can be discovered using'

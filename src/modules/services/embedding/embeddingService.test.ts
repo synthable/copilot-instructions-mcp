@@ -7,10 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EmbeddingService } from './embeddingService.js';
-import type {
-  ILogger,
-  EmbeddingProgressCallback,
-} from '../../core/interfaces.js';
+import type { ILogger, EmbeddingProgressCallback } from '../../core/interfaces.js';
 import type {
   IEmbeddingProvider,
   IEmbeddingProviderCache,
@@ -76,8 +73,17 @@ describe('EmbeddingService', () => {
   describe('Initialization', () => {
     it('should initialize with config successfully', async () => {
       vi.mocked(mockProvider.initialize).mockResolvedValue();
-      mockProvider.model = 'test-model';
-      mockProvider.dimensions = 384;
+      // Use Object.defineProperty to modify readonly properties
+      Object.defineProperty(mockProvider, 'model', {
+        value: 'test-model',
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(mockProvider, 'dimensions', {
+        value: 384,
+        writable: true,
+        configurable: true,
+      });
 
       await service.initialize(sampleConfig);
 
@@ -129,9 +135,7 @@ describe('EmbeddingService', () => {
     });
 
     it('should throw error when initializing without config', async () => {
-      await expect(service.initialize()).rejects.toThrow(
-        'No configuration available'
-      );
+      await expect(service.initialize()).rejects.toThrow('No configuration available');
     });
 
     it('should throw error when using legacy signature without config', async () => {
@@ -171,8 +175,17 @@ describe('EmbeddingService', () => {
   describe('Single Embedding', () => {
     beforeEach(async () => {
       vi.mocked(mockProvider.initialize).mockResolvedValue();
-      mockProvider.model = 'test-model';
-      mockProvider.dimensions = 384;
+      // Use Object.defineProperty to modify readonly properties
+      Object.defineProperty(mockProvider, 'model', {
+        value: 'test-model',
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(mockProvider, 'dimensions', {
+        value: 384,
+        writable: true,
+        configurable: true,
+      });
       await service.initialize(sampleConfig);
       vi.clearAllMocks();
     });
@@ -220,8 +233,17 @@ describe('EmbeddingService', () => {
   describe('Batch Embedding', () => {
     beforeEach(async () => {
       vi.mocked(mockProvider.initialize).mockResolvedValue();
-      mockProvider.model = 'test-model';
-      mockProvider.dimensions = 384;
+      // Use Object.defineProperty to modify readonly properties
+      Object.defineProperty(mockProvider, 'model', {
+        value: 'test-model',
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(mockProvider, 'dimensions', {
+        value: 384,
+        writable: true,
+        configurable: true,
+      });
       await service.initialize(sampleConfig);
       vi.clearAllMocks();
     });
@@ -394,8 +416,17 @@ describe('EmbeddingService', () => {
   describe('Provider Delegation', () => {
     beforeEach(async () => {
       vi.mocked(mockProvider.initialize).mockResolvedValue();
-      mockProvider.model = 'test-model';
-      mockProvider.dimensions = 384;
+      // Use Object.defineProperty to modify readonly properties
+      Object.defineProperty(mockProvider, 'model', {
+        value: 'test-model',
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(mockProvider, 'dimensions', {
+        value: 384,
+        writable: true,
+        configurable: true,
+      });
       await service.initialize(sampleConfig);
       vi.clearAllMocks();
     });

@@ -22,7 +22,6 @@ export const EmbeddingFixtures = {
       type: 'transformers',
       model: 'Xenova/all-MiniLM-L6-v2',
       dimensions: 384,
-      cacheEnabled: true,
       ...overrides,
     };
   },
@@ -35,7 +34,6 @@ export const EmbeddingFixtures = {
       type: 'transformers',
       model: 'Xenova/all-MiniLM-L6-v2',
       dimensions: 3,
-      cacheEnabled: true,
       ...overrides,
     };
   },
